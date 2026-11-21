@@ -302,14 +302,6 @@
       "css": ".ds-ib { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 0; background: transparent; color: var(--foreground, oklch(0.145 0 0)); cursor: pointer; transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-ib:active { transform: translateY(1px); } .ds-ib:focus-visible { outline: none; border-color: var(--ring, oklch(0.708 0 0)); box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring, oklch(0.708 0 0)) 30%, transparent); } .ds-ib-primary { background: var(--primary, oklch(0.205 0 0)); color: var(--primary-foreground, oklch(0.985 0 0)); } .ds-ib-primary:hover { background: color-mix(in oklch, var(--primary, oklch(0.205 0 0)) 80%, transparent); }"
     },
     {
-      "name": "Outline Icon Button",
-      "kind": "button",
-      "refersTo": "icon-button-outline",
-      "description": "처리 필요 행의 펼침 버튼. 펼쳐진 동안 muted 채움, chevron 180도 회전.",
-      "html": "<button type=\"button\" class=\"ds-ib ds-ib-outline\" aria-label=\"기록 펼치기\" aria-expanded=\"false\" title=\"기록 펼치기\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg></button>",
-      "css": ".ds-ib { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 0; background: transparent; color: var(--foreground, oklch(0.145 0 0)); cursor: pointer; transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-ib:active { transform: translateY(1px); } .ds-ib:focus-visible { outline: none; border-color: var(--ring, oklch(0.708 0 0)); box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring, oklch(0.708 0 0)) 30%, transparent); } .ds-ib-outline { border-color: var(--border, oklch(0.922 0 0)); } .ds-ib-outline:hover, .ds-ib-outline[aria-expanded=\"true\"] { background: var(--muted, oklch(0.97 0 0)); } .ds-ib-outline svg { transition: transform 200ms ease-out; } .ds-ib-outline[aria-expanded=\"true\"] svg { transform: rotate(180deg); }"
-    },
-    {
       "name": "Ghost Icon Button",
       "kind": "button",
       "refersTo": "icon-button-ghost",
