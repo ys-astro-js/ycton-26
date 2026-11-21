@@ -163,6 +163,37 @@ async def fast_forward(repo: Path, branch: str, commit: str) -> bool:
     return True
 
 
+@dataclass(frozen=True, slots=True)
+class RebaseResult:
+    commit: str | None
+    conflicts: tuple[str, ...] = ()
+    error: str = ""
+
+
+async def rebase_onto(worktree: Path, upstream: str) -> RebaseResult:
+    """Replay the worktree branch's own commits onto ``upstream``. Only the worktree's branch moves.
+
+    On a conflict the rebase is aborted, so the worktree is never left mid-rebase, and the conflicting
+    paths are returned. The server is the committer of the replayed commits; authors stay as they were.
+    """
+    try:
+        await _git(worktree, "-c", "user.name=ycton", "-c", "user.email=server@ycton.local",
+                   "rebase", "--no-autostash", upstream)
+    except RuntimeError as exc:
+        in_progress = False
+        for state in ("rebase-merge", "rebase-apply"):
+            with suppress(RuntimeError):
+                in_progress |= (worktree / await _git(worktree, "rev-parse", "--git-path", state)).exists()
+        if not in_progress:
+            return RebaseResult(None, error=str(exc))
+        conflicts = ()
+        with suppress(RuntimeError):
+            conflicts = tuple((await _git(worktree, "diff", "--name-only", "--diff-filter=U")).splitlines())
+        await _git(worktree, "rebase", "--abort")
+        return RebaseResult(None, conflicts=conflicts, error=str(exc))
+    return RebaseResult(await _git(worktree, "rev-parse", "HEAD"))
+
+
 async def run_work_session(
     executable: str,
     *args: str,

@@ -634,23 +634,68 @@ def test_next_task_starts_from_room_branch_with_earlier_results(bridge, monkeypa
     assert not (Path(checkout) / 'README.md').exists()
 
 
-def test_room_branch_that_moved_meanwhile_fails_attempt_without_merge(bridge, monkeypatch):
+def land_concurrently(checkout, room_branch, worktree, name, content):
+    """다른 할 일이 이 시도보다 먼저 방 브랜치에 커밋을 반영한 상황을 만든다."""
+    side = Path(worktree).parent / 'other'
+    git_out(checkout, 'worktree', 'add', '-q', '--detach', str(side), room_branch)
+    (side / name).write_text(content)
+    git_out(side, 'add', name)
+    git_out(side, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', name)
+    commit = git_out(side, 'rev-parse', 'HEAD').strip()
+    git_out(checkout, 'update-ref', f'refs/heads/{room_branch}', commit)
+    return commit
+
+
+def test_room_branch_that_moved_meanwhile_rebases_attempt_onto_new_tip(bridge, monkeypatch):
+    svc, config, request = setup_work(bridge)
+    checkout = config.repositories['default'].path
+    user_head = git_out(checkout, 'rev-parse', 'HEAD').strip()
+    room_branch = f'ycton/room-{request.room_id}'
+    seen = {}
+
+    def concurrent(worktree, prompt):
+        seen['other'] = land_concurrently(checkout, room_branch, worktree, 'other.txt', 'other\n')
+        seen['mine'] = record_commit(svc, request.session_id, worktree, 'mine.txt')
+    result = run_real_work(svc, config, request, monkeypatch, concurrent)
+
+    assert result.succeeded and result.verification == 'passed'
+    tip = git_out(checkout, 'rev-parse', room_branch).strip()
+    assert tip not in (seen['mine'], seen['other']) and result.commit_hash == tip
+    # 방 브랜치는 병합 커밋 없이 앞선 결과 위에 이 시도의 커밋이 쌓인 모습이다.
+    assert git_out(checkout, 'rev-parse', f'{tip}^').strip() == seen['other']
+    assert set(git_out(checkout, 'ls-tree', '--name-only', tip).split()) >= {'other.txt', 'mine.txt', 'app.txt'}
+    with svc.db.connect() as c:
+        assert c.execute("SELECT commit_hash FROM sessions WHERE id=?", (request.session_id,)).fetchone()[0] == tip
+    task = svc.snapshot(request.room_id)['tasks'][0]
+    assert task['status'] == 'done' and task['commit_hash'] == tip
+    assert git_out(checkout, 'rev-parse', 'HEAD').strip() == user_head
+
+
+def test_conflicting_attempt_fails_without_touching_room_branch(bridge, monkeypatch):
     svc, config, request = setup_work(bridge)
     checkout = config.repositories['default'].path
     room_branch = f'ycton/room-{request.room_id}'
-    other = {}
+    seen = {}
 
     def concurrent(worktree, prompt):
-        # 다른 할 일이 먼저 방 브랜치에 반영된 상황을 만든다.
-        side = Path(worktree).parent / 'other'
-        git_out(checkout, 'worktree', 'add', '-q', str(side), room_branch)
-        other['commit'] = record_commit(svc, 'unused', side, 'other.txt')
-        record_commit(svc, request.session_id, worktree, 'mine.txt')
+        seen['other'] = land_concurrently(checkout, room_branch, worktree, 'app.txt', 'theirs\n')
+        seen['worktree'] = Path(worktree)
+        (Path(worktree) / 'app.txt').write_text('mine\n')
+        git_out(worktree, 'add', 'app.txt')
+        git_out(worktree, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'mine')
+        seen['mine'] = git_out(worktree, 'rev-parse', 'HEAD').strip()
+        with svc.db.connect(write=True) as c:
+            c.execute("UPDATE sessions SET commit_hash=? WHERE id=?", (seen['mine'], request.session_id))
     result = run_real_work(svc, config, request, monkeypatch, concurrent)
 
     assert not result.succeeded and result.verification == 'passed'
-    assert f'{room_branch} 반영 실패' in result.summary
-    assert git_out(checkout, 'rev-parse', room_branch).strip() == other['commit']
+    assert f'{room_branch} 반영 실패' in result.summary and '충돌한 파일: app.txt' in result.summary
+    assert git_out(checkout, 'rev-parse', room_branch).strip() == seen['other']
+    # 다시 쌓기를 되돌려 worktree가 중간 상태로 남지 않고, 이 시도의 커밋도 그대로다.
+    worktree = seen['worktree']
+    assert git_out(worktree, 'rev-parse', 'HEAD').strip() == seen['mine']
+    assert not git_out(worktree, 'status', '--porcelain').strip()
+    assert not Path(git_out(worktree, 'rev-parse', '--absolute-git-dir').strip(), 'rebase-merge').exists()
     task = svc.snapshot(request.room_id)['tasks'][0]
     assert task['status'] == 'open' and task['commit_hash'] is None
 

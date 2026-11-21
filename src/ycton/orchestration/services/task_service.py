@@ -635,6 +635,14 @@ class TaskService:
             self.event(c, task["id"], "committed", f"{commit} {message.splitlines()[0]}")
         return commit
 
+    def record_rebased_commit(self, session_id, commit):
+        """방 브랜치 끝으로 다시 쌓은 커밋 해시를 세션에 기록한다. git은 호출 전에 끝나 있어야 한다."""
+        with self.db.connect(write=True) as c:
+            s = require(c, "sessions", session_id)
+            c.execute("UPDATE sessions SET commit_hash=? WHERE id=?", (commit, session_id))
+            if s["task_id"] is not None:
+                self.event(c, s["task_id"], "committed", f"{commit} 방 브랜치 끝으로 다시 쌓음")
+
     def finish(self, session_id, result: RuntimeResult, *, cancelled=False, hold_for_retry=False):
         """중복 종료는 무시. 활성 실행 ID를 확인하여 오래된 결과의 덮어쓰기를 차단한다."""
         with self.db.connect(write=True) as c:
