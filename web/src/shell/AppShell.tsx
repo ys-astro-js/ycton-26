@@ -47,7 +47,7 @@ export function AppShell() {
 
 function Wordmark() {
   return (
-    <p className="text-[0.9375rem] font-bold">afk</p>
+    <p className="text-lg leading-tight font-bold tracking-tight">afk</p>
   )
 }
 
@@ -61,7 +61,7 @@ function AttentionBadge({ count }: { count: number }) {
   return (
     <span className="font-mono text-xs font-semibold text-attention-foreground tabular-nums">
       {countFormat.format(count)}
-      <span className="sr-only">건 처리 필요</span>
+      <span className="sr-only">건 처리할 일</span>
     </span>
   )
 }
@@ -75,7 +75,7 @@ function Rail() {
   return (
     <aside className="sticky top-0 hidden h-dvh self-start overflow-y-auto pb-8 lg:block">
       {/* 워드마크를 화면 머리와 같은 높이의 칸 가운데에 두어 제목과 한 줄에 섭니다 */}
-      <div className="mb-6 flex h-(--page-header-height) items-center px-3">
+      <div className="mb-6 flex h-(--page-header-height) items-center border-b px-3">
         <Wordmark />
       </div>
 
@@ -197,7 +197,7 @@ function NewRoom() {
       </Field>
       {create.error ? (
         <p role="alert" className="text-[0.8125rem] text-destructive">
-          {create.error instanceof ApiError ? create.error.message : '채팅방을 만들지 못했습니다'}
+          {create.error instanceof ApiError ? create.error.message : '채팅방을 만들지 못했습니다'}. 잠시 후 다시 시도하세요.
         </p>
       ) : null}
       <div className="flex gap-2">
@@ -221,11 +221,11 @@ function MobileBar() {
   const selectId = useId()
 
   return (
-    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b pt-5 pb-4 lg:hidden">
+    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 pt-5 pb-2 lg:hidden">
       <Wordmark />
       <div className="grid w-full gap-1 sm:w-56">
         <Label htmlFor={selectId} className="text-xs text-muted-foreground">
-          이동
+          화면
         </Label>
         <NativeSelect
           id={selectId}
@@ -237,7 +237,7 @@ function MobileBar() {
             else navigate({ to: '/rooms/$roomId', params: { roomId: value.replace('/rooms/', '') } })
           }}
         >
-          <NativeSelectOption value="/">아침 리뷰 (처리 필요 {signals.attention()})</NativeSelectOption>
+          <NativeSelectOption value="/">아침 리뷰 (처리할 일 {signals.attention()}건)</NativeSelectOption>
           {rooms.map((room) => (
             <NativeSelectOption key={room.id} value={`/rooms/${room.id}`}>
               {room.name}

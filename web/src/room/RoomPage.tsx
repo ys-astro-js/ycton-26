@@ -72,21 +72,28 @@ export function RoomPage() {
 
   if (isPending) {
     return (
-      <p role="status" className="pt-10 text-muted-foreground">
-        불러오는 중…
-      </p>
+      <main id="main">
+        <PageHeader title="채팅방" />
+        <p role="status" className="pt-6 text-muted-foreground">
+          불러오는 중…
+        </p>
+      </main>
     )
   }
 
   if (error || !state) {
     const missing = error instanceof ApiError && error.status === 404
     return (
-      <div role="alert" className="mt-10 flex max-w-xl items-start gap-3 border bg-card px-4 py-5">
+      <main id="main">
+      <PageHeader title="채팅방" />
+      <div role="alert" className="mt-6 flex max-w-xl items-start gap-3 border bg-card px-4 py-5">
         <Glyph icon={Unplug} className="mt-0.5 size-5 text-attention" />
         <div className="grid justify-items-start gap-3">
           <div className="grid gap-1">
             <p className="font-semibold">{missing ? '채팅방을 찾을 수 없습니다' : '채팅방을 불러오지 못했습니다'}</p>
-            {missing ? null : <p className="text-muted-foreground">{error?.message ?? '응답이 비어 있습니다'}.</p>}
+            <p className="text-muted-foreground">
+              {missing ? '삭제되었거나 주소가 잘못되었습니다. 다른 채팅방을 고르세요.' : `${error?.message ?? '응답이 비어 있습니다'}. 서버가 켜져 있는지 확인하고 다시 시도하세요.`}
+            </p>
           </div>
           {missing ? null : (
             <Button variant="outline" size="sm" disabled={isRefetching} onClick={() => refetch()} className="tracking-normal normal-case">
@@ -95,6 +102,7 @@ export function RoomPage() {
           )}
         </div>
       </div>
+      </main>
     )
   }
 
@@ -112,16 +120,6 @@ export function RoomPage() {
   return (
     <main id="main">
       <PageHeader title={room.name}>
-        <dl className="flex flex-wrap gap-x-8 gap-y-3">
-          <div>
-            <dt className="text-xs text-muted-foreground">실행</dt>
-            <dd className="font-mono text-[0.8125rem]">{state.mode}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">에이전트</dt>
-            <dd className="text-[0.9375rem]">{countFormat.format(state.agents.length)}명</dd>
-          </div>
-        </dl>
         {stopped ? null : (
           <IconButton variant="outline" icon={Pause} label="자동 진행 멈추기" disabled={pause.isPending} onClick={() => pause.mutate(undefined)} />
         )}
@@ -139,7 +137,7 @@ export function RoomPage() {
       ) : null}
       {toggleError ? (
         <p role="alert" className="mt-3 text-[0.8125rem] text-destructive">
-          {toggleError.message}
+          {toggleError.message}. 잠시 후 다시 시도하세요.
         </p>
       ) : null}
 
@@ -158,7 +156,7 @@ export function RoomPage() {
                 aria-expanded={sideOpen}
                 aria-controls={sidePanelId}
                 onClick={() => setSideOpen((current) => !current)}
-                className="text-muted-foreground [&_svg]:transition-transform [&_svg]:duration-150 aria-expanded:[&_svg]:rotate-180 motion-reduce:[&_svg]:transition-none"
+                className="text-muted-foreground [&_svg]:transition-transform [&_svg]:duration-150 [&_svg]:ease-out aria-expanded:[&_svg]:rotate-180 motion-reduce:[&_svg]:transition-none"
               />
             </div>
             <DisclosurePanel open={sideOpen} id={sidePanelId}>

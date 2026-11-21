@@ -95,8 +95,7 @@ export function ReviewPage() {
 
   return (
     <Shell report={report} project={project}>
-      <div className="pt-6">
-        <main id="main" className="grid min-w-0 content-start gap-10">
+      <div className="grid min-w-0 content-start gap-10 pt-6">
           <section aria-labelledby="compose-heading" className="grid gap-3">
             <h2 id="compose-heading" className="text-lg font-semibold">
               새 할 일
@@ -117,7 +116,6 @@ export function ReviewPage() {
             entries={inScope(report.ledger)}
             period={report.from && report.to ? `${report.from} – ${report.to}` : undefined}
           />
-        </main>
       </div>
     </Shell>
   )
@@ -125,10 +123,10 @@ export function ReviewPage() {
 
 function Shell({ report, project, children }: { report?: OvernightReport; project?: ProjectId; children: React.ReactNode }) {
   return (
-    <>
+    <main id="main">
       <ReviewHeader report={report} project={project} />
       {children}
-    </>
+    </main>
   )
 }
 
@@ -138,11 +136,11 @@ function ReviewHeader({ report, project }: { report?: OvernightReport; project?:
 
   return (
     <PageHeader title="아침 리뷰">
-      {/* 왼쪽 레일은 아침 리뷰와 채팅방 사이를 오가므로, 프로젝트는 이 선택으로 좁힙니다 */}
+      {/* 왼쪽 레일은 아침 리뷰와 채팅방 사이를 오가므로, 리뷰는 이 선택으로 한 채팅방만 좁혀 봅니다 */}
       {report && report.projects.length > 1 ? (
         <div className="w-full sm:w-56">
           <Label htmlFor={selectId} className="sr-only">
-            프로젝트
+            채팅방
           </Label>
           <NativeSelect
             id={selectId}
@@ -153,7 +151,7 @@ function ReviewHeader({ report, project }: { report?: OvernightReport; project?:
               navigate({ to: '/', search: value ? { project: value } : {} })
             }}
           >
-            <NativeSelectOption value="">모든 프로젝트</NativeSelectOption>
+            <NativeSelectOption value="">모든 채팅방</NativeSelectOption>
             {report.projects.map((p) => (
               <NativeSelectOption key={p.id} value={p.id}>
                 {p.name}
