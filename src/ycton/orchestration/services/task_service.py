@@ -75,8 +75,12 @@ class TaskService:
             raise DomainError(MISSING_FOLDER, 422)
         if self.settings.mode != "acp":
             return None
+        return Repository(Path(path), Path(path).name, *self.folder_profiles())
+
+    def folder_profiles(self):
+        """폴더 선택으로 연결한 프로젝트의 검증 프로필 허용 목록과 기본값. 서버에 등록된 것을 모두 허용한다."""
         profiles = tuple(sorted(self.runtime_config.verifiers))
-        return Repository(Path(path), Path(path).name, profiles, "unit" if "unit" in profiles else profiles[0])
+        return profiles, "unit" if "unit" in profiles else profiles[0]
 
     def room_repository(self, room):
         """방이 쓰는 저장소. 고른 폴더가 있으면 그것을, 없으면 설정의 repository_id를 쓴다."""
@@ -117,9 +121,11 @@ class TaskService:
                     {"id": "default", "label": "모의 실행", "verification_profiles": ["unit"],
                      "default_verification_profile": "unit"},
                 ],
+                "folder": {"verification_profiles": ["unit"], "default_verification_profile": "unit"},
             }
         kinds = sorted(self.runtime_config.kinds)
         repos = self.runtime_config.repositories
+        folder_profiles, folder_default = self.folder_profiles()
         return {
             "mode": self.settings.mode,
             "agent_kinds": kinds,
@@ -131,6 +137,8 @@ class TaskService:
                  "default_verification_profile": repos[key].default_verification_profile}
                 for key in sorted(repos, key=lambda key: (key != "default", key))
             ],
+            # 폴더 선택으로 연결한 프로젝트가 쓸 수 있는 검증 프로필
+            "folder": {"verification_profiles": list(folder_profiles), "default_verification_profile": folder_default},
         }
 
     def create_room(self, name, repository_id="default", repo=None):

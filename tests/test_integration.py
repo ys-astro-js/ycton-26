@@ -443,6 +443,7 @@ def test_runtime_catalog_and_persistent_project_binding(project_config):
                 {"id": "secondary", "label": "두 번째 저장소", "verification_profiles": ["custom"],
                  "default_verification_profile": "custom"},
             ],
+            "folder": {"verification_profiles": ["custom", "unit"], "default_verification_profile": "unit"},
         }
         for unknown in ("missing", "C:/external/repo"):
             assert client.post("/api/rooms", json={"name": "unknown", "repository_id": unknown}).status_code == 422
