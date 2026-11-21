@@ -263,7 +263,7 @@ function NewRoom() {
             {error ? <FieldError id={errorId}>이름을 입력하세요.</FieldError> : null}
           </Field>
           <Field className="gap-0">
-            <FieldLabel htmlFor={repositoryFieldId} className="text-label font-medium">Git 저장소</FieldLabel>
+            <FieldLabel htmlFor={repositoryFieldId} className="text-label font-medium tracking-normal normal-case">Git 저장소</FieldLabel>
             {configured.length > 0 || folder ? (
               <div className="flex items-center gap-2">
                 <NativeSelect
