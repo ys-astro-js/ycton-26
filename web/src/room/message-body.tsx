@@ -6,8 +6,19 @@ import remarkGfm from 'remark-gfm'
 /*
  * 말풍선 본문. 에이전트는 마크다운(인라인 코드, 굵게, 목록, 코드 블록, 표)으로 쓰므로 그대로 렌더링합니다.
  * 줄바꿈 하나도 줄바꿈으로 둡니다(remark-breaks). 원시 HTML은 렌더링하지 않습니다(react-markdown 기본값).
- * 색은 말풍선 글자색(currentColor)에서 섞어, 사람의 잉크색 말풍선과 에이전트의 회색 말풍선 모두에서 읽힙니다.
+ * 색은 말풍선 글자색(currentColor)에서 섞어, 사람의 테두리 말풍선과 에이전트의 회색 말풍선 모두에서 읽힙니다.
  */
+
+const MENTION = /(@[^\s@]+)/
+
+/** 본문에서 부른 이름들. 코드 안의 @는 멘션이 아니므로 코드 블록과 인라인 코드를 먼저 지웁니다. */
+export function mentionsIn(text: string) {
+  const prose = text.replace(/```[\s\S]*?```/g, ' ').replace(/`[^`]*`/g, ' ')
+  return prose
+    .split(MENTION)
+    .filter((part) => part.length > 1 && part.startsWith('@'))
+    .map((part) => part.slice(1))
+}
 
 interface MdastNode {
   type: string
@@ -27,7 +38,7 @@ function remarkMentions({ attention }: { attention: (name: string) => boolean })
       return [node]
     }
     return node.value
-      .split(/(@[^\s@]+)/)
+      .split(MENTION)
       .filter(Boolean)
       .map((part) =>
         part.length > 1 && part.startsWith('@')

@@ -1,4 +1,4 @@
-import { Bot, GitCommitHorizontal, ListTodo } from 'lucide-react'
+import { Bot, GitCommitHorizontal, MessageCircleQuestionMark } from 'lucide-react'
 import { useId, useState } from 'react'
 
 import type { Agent, RoomState, Task } from '@/api/client'
@@ -9,13 +9,15 @@ import { cn } from '@/lib/utils'
 import { StatusNode } from '../review/ledger.tsx'
 import { DisclosurePanel, Glyph, Handoff } from '../review/shared.tsx'
 import { clock, toTimeline, type TimelineEntry } from './data.ts'
-import { MessageBody } from './message-body.tsx'
+import { MessageBody, mentionsIn } from './message-body.tsx'
 import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
 
 /*
  * 대화 타임라인
  * 사람과 에이전트의 말은 shadcn Message·Bubble 말풍선입니다. 사람은 오른쪽, 에이전트는 왼쪽에 섭니다.
+ * 사람의 말풍선은 테두리만 두어, 처리할 일(빨강)보다 무겁게 보이지 않게 합니다.
  * 같은 작성자가 이어 말하면 이름은 첫 말풍선에만, 시각은 마지막 말풍선 아래에만 씁니다.
+ * 에이전트가 사람을 부른 말은 이름 옆에 attention 질문 아이콘을 둡니다. 이어 말한 말풍선이어도 이름 줄을 다시 씁니다.
  * 실행 실패 같은 시스템 알림은 말풍선이 아니라 [시각] [내용] 행으로 둡니다.
  * 작업 결과("할 일 #n <status>: …" system 메시지)는 접힌 결과 행으로 두고, 펼치면 요약 전문과 검증 출력이 열립니다.
  */
@@ -54,10 +56,7 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
           return (
             <li key={entry.message.id} {...focusProps} className={cn(ROW, 'py-1.5 data-focused:bg-muted/50')}>
               <time className={TIME}>{at}</time>
-              <p className="flex items-start gap-1.5 text-label text-muted-foreground">
-                <Glyph icon={ListTodo} className="mt-0.5 size-3.5" />
-                <span className="text-pretty break-words">{entry.message.content}</span>
-              </p>
+              <p className="text-label text-pretty break-words text-muted-foreground">{entry.message.content}</p>
             </li>
           )
         }
@@ -79,28 +78,35 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
         const human = entry.type === 'human'
         const next = entries[index + 1]
         const last = next === undefined || authorKey(next) !== key
+        const asksHuman = !human && mentionsIn(entry.message.content).some(callsPerson)
+        const named = !human && (!continued || asksHuman)
         return (
-          <li key={entry.message.id} className={cn('px-4', continued ? 'pt-1' : 'pt-4')}>
+          <li key={entry.message.id} className={cn('px-4', continued && !named ? 'pt-1' : 'pt-4')}>
             <Message align={human ? 'end' : 'start'}>
               <MessageContent className="gap-1">
-                {continued || human ? null : (
-                  <MessageHeader className="gap-2 text-label font-normal tracking-normal normal-case">
+                {named ? (
+                  <MessageHeader className="gap-1.5 text-label">
                     <span className="font-semibold text-foreground">{agent?.name ?? '에이전트'}</span>
-                    {agent ? <span>{agent.kind}</span> : null}
+                    {asksHuman ? (
+                      <>
+                        <Glyph icon={MessageCircleQuestionMark} className="size-4 text-attention" />
+                        <span className="sr-only">나에게 묻는 말</span>
+                      </>
+                    ) : null}
                   </MessageHeader>
-                )}
-                <Bubble variant={human ? 'default' : 'muted'}>
+                ) : null}
+                <Bubble variant={human ? 'outline' : 'muted'}>
                   <BubbleContent className="text-body">
                     {/* 이어 보낸 말풍선에도 화면 읽기 프로그램이 누가 말했는지 알 수 있게 작성자를 붙입니다 */}
                     {human ? (
                       <span className="sr-only">나: </span>
-                    ) : continued ? (
+                    ) : !named ? (
                       <span className="sr-only">{agent?.name ?? '에이전트'}: </span>
                     ) : null}
                     <MessageBody text={entry.message.content} attention={human ? never : callsPerson} />
                   </BubbleContent>
                 </Bubble>
-                <MessageFooter className={cn('font-normal tracking-normal normal-case', !last && 'sr-only')}>
+                <MessageFooter className={cn(!last && 'sr-only')}>
                   <time className={TIME}>{at}</time>
                 </MessageFooter>
               </MessageContent>
