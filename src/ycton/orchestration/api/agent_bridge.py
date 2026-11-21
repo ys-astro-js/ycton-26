@@ -93,11 +93,9 @@ def send(body: Message, actor=Depends(identity), svc=Depends(service)):
 
 @router.post("/questions", status_code=201)
 def ask_human(body: Question, actor=Depends(identity), svc=Depends(service)):
-    # 작업 세션도 사람이 정해야 할 것을 찾으면 직접 묻는다. 질문은 그 할 일을 맡은 에이전트 이름으로 올라간다.
-    with svc.db.connect() as c:
-        kind = require(c, "sessions", actor.session_id)["kind"]
-    validate(svc, actor, body, kind=kind)
-    svc.post_message(actor.room_id, f"@human {body.question}", actor.agent_id)
+    if body.room_id != str(actor.room_id) or body.participant_id != str(actor.agent_id):
+        raise DomainError("토큰의 방·작성자와 요청이 일치하지 않습니다", 403)
+    svc.ask_human(actor.room_id, actor.agent_id, actor.session_id, body.question)
     return {"ok": True}
 
 

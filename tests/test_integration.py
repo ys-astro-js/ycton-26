@@ -14,9 +14,11 @@ from ycton.orchestration.config import Settings
 from ycton.orchestration.main import create_app
 from ycton.orchestration.identity import Identity, Tokens
 from ycton.orchestration.runtime_config import AgentKind, Repository, RuntimeConfig, Verification
-from ycton.orchestration.runtime_port import RuntimeRequest
+from ycton.orchestration.runtime_port import RuntimeRequest, RuntimeResult
 from ycton.orchestration.acp_bridge import AcpRuntime, verify_worktree
 from ycton.orchestration.event_log import EventLog
+from ycton.orchestration.services.prompt_builder import build_prompt
+from ycton.orchestration.services.task_service import DomainError
 from ycton.room_mcp import ROOM_CHAT_TOOLS, build_room_server
 
 
@@ -850,7 +852,8 @@ def test_chat_falls_back_to_project_folder_when_not_a_git_checkout(bridge, monke
     assert not (root / 'worktrees').exists()
 
 
-def test_work_session_can_ask_the_human_a_decision(bridge):
+@pytest.mark.parametrize("dismiss", [False, True])
+def test_work_session_can_ask_the_human_a_decision(bridge, dismiss):
     app, client, actor, token, sid, tid, root = bridge
     svc, config, request = setup_work(bridge)
     with svc.db.connect(write=True) as c:
@@ -862,3 +865,30 @@ def test_work_session_can_ask_the_human_a_decision(bridge):
     assert answer.status_code == 201
     questions = svc.snapshot(request.room_id, dashboard=True)['unanswered_questions']
     assert [q['content'] for q in questions] == ['@human 다크 모드: 자동 적용(추천) / 토글 / 삭제?']
+    svc.finish(request.session_id, RuntimeResult(False, "waiting for design choice"))
+    assert client.get(f"/api/rooms/{request.room_id}/state").json()["jev"] == {
+        "action": "wait", "reason": "사람의 답변을 기다리는 작업이 있습니다",
+    }
+    assert client.post(f"/api/tasks/{tid}/retry", json={"note": "try now"}).status_code == 409
+    assert client.post('/api/agent/questions', headers=headers, json={**body, 'question': 'late?'}).status_code == 403
+    other = svc.create_task(request.room_id, "unrelated", "", "", "unit")["id"]
+    assert svc.tasks_to_assign() == [other]
+    for acquire in (lambda: svc.claim(tid, request.agent_id),
+                    lambda: svc.assign(tid, request.agent_id, "unit")):
+        with pytest.raises(DomainError, match="답변"):
+            acquire()
+
+    question_id = questions[0]["id"]
+    answer_text = None if dismiss else "기본 설정은 자동 적용으로 해 주세요."
+    if dismiss:
+        message = client.post(f"/api/messages/{question_id}/resolve")
+    else:
+        message = client.post(f"/api/rooms/{request.room_id}/messages",
+                              json={"content": answer_text, "reply_to_message_id": question_id})
+    assert message.status_code == (200 if dismiss else 201)
+    assert {tid, other} == set(svc.tasks_to_assign())
+    svc.assign(tid, request.agent_id, "unit")
+    delegated = svc.delegate(tid, request.agent_id, "with-answer", "")
+    assert json.loads(build_prompt(svc, delegated))["human_decisions"] == [
+        {"question": "다크 모드: 자동 적용(추천) / 토글 / 삭제?", "answer": answer_text, "dismissed": dismiss},
+    ]

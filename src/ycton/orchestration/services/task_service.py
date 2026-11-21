@@ -22,6 +22,9 @@ UNKNOWN_REPOSITORY = "서버 설정에 없는 저장소입니다"
 MISSING_FOLDER = "연결한 폴더를 찾을 수 없습니다"
 UNAVAILABLE_VERIFICATION = "이 프로젝트에서 사용할 수 없는 검증 프로필입니다"
 RETRY_REQUIRED = "사용자가 중단한 작업입니다. 다시 실행이 필요합니다"
+PENDING_WORK_QUESTION = """SELECT 1 FROM messages question
+    WHERE question.question_task_id={task_id} AND question.resolved=0
+    AND NOT EXISTS (SELECT 1 FROM messages reply WHERE reply.reply_to_message_id=question.id)"""
 
 # 인라인 코드와 코드 블록은 호출이 아니라 예시입니다.
 _MARKDOWN_CODE = re.compile(
@@ -79,9 +82,9 @@ class TaskService:
         self.model_names = {}
 
     @staticmethod
-    def message(conn, room, author, content, *, reply_to_message_id=None):
-        conn.execute("INSERT INTO messages(room_id,author,content,reply_to_message_id) VALUES(?,?,?,?)",
-                     (room, author, content, reply_to_message_id))
+    def message(conn, room, author, content, *, reply_to_message_id=None, question_task_id=None):
+        conn.execute("""INSERT INTO messages(room_id,author,content,reply_to_message_id,question_task_id)
+                        VALUES(?,?,?,?,?)""", (room, author, content, reply_to_message_id, question_task_id))
 
     @staticmethod
     def event(conn, task, event, detail):
@@ -386,6 +389,31 @@ class TaskService:
             # 사람이 아무도 부르지 않았으면 Jev가 답할 에이전트를 고른다.
             return {"id": message_id, "needs_routing": agent_id is None and not targets}
 
+    def ask_human(self, room_id, agent_id, session_id, question):
+        with self.db.connect(write=True) as c:
+            session = require(c, "sessions", session_id)
+            agent = require(c, "agents", agent_id)
+            if (session["status"] != "running" or session["room_id"] != room_id or session["agent_id"] != agent_id
+                    or agent["room_id"] != room_id or agent["removed"]):
+                raise DomainError("활성 실행 세션만 질문을 올릴 수 있습니다", 403)
+            task_id = session["task_id"] if session["kind"] == "work" else None
+            if task_id is not None and require(c, "tasks", task_id)["active_session_id"] != session_id:
+                raise DomainError("이 할 일의 현재 작업 세션이 아닙니다", 403)
+            self.message(c, room_id, f"agent:{agent_id}", f"@human {question}", question_task_id=task_id)
+
+    def work_decisions(self, task_id):
+        """현재 할 일에 대한 답변만 새 작업 세션에 넘긴다."""
+        with self.db.connect() as c:
+            rows = c.execute("""
+                SELECT question.content AS question, reply.content AS answer
+                FROM messages question LEFT JOIN messages reply ON reply.id=(
+                    SELECT max(id) FROM messages WHERE reply_to_message_id=question.id)
+                WHERE question.question_task_id=? AND (question.resolved=1 OR reply.id IS NOT NULL)
+                ORDER BY question.id DESC LIMIT 10
+            """, (task_id,)).fetchall()
+        return [{"question": row["question"].removeprefix("@human "), "answer": row["answer"],
+                 "dismissed": row["answer"] is None} for row in reversed(rows)]
+
     def create_task(self, room_id, title, detail, scope, verify):
         with self.db.connect(write=True) as c:
             return self._insert_task(c, room_id, title, detail, scope, verify)
@@ -547,27 +575,37 @@ class TaskService:
     def tasks_to_assign(self):
         """멈추지 않은 방에서 에이전트가 있고 담당이 없는 할 일."""
         with self.db.connect() as c:
-            return [r["id"] for r in c.execute("""
+            pending = PENDING_WORK_QUESTION.format(task_id="t.id")
+            return [r["id"] for r in c.execute(f"""
                 SELECT t.id FROM tasks t JOIN rooms r ON r.id=t.room_id
                 WHERE t.status='open' AND t.retry_required=0 AND t.attempts<? AND r.paused=0
                 AND EXISTS (SELECT 1 FROM agents a WHERE a.room_id=t.room_id AND a.removed=0)
                 AND (t.after_task_id IS NULL OR EXISTS (SELECT 1 FROM tasks p WHERE p.id=t.after_task_id
-                                                        AND p.status IN ('done','dropped'))) ORDER BY t.id""",
+                                                        AND p.status IN ('done','dropped')))
+                AND NOT EXISTS ({pending}) ORDER BY t.id""",
                 (self.settings.max_attempts,))]
 
     @staticmethod
-    def _waiting_for_predecessor(conn, task):
+    def _has_pending_work_question(conn, task_id):
+        return conn.execute(PENDING_WORK_QUESTION.format(task_id="?"), (task_id,)).fetchone() is not None
+
+    @staticmethod
+    def _task_wait_reason(conn, task):
         predecessor = task["after_task_id"]
-        return predecessor is not None and conn.execute("""
+        if predecessor is not None and conn.execute("""
             SELECT 1 FROM tasks WHERE id=? AND status IN ('done','dropped')
-        """, (predecessor,)).fetchone() is None
+        """, (predecessor,)).fetchone() is None:
+            return "선행 할 일이 끝난 뒤에 시작할 수 있습니다"
+        if TaskService._has_pending_work_question(conn, task["id"]):
+            return "이 할 일의 질문에 답변하거나 완료로 표시한 뒤 시작할 수 있습니다"
+        return None
 
     def assignment_context(self, task_id):
         """Jev가 담당과 검증 프로필을 고를 때 보는 내용. 배정할 수 없는 할 일이면 None."""
         with self.db.connect() as c:
             task = require(c, "tasks", task_id)
             if (task["status"] != "open" or task["retry_required"] or task["attempts"] >= self.settings.max_attempts
-                    or self._waiting_for_predecessor(c, task)):
+                    or self._task_wait_reason(c, task)):
                 return None
             room = require(c, "rooms", task["room_id"])
             if room["paused"]:
@@ -593,8 +631,8 @@ class TaskService:
                 raise DomainError("다른 방의 작업이거나 지운 에이전트입니다", 403)
             if room["paused"]:
                 raise DomainError("자동 진행이 중지된 방입니다")
-            if self._waiting_for_predecessor(c, task):
-                raise DomainError("선행 할 일이 끝난 뒤에 시작할 수 있습니다")
+            if reason := self._task_wait_reason(c, task):
+                raise DomainError(reason)
             repo = self.room_repository(room)
             if repo is not None and verify not in repo.verification_profiles:
                 raise DomainError(UNAVAILABLE_VERIFICATION, 422)
@@ -637,8 +675,8 @@ class TaskService:
                 raise DomainError(RETRY_REQUIRED)
             if task["attempts"] >= self.settings.max_attempts:
                 raise DomainError("재시도 한도 도달: 사람이 retry로 재개해야 합니다")
-            if self._waiting_for_predecessor(c, task):
-                raise DomainError("선행 할 일이 끝난 뒤에 시작할 수 있습니다")
+            if reason := self._task_wait_reason(c, task):
+                raise DomainError(reason)
             changed = c.execute("""UPDATE tasks SET status='claimed',owner_id=?
                                    WHERE id=? AND status='open' AND retry_required=0""", (agent_id, task_id)).rowcount
             if not changed:
@@ -676,8 +714,8 @@ class TaskService:
                 raise DomainError("claim한 담당자만 위임할 수 있습니다", 403)
             if require(c, "rooms", task["room_id"])["paused"]:
                 raise DomainError("자동 진행이 중지된 방입니다")
-            if self._waiting_for_predecessor(c, task):
-                raise DomainError("선행 할 일이 끝난 뒤에 시작할 수 있습니다")
+            if reason := self._task_wait_reason(c, task):
+                raise DomainError(reason)
             if task["active_session_id"]:
                 raise DomainError("이미 대기/실행 중인 작업 세션이 있습니다")
             if task["attempts"] >= self.settings.max_attempts:
@@ -766,7 +804,7 @@ class TaskService:
                            summary, commit if done else None, int(held), task["id"]))
                 self.event(c, task["id"], status, summary)
                 self.message(c, s["room_id"], "system", f"할 일 #{task['id']} {status}: {summary}")
-                if not held:
+                if not held and (done or not self._has_pending_work_question(c, task["id"])):
                     self.wake(c, s["room_id"], agent_id=s["agent_id"], reset=True)
             else:
                 self._advance_discussion(c, s["room_id"], s["agent_id"])
@@ -823,6 +861,8 @@ class TaskService:
             if task["active_session_id"] or task["status"] not in ("open", "claimed"):
                 raise DomainError("활성 실행이 없고 종료되지 않은 작업에만 가능합니다")
             if action == "retry":
+                if self._has_pending_work_question(c, task_id):
+                    raise DomainError("이 할 일의 질문에 답변하거나 완료로 표시한 뒤 시작할 수 있습니다")
                 c.execute("""UPDATE tasks SET status='open',owner_id=NULL,attempts=0,retry_required=0,handoff=?
                              WHERE id=?""", (note, task_id))
                 self.message(c, task["room_id"], "system",
