@@ -41,9 +41,10 @@ React → FastAPI → TaskService → SQLite
 | `runtime_port.py` | 실행 입력 RuntimeRequest와 반환 RuntimeResult 계약 |
 | `acp_bridge.py` | 담당 1 함수 호출, worktree 기록, 서버 직접 검증, 결과 정규화 |
 | `event_log.py` | 동기 on_update를 큐로 수신, 별도 소비자가 파일과 DB 요약에 저장 |
-| `fake_runtime.py` | AI 없이 claim/delegate/성공·실패를 재현 |
+| `fake_runtime.py` | AI 없이 배정된 할 일의 delegate/성공·실패를 재현 |
 | `scheduler.py` | 대기 세션 실행, 전체/에이전트별 한도, 시간 제한과 취소 |
-| `jev.py` | 현재 상태에 대한 go/wait/stop/spawn 제안. 실제 spawn은 하지 않음 |
+| `jev.py` | 현재 상태에 대한 go/wait/stop/spawn 제안과 OpenRouter Decisions 호출. 실제 spawn은 하지 않음 |
+| `dispatch.py` | Jev로 사람 메시지에 답할 에이전트, 할 일 담당, 검증 프로필을 정함. 실패하면 규칙으로 정함 |
 | `services/task_service.py` | claim·delegate·commit 기록·완료·실패·재시작의 모든 상태 변경 |
 | `git_commit.py` | 작업 worktree 안의 고른 파일만 커밋. 경로 검증과 git 실행 |
 | `services/prompt_builder.py` | 채팅에는 최근 상태, 작업에는 할 일과 인계만 전달 |

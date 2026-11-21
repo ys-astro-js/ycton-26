@@ -14,8 +14,8 @@
 | GET `/api/rooms` | 없음 | 방 목록 |
 | GET `/api/agent-models` | - | 고를 수 있는 모델 `[{id, label, models, efforts}]`. acp는 runtime.toml, mock은 runtime.toml이 없으면 runtime.example.toml의 `[kinds.*]` |
 | POST `/api/rooms/{id}/agents` | name, kind(제공자 id), model, effort, good_at 배열(담당 업무) | 참여자. acp에서는 등록된 제공자만, 목록이 있는 제공자는 그 안의 model·effort만 허용 |
-| POST `/api/rooms/{id}/tasks` | title, detail, scope, verify | 할 일. acp의 verify는 검증 프로필 이름 |
-| POST `/api/rooms/{id}/messages` | content, reply_to_message_id(선택) | 사람 메시지 저장. 답장 대상은 같은 프로젝트의 에이전트 질문이어야 함 |
+| POST `/api/rooms/{id}/tasks` | title, detail, scope(선택), verify(선택) | 할 일. acp의 verify는 검증 프로필 이름. 비우면 Jev가 담당을 정할 때 고름 |
+| POST `/api/rooms/{id}/messages` | content, reply_to_message_id(선택) | 사람 메시지 저장. 답장 대상은 같은 프로젝트의 에이전트 질문이어야 함. 깨울 에이전트는 아래 규칙을 따름 |
 | GET `/api/rooms/{id}/state` | 없음 | room, agents, tasks, sessions, messages, unanswered_questions, jev, mode |
 | POST `/api/rooms/{id}/pause` | 없음 | 새 실행 중지, 현재 실행은 유지 |
 | POST `/api/rooms/{id}/resume` | 없음 | 자동 진행 재개 |
@@ -30,7 +30,11 @@
 
 state는 1초 정도 간격의 폴링으로 시작할 수 있습니다. 방 paused는 SQLite의 0/1입니다. messages는 최근 100개입니다. 세션은 전체 이력이므로 장기 운영 시 페이지 조회를 추가해야 합니다.
 
-`unanswered_questions`는 해당 방에서 답장되지 않은 에이전트의 `@` 멘션입니다. 일반 메시지로 닫히지 않으며, 최근 메시지 100개에서 밀려나도 남습니다. `jev.action`은 `stop`, `wait`, `spawn_suggested`, `go` 중 하나이고 `reason`을 함께 반환합니다. OpenRouter가 판단을 반환한 경우에만 `jev.recommendation`에 `{action, reason}`이 추가됩니다. 추천은 실행 상태를 변경하지 않습니다.
+사람 메시지가 깨우는 에이전트: 본문에서 `@이름`으로 부른 에이전트, 답장한 질문을 올린 에이전트를 깨웁니다. 둘 다 없으면 응답을 돌려준 뒤 Jev가 에이전트 하나를 골라 깨웁니다. 사람 메시지는 방의 채팅 턴 수를 0으로 되돌립니다.
+
+할 일은 등록만 하고 아무도 깨우지 않습니다. 스케줄러가 담당이 없는 열린 할 일을 Jev에 맡겨 담당과 검증 프로필을 정하고(`assigned` 작업 이력), 담당 에이전트만 깨웁니다. 채팅 턴이 위임 전에 실패해 반환된 할 일은 시도 1회로 셉니다.
+
+`unanswered_questions`는 해당 방에서 답장되지 않은 에이전트의 `@` 멘션입니다. 방의 에이전트를 `@이름`으로 부른 메시지는 에이전트끼리의 대화이므로 제외합니다. 일반 메시지로 닫히지 않으며, 최근 메시지 100개에서 밀려나도 남습니다. `jev.action`은 `stop`, `wait`, `spawn_suggested`, `go` 중 하나이고 `reason`을 함께 반환합니다. OpenRouter가 판단을 반환한 경우에만 `jev.recommendation`에 `{action, reason}`이 추가됩니다. 추천은 실행 상태를 변경하지 않습니다.
 
 세션의 추가 필드:
 
@@ -59,7 +63,7 @@ state는 1초 정도 간격의 폴링으로 시작할 수 있습니다. 방 paus
 {"room_id":"1","participant_id":"2","text":"제가 UI 작업을 맡겠습니다."}
 ```
 
-DB 커밋 후 201을 반환합니다. 기존 담당 1의 send 규격을 유지했습니다.
+DB 커밋 후 201을 반환합니다. 기존 담당 1의 send 규격을 유지했습니다. 본문에서 `@이름`으로 부른 같은 방의 에이전트만 깨우며, 아무도 부르지 않으면 아무도 깨우지 않습니다. 에이전트끼리의 대화는 채팅 턴 수를 되돌리지 않습니다.
 
 ### list_tasks
 
@@ -79,7 +83,7 @@ DB 커밋 후 201을 반환합니다. 기존 담당 1의 send 규격을 유지�
 {"room_id":"1","participant_id":"2","task_id":"3"}
 ```
 
-성공 시 200과 할 일을 반환합니다. 다른 에이전트가 먼저 가져갔거나 상태상 불가능하면 409입니다. 방이 다르면 403입니다. **채팅 발언만으로는 담당자가 바뀌지 않습니다.**
+성공 시 200과 할 일을 반환합니다. 다른 에이전트가 먼저 가져갔거나 상태상 불가능하면 409입니다. 방이 다르면 403입니다. **채팅 발언만으로는 담당자가 바뀌지 않습니다.** 담당은 보통 Jev가 정하므로 채팅 프롬프트는 claim을 쓰지 말라고 안내합니다. 도구는 호환을 위해 남겨 둡니다.
 
 ### delegate
 
