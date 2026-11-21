@@ -12,7 +12,6 @@ import { Composer } from '../compose/Composer.tsx'
 import { DisclosurePanel, Glyph, countFormat } from '../review/shared.tsx'
 import { useRoomMutation, useRoomState, useRuntimeOptions } from './data.ts'
 import { AgentList, TaskList } from './side.tsx'
-import { SessionDetails } from './session-details.tsx'
 import { Timeline } from './timeline.tsx'
 import { PageHeader } from '../shell/PageHeader.tsx'
 
@@ -66,7 +65,6 @@ export function RoomPage() {
   const navigate = useNavigate()
   const wide = useWide()
   const [sideOpen, setSideOpen] = useState(false)
-  const [chatSessionsOpen, setChatSessionsOpen] = useState(false)
   const sidePanelId = useId()
 
   const pause = useRoomMutation(roomId, () => api.pause(roomId))
@@ -145,18 +143,11 @@ export function RoomPage() {
   const { action, reason, recommendation } = state.jev
   const needsJevNotice = !stopped && (action === 'wait' || action === 'spawn_suggested')
   const toggleError = pause.error ?? resume.error
-  const chatSessions = state.sessions.filter((session) => session.kind === 'chat')
 
   const side = (
     <div className="grid content-start gap-8">
       <TaskList key={room.id} state={state} focus={focus} />
       <AgentList state={state} />
-      {chatSessions.length ? (
-        <details className="border bg-card px-4 py-3" onToggle={(event) => setChatSessionsOpen(event.currentTarget.open)}>
-          <summary className="cursor-pointer font-semibold">채팅 세션</summary>
-          {chatSessionsOpen ? <div className="pt-3"><SessionDetails sessions={chatSessions} /></div> : null}
-        </details>
-      ) : null}
     </div>
   )
 
