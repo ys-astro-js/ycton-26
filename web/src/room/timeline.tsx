@@ -1,7 +1,7 @@
 import { Bot, GitCommitHorizontal } from 'lucide-react'
 import { useId, useState } from 'react'
 
-import type { Agent, RoomState, Task } from '@/api/client'
+import { knownAgents, type Agent, type RoomState, type Task } from '@/api/client'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent, MessageFooter, MessageHeader } from '@/components/ui/message'
 import { cn } from '@/lib/utils'
@@ -31,7 +31,7 @@ function authorKey(entry: TimelineEntry) {
 }
 
 export function Timeline({ state, focus }: { state: RoomState; focus?: number }) {
-  const agents = new Map(state.agents.map((agent) => [agent.id, agent]))
+  const agents = new Map(knownAgents(state).map((agent) => [agent.id, agent]))
   const tasks = new Map(state.tasks.map((task) => [task.id, task]))
   const entries = toTimeline(state)
   const questions = new Set(state.unanswered_questions.map((message) => message.id))

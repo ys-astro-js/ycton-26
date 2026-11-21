@@ -1,6 +1,6 @@
 // 백엔드의 방 상태(RoomState)를 아침 리뷰 뷰 모델로 바꿉니다.
 
-import type { Agent, RoomState, Session, Task, TaskEvent } from '@/api/client'
+import { knownAgents, type Agent, type RoomState, type Session, type Task, type TaskEvent } from '@/api/client'
 
 import type { AttentionItem, LedgerEntry, LedgerStatus, LogLine, OvernightReport } from './model.ts'
 
@@ -78,7 +78,7 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
 
   for (const state of states) {
     const projectId = String(state.room.id)
-    const agents = new Map(state.agents.map((agent) => [agent.id, agent]))
+    const agents = new Map(knownAgents(state).map((agent) => [agent.id, agent]))
     for (const session of state.sessions) {
       for (const stamp of [parse(session.created_at), parse(session.finished_at)]) if (stamp) stamps.push(stamp)
     }

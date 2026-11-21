@@ -164,13 +164,21 @@ export interface GitInfo {
 export interface RoomState {
   room: Room
   git: GitInfo | null
+  /** 지우지 않은 에이전트 */
   agents: Agent[]
+  /** 지운 에이전트. 목록에는 없지만 기록의 작성자와 담당 이름을 보일 때 씁니다 */
+  removed_agents: Agent[]
   tasks: Task[]
   sessions: Session[]
   messages: Message[]
   unanswered_questions: Message[]
   jev: Jev
   mode: string
+}
+
+/** 이름을 찾을 때 쓰는 에이전트 전체(지운 에이전트 포함). removed_agents를 모르는 이전 서버도 견딥니다 */
+export function knownAgents(state: Pick<RoomState, 'agents' | 'removed_agents'>): Agent[] {
+  return [...state.agents, ...(state.removed_agents ?? [])]
 }
 
 export interface TaskEvent {
@@ -204,6 +212,11 @@ export const api = {
     request<Room>('/api/rooms', { method: 'POST', body }),
   addAgent: (roomId: number, agent: { name: string; kind: string; model: string; effort: string; good_at: string[] }) =>
     request<Agent>(`/api/rooms/${roomId}/agents`, { method: 'POST', body: agent }),
+  /** 응답의 good_at은 JSON 문자열로 옵니다. 화면은 방 상태를 다시 읽어 쓰므로 응답을 쓰지 않습니다 */
+  updateAgent: (agentId: number, agent: { name: string; kind: string; model: string; effort: string; good_at: string[] }) =>
+    request<unknown>(`/api/agents/${agentId}`, { method: 'POST', body: agent }),
+  /** 실행 중인 작업 세션이 있으면 409로 거절됩니다. 맡은 할 일은 다시 배정되도록 되돌아갑니다 */
+  removeAgent: (agentId: number) => request<{ ok: boolean }>(`/api/agents/${agentId}/remove`, { method: 'POST', body: {} }),
   /** verify를 비우면 서버의 Jev가 담당을 정할 때 검증 프로필도 고릅니다 */
   createTask: (roomId: number, task: { title: string; detail: string; scope?: string; verify?: string }) =>
     request<Task>(`/api/rooms/${roomId}/tasks`, { method: 'POST', body: task }),

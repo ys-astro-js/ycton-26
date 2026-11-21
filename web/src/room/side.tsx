@@ -1,8 +1,8 @@
 import { Arc } from 'loading-dev'
-import { Ban, Bot, Check, CircleCheck, Cpu, FolderCode, Gauge, GitCommitHorizontal, History, NotebookText, Plus, RotateCcw, Square } from 'lucide-react'
+import { Ban, Bot, Check, CircleCheck, Cpu, FolderCode, Gauge, GitCommitHorizontal, History, NotebookText, Pencil, Plus, RotateCcw, Square, Trash2 } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 
-import { api, ApiError, modelLabel, type RoomState, type Task } from '@/api/client'
+import { api, ApiError, knownAgents, modelLabel, type Agent, type ModelProvider, type RoomState, type Task } from '@/api/client'
 import { IconButton } from '@/components/icon-button'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -33,7 +33,7 @@ function describeEvent(event: string, detail: string, state: RoomState): { what:
     case 'assigned': {
       // detail은 "agent:4" 또는 "agent:4 verify=unit"입니다. 검증 프로필은 화면에 두지 않습니다.
       const id = Number(/agent:(\d+)/.exec(detail)?.[1])
-      const agent = state.agents.find((candidate) => candidate.id === id)
+      const agent = knownAgents(state).find((candidate) => candidate.id === id)
       return { what: `${agent?.name ?? '에이전트'} 배정` }
     }
     case 'committed':
@@ -42,7 +42,11 @@ function describeEvent(event: string, detail: string, state: RoomState): { what:
     case 'delegated':
       return { what: '작업 시작' }
     case 'released':
-      return { what: '담당 해제', detail }
+      // 에이전트를 지우면 detail이 "agent:4 삭제"로 옵니다. 내부 id 대신 이름을 씁니다.
+      return {
+        what: '담당 해제',
+        detail: detail.replace(/agent:(\d+)/g, (raw, id) => knownAgents(state).find((a) => a.id === Number(id))?.name ?? raw),
+      }
     case 'succeeded':
       return { what: '완료', detail }
     case 'failed':
@@ -226,18 +230,22 @@ function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: numbe
 /** 되돌릴 수 없는 동작을 그 자리에서 한 번 더 묻습니다. 열리면 취소에 초점을 두고, Escape로 닫습니다. */
 function InlineConfirm({
   question,
+  description,
   confirmLabel,
   disabled,
   onConfirm,
   onCancel,
 }: {
   question: string
+  /** 확인하면 무엇이 어떻게 되는지. 질문만으로 결과가 분명하면 비웁니다 */
+  description?: string
   confirmLabel: string
   disabled: boolean
   onConfirm: () => void
   onCancel: () => void
 }) {
   const questionId = useId()
+  const descriptionId = useId()
   const cancelRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -248,6 +256,7 @@ function InlineConfirm({
     <div
       role="group"
       aria-labelledby={questionId}
+      aria-describedby={description ? descriptionId : undefined}
       className="flex flex-wrap items-center gap-x-3 gap-y-2"
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
@@ -259,6 +268,7 @@ function InlineConfirm({
       <p id={questionId} className="text-body">
         {question}
       </p>
+      {description ? <p id={descriptionId} className="basis-full text-label text-pretty text-muted-foreground">{description}</p> : null}
       <div className="flex gap-2">
         <Button size="sm" variant="destructive" className="tracking-normal normal-case" disabled={disabled} onClick={onConfirm}>
           {confirmLabel}
@@ -286,7 +296,7 @@ function TaskRow({
 }) {
   const panelId = useId()
   const phase = taskPhase(task, state)
-  const owner = state.agents.find((agent) => agent.id === task.owner_id)
+  const owner = knownAgents(state).find((agent) => agent.id === task.owner_id)
   const dropped = phase === 'dropped'
   const finished = phase === 'done' || dropped
   const events = useTaskEvents(task.id, open)
@@ -492,7 +502,7 @@ export function AgentList({ state }: { state: RoomState }) {
         <Popover open={adding} onOpenChange={setAdding}>
           <PopoverTrigger render={<IconButton variant="outline" icon={Plus} label="에이전트 추가" />} />
           <PopoverContent side="bottom" align="end" className="w-80">
-            <AddAgent state={state} onClose={() => setAdding(false)} />
+            <AgentForm state={state} onClose={() => setAdding(false)} />
           </PopoverContent>
         </Popover>
       </div>
@@ -501,43 +511,7 @@ export function AgentList({ state }: { state: RoomState }) {
       ) : (
         <ul className="border bg-card py-1.5">
           {state.agents.map((agent) => (
-            <li key={agent.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 px-4 py-2">
-              <div className="min-w-0">
-                <p className="text-body font-semibold break-words">{agent.name}</p>
-                <p className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-muted-foreground">
-                  <span className="flex min-w-0 items-center gap-1.5 break-all">
-                    <Glyph icon={Cpu} className="size-3.5" />
-                    <span className="sr-only">모델</span>
-                    {agent.model ? (
-                      <span className={cn(modelLabel(providers, agent.kind, agent.model) === agent.model && 'font-mono')}>
-                        {modelLabel(providers, agent.kind, agent.model)}
-                      </span>
-                    ) : (
-                      <span className="font-mono">{agent.kind}</span>
-                    )}
-                  </span>
-                  {agent.effort ? (
-                    <span className="flex items-center gap-1.5">
-                      <Glyph icon={Gauge} className="size-3.5" />
-                      <span className="sr-only">추론 수준</span>
-                      {agent.effort}
-                    </span>
-                  ) : null}
-                </p>
-                {agent.good_at.length > 0 ? (
-                  <p className="mt-0.5 text-label text-pretty text-muted-foreground">
-                    <span className="sr-only">담당 업무: </span>
-                    {agent.good_at.join(', ')}
-                  </p>
-                ) : null}
-              </div>
-              {busy.has(agent.id) ? (
-                <span className="flex h-6 items-center">
-                  <Arc size={12} color="var(--live)" />
-                  <span className="sr-only">실행 중</span>
-                </span>
-              ) : null}
-            </li>
+            <AgentRow key={agent.id} state={state} agent={agent} providers={providers} busy={busy.has(agent.id)} />
           ))}
         </ul>
       )}
@@ -545,11 +519,123 @@ export function AgentList({ state }: { state: RoomState }) {
   )
 }
 
-function AddAgent({ state, onClose }: { state: RoomState; onClose: () => void }) {
+function AgentRow({
+  state,
+  agent,
+  providers,
+  busy,
+}: {
+  state: RoomState
+  agent: Agent
+  providers: ModelProvider[] | undefined
+  busy: boolean
+}) {
+  const [editing, setEditing] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const remove = useRoomMutation(state.room.id, () => api.removeAgent(agent.id))
+
+  return (
+    <li className="group/agent grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 ps-4 pe-1.5 py-1">
+      <div className="min-w-0 py-1">
+        <p className="text-body font-semibold break-words">{agent.name}</p>
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-muted-foreground">
+          <span className="flex min-w-0 items-center gap-1.5 break-all">
+            <Glyph icon={Cpu} className="size-3.5" />
+            <span className="sr-only">모델</span>
+            {agent.model ? (
+              <span className={cn(modelLabel(providers, agent.kind, agent.model) === agent.model && 'font-mono')}>
+                {modelLabel(providers, agent.kind, agent.model)}
+              </span>
+            ) : (
+              <span className="font-mono">{agent.kind}</span>
+            )}
+          </span>
+          {agent.effort ? (
+            <span className="flex items-center gap-1.5">
+              <Glyph icon={Gauge} className="size-3.5" />
+              <span className="sr-only">추론 수준</span>
+              {agent.effort}
+            </span>
+          ) : null}
+        </p>
+        {agent.good_at.length > 0 ? (
+          <p className="mt-0.5 text-label text-pretty text-muted-foreground">
+            <span className="sr-only">담당 업무: </span>
+            {agent.good_at.join(', ')}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex items-center">
+        {/* 실행 표시 자리는 늘 비워 두어, 실행이 시작되고 끝날 때 버튼과 이름 줄이 움직이지 않게 합니다 */}
+        <span className="flex w-5 justify-center">
+          {busy ? (
+            <>
+              <Arc size={12} color="var(--live)" />
+              <span className="sr-only">실행 중</span>
+            </>
+          ) : null}
+        </span>
+        {/* 편집과 삭제는 행에 마우스를 올리거나 행 안에 초점이 있을 때만 보입니다. 자리는 그대로 두고 투명도만 바꿔 행이 움직이지 않게 합니다.
+            호버가 없는 터치 기기와 양식이 열려 있는 동안은 늘 보입니다. */}
+        <div
+          data-open={editing || removing || undefined}
+          className="flex opacity-0 transition-opacity duration-150 group-focus-within/agent:opacity-100 group-hover/agent:opacity-100 data-open:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
+        >
+          <Popover open={editing} onOpenChange={setEditing}>
+            <PopoverTrigger render={<IconButton variant="ghost" icon={Pencil} label="에이전트 편집" />} />
+            <PopoverContent side="bottom" align="end" className="w-80">
+              <AgentForm state={state} agent={agent} onClose={() => setEditing(false)} />
+            </PopoverContent>
+          </Popover>
+          <Popover
+            open={removing}
+            onOpenChange={(next) => {
+              setRemoving(next)
+              if (!next) remove.reset()
+            }}
+          >
+            <PopoverTrigger render={<IconButton variant="ghost" icon={Trash2} label="에이전트 삭제" />} />
+            <PopoverContent side="bottom" align="end" className="w-80 gap-3">
+              <InlineConfirm
+                question={`${agent.name} 에이전트를 삭제할까요?`}
+                description="기록은 남고, 맡은 할 일은 다시 배정됩니다."
+                confirmLabel="삭제"
+                disabled={remove.isPending}
+                onConfirm={() => remove.mutate(undefined, { onSuccess: () => setRemoving(false) })}
+                onCancel={() => setRemoving(false)}
+              />
+              {remove.error ? (
+                <p role="alert" className="text-label text-destructive">
+                  {remove.error instanceof ApiError ? remove.error.message : '에이전트를 삭제하지 못했습니다. 잠시 후 다시 시도하세요.'}
+                </p>
+              ) : null}
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+    </li>
+  )
+}
+
+type AgentBody = { name: string; kind: string; model: string; effort: string; good_at: string[] }
+
+/** 서버의 모델 목록에 있는 조합인지 봅니다. 목록에서 빠진 모델로 만든 에이전트를 편집할 때 다시 고르게 합니다 */
+function offered(providers: ModelProvider[] | undefined, choice: ModelChoice) {
+  const provider = providers?.find((p) => p.id === choice.provider)
+  if (!provider) return !providers
+  const model = provider.models.length === 0 ? choice.model === '' : provider.models.includes(choice.model)
+  const effort = provider.efforts.length === 0 ? choice.effort === '' : provider.efforts.includes(choice.effort)
+  return model && effort
+}
+
+/** 에이전트 추가와 편집이 함께 쓰는 양식입니다. agent를 넘기면 그 값으로 채우고 저장합니다 */
+function AgentForm({ state, agent, onClose }: { state: RoomState; agent?: Agent; onClose: () => void }) {
   const providers = useAgentModels()
-  const [choice, setChoice] = useState<ModelChoice | null>(null)
-  const [duty, setDuty] = useState('')
-  const [name, setName] = useState('')
+  const [choice, setChoice] = useState<ModelChoice | null>(
+    agent ? { provider: agent.kind, model: agent.model, effort: agent.effort } : null,
+  )
+  const [duty, setDuty] = useState(agent?.good_at.join(', ') ?? '')
+  const [name, setName] = useState(agent?.name ?? '')
   const [invalid, setInvalid] = useState<{ name?: boolean; model?: boolean }>({})
   const nameRef = useRef<HTMLInputElement>(null)
   const ids = {
@@ -561,18 +647,18 @@ function AddAgent({ state, onClose }: { state: RoomState; onClose: () => void })
     nameError: useId(),
     serverError: useId(),
   }
-  const add = useRoomMutation(
-    state.room.id,
-    (body: { name: string; kind: string; model: string; effort: string; good_at: string[] }) => api.addAgent(state.room.id, body),
+  const save = useRoomMutation(state.room.id, (body: AgentBody) =>
+    agent ? api.updateAgent(agent.id, body) : api.addAgent(state.room.id, body),
   )
+  const action = agent ? '에이전트 편집' : '에이전트 추가'
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    const next = { model: !choice, name: !name.trim() }
+    const next = { model: !choice || !offered(providers.data, choice), name: !name.trim() }
     setInvalid(next)
     if (next.model) return document.getElementById(ids.model)?.focus()
     if (next.name || !choice) return nameRef.current?.focus()
-    add.mutate(
+    save.mutate(
       {
         name: name.trim(),
         kind: choice.provider,
@@ -589,7 +675,7 @@ function AddAgent({ state, onClose }: { state: RoomState; onClose: () => void })
 
   const label = 'text-label font-medium'
   return (
-    <form noValidate aria-label="에이전트 추가" onSubmit={submit} className="grid gap-3">
+    <form noValidate aria-label={action} onSubmit={submit} className="grid gap-3">
       <Field data-invalid={invalid.model || undefined} className="gap-0">
         <FieldLabel htmlFor={ids.model} className={label}>
           모델
@@ -635,13 +721,18 @@ function AddAgent({ state, onClose }: { state: RoomState; onClose: () => void })
               setInvalid((current) => ({ ...current, name: false }))
             }}
           />
-          <IconButton type="submit" icon={Check} label="에이전트 추가" disabled={add.isPending} />
+          <IconButton type="submit" icon={Check} label={agent ? '저장' : '에이전트 추가'} disabled={save.isPending} />
         </div>
         {invalid.name ? <FieldError id={ids.nameError}>에이전트 이름을 입력하세요.</FieldError> : null}
       </Field>
-      {add.error ? (
+      {save.error ? (
         <p id={ids.serverError} role="alert" className="text-label text-destructive">
-          {add.error instanceof ApiError ? add.error.message : '에이전트를 추가하지 못했습니다.'} 잠시 후 다시 시도하세요.
+          {save.error instanceof ApiError
+            ? save.error.message
+            : agent
+              ? '에이전트를 저장하지 못했습니다.'
+              : '에이전트를 추가하지 못했습니다.'}{' '}
+          잠시 후 다시 시도하세요.
         </p>
       ) : null}
     </form>
