@@ -36,6 +36,7 @@ class Scheduler:
                 self.dispatch()
                 if self.dispatcher is not None:
                     self.dispatcher.assign_open()
+                    self.dispatcher.continue_idle()
             except Exception:
                 logger.exception("스케줄러 틱 실패; 다음 틱에 재시도")
             await asyncio.sleep(self.settings.tick_seconds)

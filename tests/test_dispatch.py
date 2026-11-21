@@ -15,7 +15,7 @@ from ycton.orchestration.jev import OpenRouterJev
 from ycton.orchestration.main import create_app
 from ycton.orchestration.runtime_config import Verification
 from ycton.orchestration.runtime_port import RuntimeResult
-from ycton.orchestration.services.task_service import TaskService
+from ycton.orchestration.services.task_service import DomainError, TaskService
 
 HEADERS = {"X-Orch-Client": "web"}
 
@@ -295,3 +295,123 @@ def test_resume_skips_a_responder_who_already_answered(room):
     svc.pause(rid, True)
     svc.pause(rid, False)
     assert queued(svc, rid) == []
+
+
+def test_agent_tasks_stop_at_the_limit_until_a_human_speaks(room):
+    svc, rid, ids = room
+    svc.settings.max_auto_tasks = 2
+    svc.post_message(rid, "로그인 화면 다듬어 줘")
+    svc.create_agent_task(rid, "첫째", "")
+    svc.create_agent_task(rid, "둘째", "")
+    for _ in range(2):
+        with pytest.raises(DomainError):
+            svc.create_agent_task(rid, "셋째", "")
+    notices = [m for m in svc.snapshot(rid)["messages"] if "한도(2개)" in m["content"]]
+    assert len(notices) == 1
+    svc.post_message(rid, "계속해")
+    assert svc.create_agent_task(rid, "셋째", "")["title"] == "셋째"
+
+
+def idle_ready(svc, rid, ids):
+    svc.post_message(rid, "로그인 화면 다듬어 줘")
+    svc.post_message(rid, "다음은 ① 대비 수정 ② 문구 정리입니다", ids["Alice"])
+    with svc.db.connect(write=True) as c:
+        c.execute("DELETE FROM sessions")
+
+
+def test_idle_room_hands_the_next_step_to_the_agent_jev_picks(room):
+    svc, rid, ids = room
+    idle_ready(svc, rid, ids)
+    assert svc.idle_rooms() == [rid]
+
+    async def check():
+        jev = fake_jev({
+            "next": {"type": "choice", "choice": "continue"}, "agent": {"type": "choice", "choice": "Alice"}})
+        try:
+            return await Dispatcher(svc, jev).check_idle(rid)
+        finally:
+            await jev.close()
+
+    assert run(check) == ids["Alice"]
+    assert queued(svc, rid) == [ids["Alice"]]
+    assert svc.snapshot(rid)["messages"][-1]["content"].startswith("@Alice Jev:")
+    with svc.db.connect(write=True) as c:
+        c.execute("DELETE FROM sessions")
+    # 새 메시지가 없으면 같은 대화로 다시 묻지 않는다.
+    assert svc.idle_rooms() == []
+
+
+def test_idle_room_waits_when_jev_says_the_human_decides(room):
+    svc, rid, ids = room
+    idle_ready(svc, rid, ids)
+
+    async def check():
+        jev = fake_jev({
+            "next": {"type": "choice", "choice": "wait"}, "agent": {"type": "choice", "choice": "Alice"}})
+        try:
+            return await Dispatcher(svc, jev).check_idle(rid)
+        finally:
+            await jev.close()
+
+    assert run(check) is None
+    assert queued(svc, rid) == [] and svc.idle_rooms() == []
+
+
+def test_idle_check_skips_busy_rooms_and_rooms_waiting_on_a_human(room):
+    svc, rid, ids = room
+    idle_ready(svc, rid, ids)
+    svc.wake_agents(rid, [ids["Bob"]])
+    assert svc.idle_rooms() == []
+    with svc.db.connect(write=True) as c:
+        c.execute("DELETE FROM sessions")
+    svc.post_message(rid, "잠깐, 이건 어때?")
+    with svc.db.connect(write=True) as c:
+        c.execute("DELETE FROM sessions")
+    assert svc.idle_rooms() == []
+
+
+def test_hand_off_counts_toward_the_limit_and_ignores_stale_decisions(room):
+    svc, rid, ids = room
+    idle_ready(svc, rid, ids)
+    last = svc.idle_context(rid)["last_message"]
+    svc.post_message(rid, "잠깐 기다려")
+    assert svc.hand_off(rid, ids["Alice"], last) is False
+    with svc.db.connect(write=True) as c:
+        c.execute("DELETE FROM sessions")
+    svc.post_message(rid, "확인했습니다", ids["Alice"])
+    last = svc.idle_context(rid)["last_message"]
+    svc.pause(rid, True)
+    assert svc.hand_off(rid, ids["Alice"], last) is False
+    svc.pause(rid, False)
+    assert svc.hand_off(rid, ids["Alice"], last) is True
+    assert svc.snapshot(rid)["room"]["auto_tasks"] == 1
+
+
+def test_idle_skips_rooms_waiting_on_a_human_question_or_failed_chat(room):
+    svc, rid, ids = room
+    svc.post_message(rid, "로그인 화면 다듬어 줘")
+    svc.post_message(rid, "@human 어느 색으로 할까요?", ids["Alice"])
+    with svc.db.connect(write=True) as c:
+        c.execute("DELETE FROM sessions")
+        svc.message(c, rid, "system", "채팅 실행 실패: 런타임 오류")
+    assert svc.idle_rooms() == []
+
+
+def test_upgrade_does_not_wake_old_rooms(tmp_path):
+    import sqlite3
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.executescript("""
+        CREATE TABLE rooms (id INTEGER PRIMARY KEY, name TEXT NOT NULL, paused INTEGER NOT NULL DEFAULT 0,
+                            chat_rounds INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE messages (id INTEGER PRIMARY KEY, room_id INTEGER NOT NULL, author TEXT NOT NULL,
+                               content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+        INSERT INTO rooms(id,name) VALUES(1,'old');
+        INSERT INTO messages(room_id,author,content) VALUES(1,'human','옛 요청'),(1,'agent:1','옛 답');
+    """)
+    conn.commit()
+    conn.close()
+    db = Database(path)
+    db.initialize()
+    with db.connect() as c:
+        assert c.execute("SELECT idle_checked_message FROM rooms WHERE id=1").fetchone()[0] == 2

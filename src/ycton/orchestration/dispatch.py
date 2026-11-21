@@ -24,6 +24,7 @@ class Dispatcher:
     def __init__(self, service, jev=None):
         self.service, self.jev = service, jev
         self.assigning: dict[int, asyncio.Task[None]] = {}
+        self.continuing: dict[int, asyncio.Task[None]] = {}
 
     async def route_message(self, room_id, message_id):
         """멘션이나 답장 대상이 없는 사람 메시지에 답할 에이전트 하나를 깨운다."""
@@ -59,6 +60,46 @@ class Dispatcher:
                 return agents[message["agent_id"]]
         text = context["message"]["content"]
         return max(context["agents"], key=lambda agent: (strength_match(agent, text), -agent["id"]))
+
+    def continue_idle(self):
+        """스케줄러 틱마다 조용해진 방에서 Jev에게 다음 단계가 남았는지 묻는다. Jev가 없으면 사람을 기다린다."""
+        if self.jev is None:
+            return
+        for room_id in self.service.idle_rooms():
+            if room_id not in self.continuing:
+                task = self.continuing[room_id] = asyncio.create_task(self.check_idle(room_id))
+                task.add_done_callback(lambda finished, rid=room_id: self.continuing.pop(rid, None))
+
+    async def check_idle(self, room_id):
+        context = self.service.idle_context(room_id)
+        # 판단 결과와 상관없이 같은 대화로 다시 묻지 않는다.
+        self.service.mark_idle_checked(room_id, context["last_message"])
+        by_name = {agent["name"]: agent for agent in context["agents"]}
+        answers = await self.jev.decide(
+            {"recent_messages": context["recent"], "tasks": context["tasks"]},
+            {"next": {
+                "type": "choice",
+                "instructions": "The team is idle. Decide whether work toward the human's latest request or goal "
+                                "is still left and the agents should continue without asking the human.",
+                "criteria": {
+                    "continue": "Steps the agents proposed, follow-ups, fixes or reviews are still left and "
+                                "need no human decision.",
+                    "wait": "The request is done, or the next step needs the human's decision or answer.",
+                }},
+             "agent": {
+                "type": "choice",
+                "instructions": "If the agents continue, pick the one agent who should plan the next step.",
+                "criteria": {name: agent_option(agent) for name, agent in by_name.items()},
+             }})
+        if answers is None or answers["next"] != "continue":
+            return None
+        agent = by_name[answers["agent"]]
+        try:
+            handed = self.service.hand_off(room_id, agent["id"], context["last_message"])
+        except DomainError as exc:
+            logger.info("방 %s 다음 단계 건너뜀: %s", room_id, exc.message)
+            return None
+        return agent["id"] if handed else None
 
     def assign_open(self):
         """스케줄러 틱마다 담당이 없는 할 일의 배정을 시작한다. 할 일마다 판단은 하나만 돈다."""
@@ -109,4 +150,6 @@ class Dispatcher:
     async def close(self):
         for task in self.assigning.values():
             task.cancel()
-        await asyncio.gather(*self.assigning.values(), return_exceptions=True)
+        for task in self.continuing.values():
+            task.cancel()
+        await asyncio.gather(*self.assigning.values(), *self.continuing.values(), return_exceptions=True)

@@ -17,6 +17,7 @@ from ycton.subprocess_env import child_environment
 EXAMPLE_RUNTIME_CONFIG = Path(__file__).resolve().parents[4] / "runtime.example.toml"
 
 RECENT_ROUTING_MESSAGES = 10
+CHAT_FAILED = "채팅 실행 실패"
 UNKNOWN_REPOSITORY = "서버 설정에 없는 저장소입니다"
 MISSING_FOLDER = "연결한 폴더를 찾을 수 없습니다"
 UNAVAILABLE_VERIFICATION = "이 프로젝트에서 사용할 수 없는 검증 프로필입니다"
@@ -240,6 +241,8 @@ class TaskService:
                 if agent_id is not None or question is None or not _asks_human(question["content"]):
                     raise DomainError("이 프로젝트에서 사람에게 보낸 질문에만 답장할 수 있습니다", 422)
             self.message(c, room_id, author, content, reply_to_message_id=reply_to_message_id)
+            if agent_id is None:
+                c.execute("UPDATE rooms SET auto_tasks=0 WHERE id=?", (room_id,))
             message_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
             agents = [dict(r) for r in c.execute("SELECT id,name FROM agents WHERE room_id=?", (room_id,))]
             targets = [a["id"] for a in mentioned_agents(agents, content) if a["id"] != agent_id]
@@ -257,16 +260,100 @@ class TaskService:
 
     def create_task(self, room_id, title, detail, scope, verify):
         with self.db.connect(write=True) as c:
+            return self._insert_task(c, room_id, title, detail, scope, verify)
+
+    def _insert_task(self, c, room_id, title, detail, scope, verify):
+        room = require(c, "rooms", room_id)
+        repo = self.room_repository(room)
+        if verify and repo is not None and verify not in repo.verification_profiles:
+            raise DomainError(UNAVAILABLE_VERIFICATION, 422)
+        # 검증 프로필을 비워 두면 Jev가 배정할 때 고른다.
+        tid = c.execute("INSERT INTO tasks(room_id,title,detail,scope,verify) VALUES(?,?,?,?,?)",
+                        (room_id, title, detail, scope, verify)).lastrowid
+        self.event(c, tid, "created", title)
+        self.message(c, room_id, "system", f"할 일 #{tid} 등록: {title}")
+        return require(c, "tasks", tid)
+
+    def _spend_auto_step(self, c, room_id):
+        """에이전트가 스스로 한 걸음(할 일 등록, Jev의 다음 단계 맡기기) 나아갈 때마다 센다.
+        한도에 닿는 순간 방에 알리고, 그 뒤로는 사람 메시지가 올 때까지 막는다."""
+        limit = self.settings.max_auto_tasks
+        count = require(c, "rooms", room_id)["auto_tasks"]
+        if count >= limit:
+            raise DomainError(f"자동 진행 한도({limit}개)에 닿았습니다. 사람의 다음 메시지를 기다리세요.", 429)
+        c.execute("UPDATE rooms SET auto_tasks=auto_tasks+1 WHERE id=?", (room_id,))
+        if count + 1 == limit:
+            self.message(c, room_id, "system",
+                         f"에이전트가 스스로 진행한 단계가 한도({limit}개)에 닿아 자동 진행을 멈춥니다. "
+                         "이어 가려면 메시지를 보내 주세요.")
+
+    def create_agent_task(self, room_id, title, detail):
+        """에이전트가 스스로 올리는 할 일. 마지막 사람 메시지 이후 한도 안에서만 올릴 수 있다."""
+        with self.db.connect(write=True) as c:
+            self._spend_auto_step(c, room_id)
+            return self._insert_task(c, room_id, title, detail, "", "")
+
+    def idle_rooms(self):
+        """돌고 있는 일도 남은 할 일도 없고, 마지막 확인 뒤 새 메시지가 있는 방. Jev가 다음 단계를 판단한다."""
+        with self.db.connect() as c:
+            return [r["id"] for r in c.execute("""
+                SELECT r.id FROM rooms r WHERE r.paused=0 AND r.auto_tasks<?
+                AND EXISTS (SELECT 1 FROM agents a WHERE a.room_id=r.id)
+                AND EXISTS (SELECT 1 FROM messages m WHERE m.room_id=r.id AND m.author='human')
+                AND (SELECT max(id) FROM messages m WHERE m.room_id=r.id) > r.idle_checked_message
+                AND (SELECT author FROM messages m WHERE m.room_id=r.id ORDER BY id DESC LIMIT 1) != 'human'
+                AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.room_id=r.id AND s.status IN ('queued','running'))
+                AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.room_id=r.id AND t.status IN ('open','claimed')
+                                AND t.retry_required=0 AND t.attempts<?)
+                ORDER BY r.id""", (self.settings.max_auto_tasks, self.settings.max_attempts))
+                    if not self._waits_for_human(c, r["id"])]
+
+    @staticmethod
+    def _waits_for_human(c, room_id):
+        """마지막 말이 사람에게 묻는 질문이거나 채팅 실행 실패이면 사람이 볼 차례다."""
+        last = c.execute("SELECT author, content FROM messages WHERE room_id=? ORDER BY id DESC LIMIT 1",
+                         (room_id,)).fetchone()
+        return (last["author"].startswith("agent:") and _asks_human(last["content"])) or (
+            last["author"] == "system" and last["content"].startswith(CHAT_FAILED))
+
+    def idle_context(self, room_id):
+        """Jev가 다음 단계를 판단할 때 보는 내용. 확인한 마지막 메시지 ID도 함께 돌려준다."""
+        with self.db.connect() as c:
+            agents = [dict(r) for r in c.execute("SELECT * FROM agents WHERE room_id=? ORDER BY id", (room_id,))]
+            names = {f"agent:{a['id']}": a["name"] for a in agents}
+            messages = [dict(r) for r in c.execute("""SELECT * FROM (SELECT * FROM messages WHERE room_id=?
+                                                      ORDER BY id DESC LIMIT 20) ORDER BY id""", (room_id,))]
+            tasks = [{"title": r["title"], "status": r["status"], "attempts": r["attempts"],
+                      "needs_human_retry": bool(r["retry_required"]) or r["attempts"] >= self.settings.max_attempts}
+                     for r in c.execute(
+                "SELECT * FROM (SELECT * FROM tasks WHERE room_id=? ORDER BY id DESC LIMIT 20) ORDER BY id", (room_id,))]
+        recent = [{"author": names.get(m["author"], m["author"]), "content": m["content"][:500]} for m in messages]
+        return {"agents": agents, "recent": recent, "tasks": tasks,
+                "last_message": messages[-1]["id"] if messages else 0}
+
+    def mark_idle_checked(self, room_id, message_id):
+        with self.db.connect(write=True) as c:
+            c.execute("UPDATE rooms SET idle_checked_message=max(idle_checked_message,?) WHERE id=?", (message_id, room_id))
+
+    def hand_off(self, room_id, agent_id, expected_last):
+        """Jev가 남은 일이 있다고 본 방에서 에이전트 하나에게 다음 단계를 맡긴다.
+        Jev가 판단하는 사이 방이 멈췄거나 새 메시지·실행이 생겼으면 낡은 판단이므로 아무것도 하지 않는다."""
+        with self.db.connect(write=True) as c:
             room = require(c, "rooms", room_id)
-            repo = self.room_repository(room)
-            if verify and repo is not None and verify not in repo.verification_profiles:
-                raise DomainError(UNAVAILABLE_VERIFICATION, 422)
-            # 검증 프로필을 비워 두면 Jev가 배정할 때 고른다.
-            tid = c.execute("INSERT INTO tasks(room_id,title,detail,scope,verify) VALUES(?,?,?,?,?)",
-                            (room_id, title, detail, scope, verify)).lastrowid
-            self.event(c, tid, "created", title)
-            self.message(c, room_id, "system", f"할 일 #{tid} 등록: {title}")
-            return require(c, "tasks", tid)
+            agent = c.execute("SELECT * FROM agents WHERE id=? AND room_id=?", (agent_id, room_id)).fetchone()
+            last = c.execute("SELECT max(id) FROM messages WHERE room_id=?", (room_id,)).fetchone()[0]
+            busy = c.execute("SELECT 1 FROM sessions WHERE room_id=? AND status IN ('queued','running')",
+                             (room_id,)).fetchone()
+            if room["paused"] or agent is None or last != expected_last or busy:
+                return False
+            self._spend_auto_step(c, room_id)
+            self.message(c, room_id, "system",
+                         f"@{agent['name']} Jev: 사람의 요청에 아직 남은 일이 있어 다음 단계를 맡깁니다. "
+                         "남은 일을 create_task로 등록하세요. 모두 끝났다면 완료를 한 문장으로 알리세요.")
+            c.execute("UPDATE rooms SET idle_checked_message=(SELECT max(id) FROM messages WHERE room_id=?) WHERE id=?",
+                      (room_id, room_id))
+            self.wake(c, room_id, agent_id=agent_id, reset=True)
+            return True
 
     def tasks_to_assign(self):
         """멈추지 않은 방에서 에이전트가 있고 담당이 없는 할 일."""
@@ -470,7 +557,7 @@ class TaskService:
                     elif row is pending[0]:
                         self.wake(c, s["room_id"], agent_id=s["agent_id"])
                 if status == "failed":
-                    self.message(c, s["room_id"], "system", f"채팅 실행 실패: {summary}")
+                    self.message(c, s["room_id"], "system", f"{CHAT_FAILED}: {summary}")
             return True
 
     def pause(self, room_id, paused):

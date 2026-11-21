@@ -89,7 +89,7 @@ def tasks(body: Actor, actor=Depends(identity), svc=Depends(service)):
 def create_task(body: NewTask, actor=Depends(identity), svc=Depends(service)):
     """사람이 채팅으로 요청한 작업을 채팅 에이전트가 할 일로 올린다. 담당과 검증은 Jev가 정한다."""
     validate(svc, actor, body)
-    task = svc.create_task(actor.room_id, body.title, body.detail, "", "")
+    task = svc.create_agent_task(actor.room_id, body.title, body.detail)
     return {**task, "id": str(task["id"])}
 
 

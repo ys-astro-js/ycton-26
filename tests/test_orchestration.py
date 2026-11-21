@@ -267,7 +267,7 @@ def test_additive_migration_preserves_old_rooms_tasks_and_history(tmp_path):
     db.initialize()
     state = TaskService(db, Settings(db_path=db.path)).snapshot(7)
     assert state["room"] == {"id": 7, "name": "old project", "paused": 1, "chat_rounds": 3, "repository_id": "default",
-                             "repo": None}
+                             "repo": None, "auto_tasks": 0, "idle_checked_message": 0}
     task = state["tasks"][0]
     assert (task["id"], task["status"], task["attempts"], task["retry_required"], task["commit_hash"]) == (9, "done", 1, 0, "abc")
     with db.connect() as conn:

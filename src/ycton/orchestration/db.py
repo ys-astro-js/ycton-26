@@ -6,6 +6,10 @@ from pathlib import Path
 ROOM_REPOSITORY = "repository_id TEXT NOT NULL DEFAULT 'default'"
 # 폴더 선택 창으로 연결한 Git 저장소의 절대 경로. 비어 있으면 repository_id의 설정 저장소를 쓴다.
 ROOM_FOLDER = "repo TEXT"
+# 마지막 사람 메시지 이후 에이전트가 스스로 만든 할 일 수. 사람 메시지가 오면 0으로 돌아간다.
+ROOM_AUTO_TASKS = "auto_tasks INTEGER NOT NULL DEFAULT 0"
+# Jev가 '다음 단계가 남았나'를 마지막으로 본 시점의 메시지 ID. 새 메시지가 없으면 다시 묻지 않는다.
+ROOM_IDLE_CHECKED = "idle_checked_message INTEGER NOT NULL DEFAULT 0"
 TASK_RETRY = "retry_required INTEGER NOT NULL DEFAULT 0 CHECK(retry_required IN (0,1))"
 MESSAGE_REPLY = "reply_to_message_id INTEGER REFERENCES messages(id)"
 # 사람 메시지에 답할 에이전트 ID 목록(JSON). @이름, 답장 대상, Jev의 선택으로 정해진다.
@@ -14,7 +18,7 @@ MESSAGE_ADDRESSED = "addressed_to TEXT NOT NULL DEFAULT '[]'"
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS rooms (
  id INTEGER PRIMARY KEY, name TEXT NOT NULL, paused INTEGER NOT NULL DEFAULT 0,
- chat_rounds INTEGER NOT NULL DEFAULT 0, {ROOM_REPOSITORY}, {ROOM_FOLDER}
+ chat_rounds INTEGER NOT NULL DEFAULT 0, {ROOM_REPOSITORY}, {ROOM_FOLDER}, {ROOM_AUTO_TASKS}, {ROOM_IDLE_CHECKED}
 );
 CREATE TABLE IF NOT EXISTS agents (
  id INTEGER PRIMARY KEY, room_id INTEGER NOT NULL REFERENCES rooms(id),
@@ -78,12 +82,17 @@ class Database:
         finally:
             conn.close()
         with self.connect(write=True) as conn:
-            for table, column in (("rooms", ROOM_REPOSITORY), ("rooms", ROOM_FOLDER),
+            for table, column in (("rooms", ROOM_REPOSITORY), ("rooms", ROOM_FOLDER), ("rooms", ROOM_AUTO_TASKS),
+                                  ("rooms", ROOM_IDLE_CHECKED),
                                   ("tasks", TASK_RETRY), ("messages", MESSAGE_REPLY),
                                   ("messages", MESSAGE_ADDRESSED)):
                 if not any(row["name"] == column.split(" ", 1)[0]
                            for row in conn.execute(f"PRAGMA table_info({table})")):
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {column}")
+                    if column == ROOM_IDLE_CHECKED:
+                        # 업그레이드한 방을 지난 대화로 깨우지 않는다. 다음 새 메시지부터 Jev가 본다.
+                        conn.execute("""UPDATE rooms SET idle_checked_message=COALESCE(
+                                        (SELECT max(id) FROM messages m WHERE m.room_id=rooms.id), 0)""")
             conn.execute("CREATE INDEX IF NOT EXISTS messages_room ON messages(room_id, id)")
             conn.execute("CREATE INDEX IF NOT EXISTS messages_reply ON messages(reply_to_message_id) WHERE reply_to_message_id IS NOT NULL")
 

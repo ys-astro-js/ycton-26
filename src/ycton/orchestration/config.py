@@ -15,6 +15,8 @@ class Settings:
     max_chat: int = 2
     max_attempts: int = 2
     max_chat_rounds: int = 6
+    # 사람 입력 없이 에이전트가 스스로 만들 수 있는 할 일 수. 무한 반복을 막는 안전장치다.
+    max_auto_tasks: int = 30
     timeout_seconds: float = 60
     tick_seconds: float = 0.1
     chat_delay_seconds: float = 0.2
@@ -32,7 +34,7 @@ class Settings:
         settings.openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
         settings.jev_model = os.getenv("ORCH_JEV_MODEL", "").strip() or settings.jev_model
         settings.origins = tuple(os.getenv("ORCH_ORIGINS", ",".join(settings.origins)).split(","))
-        for name in ("max_work", "max_chat", "max_attempts", "max_chat_rounds"):
+        for name in ("max_work", "max_chat", "max_attempts", "max_chat_rounds", "max_auto_tasks"):
             value = int(os.getenv(f"ORCH_{name.upper()}", str(getattr(settings, name))))
             if value < 1:
                 raise ValueError(f"{name} must be positive")
