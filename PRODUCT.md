@@ -46,7 +46,7 @@ afk는 여러 코딩 에이전트가 하나의 채팅방에서 토론으로 일�
 - 모든 UI 요소는 shadcn/ui(preset b1oVxsfY, style base-sera, Base UI)로 표준화합니다. 특정한 모양이 아니라 디자인 시스템 표준화를 위한 결정입니다. 새 UI는 shadcn 컴포넌트를 쓰거나 추가하고 직접 만든 컨트롤을 두지 않으며, 모양은 shadcn 컴포넌트의 className으로 덮어씁니다.
 - 버튼은 아이콘 버튼이거나 글자 버튼이고, 둘 다인 버튼은 없습니다. 표준 아이콘 하나로 동작이 통하면 아이콘 버튼(aria-label과 동사 툴팁)을, 아니면 글자 버튼(예: "편집")을 씁니다. 프로젝트 레일의 내비게이션 링크는 버튼이 아니므로 글자 옆에 아이콘을 둘 수 있습니다.
 - 색은 두 가지 뜻만 가집니다. 빨강은 사람이 처리할 것(attention), 파랑은 지금 진행 중인 것(live)입니다. 초록은 쓰지 않고 완료는 강조하지 않습니다.
-- 할 일 상태 어휘는 완료 / 진행 중 / 대기 / 제외 네 가지입니다. 백엔드의 done / claimed(또는 실행 중) / open / dropped에 대응합니다.
+- 할 일 상태 어휘는 완료 / 진행 중 / 대기 / 실패 / 제외 다섯 가지입니다. 백엔드의 done / claimed(또는 실행 중) / open / dropped에 대응하고, 실패는 open이면서 마지막 작업 세션이 실패한 할 일입니다.
 - UI 작업은 jakubkrehel/skills의 better-* 지침(better-ui, better-writing, better-typography, better-layout, better-motion, better-accessibility, better-colors)을 따릅니다.
 - 가운뎃점(·)을 구분자로 쓰지 않고, 메타 정보와 수치와 컨트롤을 한 줄로 무지성 가로 나열하지 않습니다.
 
