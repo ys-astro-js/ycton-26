@@ -1,28 +1,86 @@
 # ycton-26
 
-> 프로젝트 한 줄 소개를 여기에 작성하세요.
+여러 코딩 에이전트가 하나의 채팅방에서 토론으로 일을 나눠 가져가고, 사람이 보고 있지 않아도 작업을 이어 가며, 그 과정과 기록이 한곳에 쌓이는 **로컬 멀티 에이전트 관리 도구**입니다.
 
-## Tech Stack
+> **상태**: 기획 단계입니다. 아직 구현 코드는 없습니다. 자세한 내용은 [PRD.md](PRD.md)와 [PLAN.md](PLAN.md)를 보세요.
 
-- **Backend**: Python
-- **Frontend**: TypeScript, React
+## 왜 만드나
 
-## Getting Started
+Claude Code, Codex, Gemini CLI 같은 코딩 에이전트를 여러 개 동시에 쓰면, 개발자는 코드보다 에이전트의 진행 확인, 작업 분배, 지시 반복에 더 많은 주의를 씁니다. 이 도구의 목표는 그 인지 부하를 줄이는 것입니다. 사람이 신경 쓰지 않아도 알아서 돌아가는 것("알잘딱")이 기준입니다.
 
-### Backend (Python)
+| 문제 | 이 도구의 해결 방식 |
+| --- | --- |
+| 어떤 에이전트가 무엇을 하는지 모름 | 채팅방, 할 일, 이슈, 위키 한곳에서 현재 작업과 이력을 봅니다. |
+| 사람이 계속 지켜봐야 함 | 에이전트들이 토론으로 담당을 정하고, Jev가 spawn과 go/stop을 판단합니다. |
+| 같은 지시를 반복 | 에이전트 종류와 종류별 AGENTS.md를 한 번만 정의합니다. |
+| 채팅 에이전트의 컨텍스트 누적 | 실제 작업은 서브세션에 맡기고, 채팅 쪽에는 결과 요약만 남깁니다. |
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+## 동작 방식
+
+```
+사람 ──▶ 채팅방 ◀──▶ 채팅 에이전트들 (토론으로 할 일 claim)
+                         │ delegate
+                         ▼
+                    서브세션 (git worktree에서 작업 → commit → 인계 노트)
+                         │
+           Jev ── spawn / 대기 / 우선순위 / go·stop 판단
 ```
 
-### Frontend (TypeScript / React)
+1. 사람이 **에이전트 종류**를 YAML로 정의합니다. 종류마다 쓸 에이전트 CLI, 채팅·작업·think 모델, 잘하는 작업(`good_at`), 종류별 AGENTS.md를 정합니다.
+2. **채팅방**을 만들고 작업 폴더(git 저장소)를 지정한 뒤 에이전트를 추가합니다.
+3. 사람이 요청하면 **채팅 에이전트**들이 토론해 할 일을 나누고, 각자 claim합니다.
+4. 채팅 에이전트는 `delegate` 도구로 할 일을 **서브세션**에 맡기고 대화를 계속합니다.
+5. 서브세션은 각자 git worktree에서 작업하고, 고른 파일만 커밋한 뒤 결과 요약을 할 일과 채팅방에 남깁니다.
+6. 사람이 없는 동안에는 **Jev**(가벼운 decision 모델)가 대기·spawn·우선순위·stop을 판단합니다.
 
-```bash
-npm install
-npm run dev
+에이전트 종류 정의 예시:
+
+```yaml
+- name: frontend
+  cli: claude                       # claude | codex | gemini
+  command: null                     # 비우면 CLI별 기본 ACP 실행 명령
+  chat: claude-sonnet-5-5:medium    # 채팅 턴 모델:effort
+  work: claude-opus-5-5:medium      # 서브세션 모델:effort
+  think: claude-opus-5-5:high       # think 턴 모델:effort
+  good_at: [프론트엔드, UI 구현]
+  agents_md: types/frontend.md
 ```
+
+## 지원 에이전트
+
+서버가 [Agent Client Protocol(ACP)](https://github.com/agentclientprotocol/python-sdk) 클라이언트가 되어 로컬에 설치·로그인된 에이전트를 직접 실행합니다. 사용량은 각 계정의 것을 씁니다.
+
+| 에이전트 CLI | 연결 방식 |
+| --- | --- |
+| Claude Code | [claude-agent-acp](https://github.com/zed-industries/claude-agent-acp) 어댑터 |
+| Codex | [codex-acp](https://github.com/agentclientprotocol/codex-acp) 어댑터 |
+| Gemini CLI | 자체 ACP 모드(`gemini --acp`) |
+
+## 기술 스택
+
+| 영역 | 선택 |
+| --- | --- |
+| 백엔드 | Python, uv, FastAPI(HTTP API, WebSocket), Uvicorn, asyncio |
+| 프론트엔드 | React + TypeScript, Vite, TanStack Router, TanStack Query, bun |
+| 데이터 | SQLite 하나(채팅, 할 일, 이슈, 위키, 세션 기록), 에이전트 종류는 YAML |
+| 에이전트 연결 | ACP 공식 Python SDK `agent-client-protocol` |
+| 채팅방 도구 | stdio MCP 서버(세션마다 `session/new`의 `mcpServers`로 전달) |
+
+브라우저로 접속하는 로컬 웹 앱이며, 나중에 Electron으로 감쌀 수 있게 프론트는 정적 SPA로, 백엔드는 독립 프로세스로 만듭니다. 서버는 `127.0.0.1`에만 바인딩합니다.
+
+## 로드맵
+
+| 단계 | 포함 기능 | 완료 기준 |
+| --- | --- | --- |
+| MVP | 채팅방, ACP 실행, 서브세션 위임, 할 일, 스케줄러 (F1–F15) | 사람의 첫 요청 이후 추가 개입 없이 기능 하나를 커밋까지 끝냅니다. |
+| 2단계 | Jev, 이슈, 위키, think 턴 (F16–F20) | 자는 동안 맡기기, 지난 작업 추적이 가능합니다. |
+| 3단계 | 위키 토론, stop 알림 (F21–F22) | 위키 토론과 Jev stop 알림이 동작합니다. |
+
+## 문서
+
+- [PRD.md](PRD.md): 문제 정의, 기능 요구사항(F1–F22), 비기능 요구사항, 성공 지표, 리스크
+- [PLAN.md](PLAN.md): 상세 설계(턴 흐름, 서브세션, 스케줄러, 채팅방 MCP 도구, 모델 기본값), 기존 도구와의 비교
+- [AGENTS.md](AGENTS.md): 이 저장소에서 작업하는 에이전트를 위한 지침
 
 ## Contributing
 
