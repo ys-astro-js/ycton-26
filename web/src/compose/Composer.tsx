@@ -10,7 +10,7 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
-import { ROOMS_KEY, roomKey, splitRequest, useRooms, useVerificationProfiles } from '../room/data.ts'
+import { ROOMS_KEY, roomKey, splitRequest, useRooms, useVerificationProfile } from '../room/data.ts'
 
 /**
  * 아침 리뷰와 프로젝트가 같이 쓰는 입력.
@@ -24,7 +24,6 @@ export function Composer({ roomId }: { roomId?: number }) {
   const client = useQueryClient()
 
   const [target, setTarget] = useState(roomId !== undefined ? String(roomId) : '')
-  const [profile, setProfile] = useState('')
   const [text, setText] = useState('')
   const [invalid, setInvalid] = useState<{ room?: boolean; text?: boolean }>({})
 
@@ -33,7 +32,6 @@ export function Composer({ roomId }: { roomId?: number }) {
   const ids = {
     room: useId(),
     text: useId(),
-    profile: useId(),
     textError: useId(),
     roomError: useId(),
     server: useId(),
@@ -41,7 +39,7 @@ export function Composer({ roomId }: { roomId?: number }) {
 
   const assigning = global
   const selectedRoom = rooms.find(({ id }) => String(id) === target)
-  const { profiles, verify, error: optionsError } = useVerificationProfiles(selectedRoom, profile, assigning)
+  const { verify, error: optionsError } = useVerificationProfile(selectedRoom, assigning)
   const taskUnavailable = assigning && (Boolean(optionsError) || (target !== '' && !verify))
 
   const send = useMutation({
@@ -118,7 +116,6 @@ export function Composer({ roomId }: { roomId?: number }) {
               aria-describedby={invalid.room ? ids.roomError : undefined}
               onChange={(event) => {
                 setTarget(event.target.value)
-                setProfile('')
                 setInvalid((current) => ({ ...current, room: false }))
               }}
             >
@@ -130,15 +127,6 @@ export function Composer({ roomId }: { roomId?: number }) {
                   {room.name}
                 </NativeSelectOption>
               ))}
-            </NativeSelect>
-          </Field>
-        ) : null}
-
-        {assigning ? (
-          <Field className="min-w-0 flex-1 basis-36 gap-0 sm:flex-none">
-            <FieldLabel htmlFor={ids.profile} className="text-label text-muted-foreground">검증 프로필</FieldLabel>
-            <NativeSelect id={ids.profile} className="w-full" value={verify ?? ''} disabled={!profiles} onChange={(event) => setProfile(event.target.value)}>
-              {profiles?.map((name) => <NativeSelectOption key={name} value={name}>{name}</NativeSelectOption>)}
             </NativeSelect>
           </Field>
         ) : null}

@@ -8,14 +8,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 import { StatusNode } from '../review/ledger.tsx'
 import { DisclosurePanel, Glyph, Handoff, STATUS, countFormat } from '../review/shared.tsx'
-import { clock, lines, splitRequest, taskPhase, useAgentModels, useRoomMutation, useTaskEvents, useVerificationProfiles, type TaskPhase } from './data.ts'
+import { clock, lines, splitRequest, taskPhase, useAgentModels, useRoomMutation, useTaskEvents, useVerificationProfile, type TaskPhase } from './data.ts'
 import { ModelPicker, type ModelChoice } from './model-picker.tsx'
 import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
 
@@ -112,11 +111,10 @@ export function TaskList({ state, focus }: { state: RoomState; focus?: number })
 function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: number) => void }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
-  const [profile, setProfile] = useState('')
   const [invalid, setInvalid] = useState(false)
   const textRef = useRef<HTMLTextAreaElement>(null)
-  const ids = { text: useId(), profile: useId(), error: useId() }
-  const { profiles, verify, error: optionsError } = useVerificationProfiles(state.room, profile, open)
+  const ids = { text: useId(), error: useId() }
+  const { verify, error: optionsError } = useVerificationProfile(state.room, open)
   const add = useRoomMutation(state.room.id, ({ body, verify }: { body: string; verify: string }) => {
     const { title, detail } = splitRequest(body)
     return api.createTask(state.room.id, { title, detail, scope: '', verify })
@@ -132,7 +130,6 @@ function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: numbe
     add.mutate({ body: text.trim(), verify }, {
       onSuccess: (task) => {
         setText('')
-        setProfile('')
         setOpen(false)
         onAdded(task.id)
       },
@@ -173,12 +170,6 @@ function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: numbe
               <IconButton type="submit" icon={Check} label="할 일 추가" disabled={!verify || add.isPending} />
             </div>
             {invalid ? <FieldError id={ids.error}>할 일을 입력하세요.</FieldError> : null}
-          </Field>
-          <Field className="gap-0">
-            <FieldLabel htmlFor={ids.profile} className="text-label font-medium">검증 프로필</FieldLabel>
-            <NativeSelect id={ids.profile} className="w-full" value={verify ?? ''} disabled={!profiles} onChange={(event) => setProfile(event.target.value)}>
-              {profiles?.map((name) => <NativeSelectOption key={name} value={name}>{name}</NativeSelectOption>)}
-            </NativeSelect>
           </Field>
           {optionsError ? <p role="alert" className="text-label text-destructive">{optionsError}</p> : null}
           {add.error ? (

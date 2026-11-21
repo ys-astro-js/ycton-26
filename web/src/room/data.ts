@@ -26,19 +26,21 @@ export function useRuntimeOptions(enabled = true) {
   return useQuery({ queryKey: ['runtime-options'], queryFn: api.runtimeOptions, enabled, retry: 1 })
 }
 
-/** 프로젝트가 쓸 수 있는 검증 프로필. 고른 폴더에 연결한 프로젝트는 서버가 폴더용으로 허용한 목록을 씁니다 */
-export function useVerificationProfiles(room: Pick<Room, 'repository_id' | 'repo'> | undefined, selection: string, enabled = true) {
+/**
+ * 할 일에 붙일 검증 프로필. 사람이 고르지 않고 프로젝트의 기본값을 씁니다.
+ * 고른 폴더에 연결한 프로젝트는 서버가 폴더용으로 정한 기본값을 씁니다.
+ */
+export function useVerificationProfile(room: Pick<Room, 'repository_id' | 'repo'> | undefined, enabled = true) {
   const options = useRuntimeOptions(enabled)
   const repositoryId = room?.repo ? undefined : room?.repository_id
   const repository = options.isError ? undefined
     : room?.repo ? options.data?.folder
     : options.data?.repositories.find(({ id }) => id === repositoryId)
-  const profiles = repository?.verification_profiles
-  const verify = profiles?.includes(selection) ? selection : repository?.default_verification_profile
+  const verify = repository?.default_verification_profile
   const error = options.isError ? '실행 설정을 불러오지 못했습니다'
     : options.data && repositoryId && !repository ? '서버 설정에 없는 저장소입니다'
     : undefined
-  return { profiles, verify, error }
+  return { verify, error }
 }
 
 /** 서버에 실시간 채널이 없어 1초마다 방 상태를 다시 읽습니다 */
