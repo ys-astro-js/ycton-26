@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState, type ReactNode, type Ref } from 're
 import type { ModelProvider } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 
 export interface ModelChoice {
@@ -142,11 +143,22 @@ export function ModelPicker({
         )}
       </PopoverTrigger>
       <PopoverContent side="bottom" align="start" className="w-auto flex-row gap-0 p-0" onPointerMoveCapture={aim.track}>
-        <Column title="제공자" rows={rows} columnRef={(node) => { aim.columns.current[0] = node }}>
+        <Column
+          title="제공자"
+          rows={rows}
+          value={providerId}
+          columnRef={(node) => {
+            aim.columns.current[0] = node
+          }}
+          onValueChange={(next) => {
+            setProviderId(next)
+            if (next !== providerId) setModel('')
+          }}
+        >
           {providers.map((candidate) => (
             <Option
               key={candidate.id}
-              selected={candidate.id === providerId}
+              value={candidate.id}
               onPreview={(fromPointer) => {
                 const preview = () => {
                   setProviderId(candidate.id)
@@ -156,21 +168,29 @@ export function ModelPicker({
                 else preview()
               }}
               onLeave={aim.cancel}
-              onSelect={() => {
-                setProviderId(candidate.id)
-                setModel('')
-              }}
             >
               {candidate.label}
             </Option>
           ))}
         </Column>
-        <Column title="모델" rows={rows} columnRef={(node) => { aim.columns.current[1] = node }}>
+        <Column
+          title="모델"
+          rows={rows}
+          value={model}
+          columnRef={(node) => {
+            aim.columns.current[1] = node
+          }}
+          onValueChange={(next) => {
+            if (!provider) return
+            if (provider.efforts.length === 0) finish({ provider: provider.id, model: next, effort: '' })
+            else setModel(next)
+          }}
+        >
           {provider?.models.map((candidate) => (
             <Option
               key={candidate}
+              value={candidate}
               mono
-              selected={candidate === model}
               onPreview={(fromPointer) => {
                 if (provider.efforts.length === 0) return
                 const preview = () => setModel(candidate)
@@ -178,55 +198,73 @@ export function ModelPicker({
                 else preview()
               }}
               onLeave={aim.cancel}
-              onSelect={() => {
-                if (provider.efforts.length === 0) finish({ provider: provider.id, model: candidate, effort: '' })
-                else setModel(candidate)
-              }}
             >
               {candidate}
             </Option>
           ))}
         </Column>
-        <Column title="추론 수준" rows={rows} columnRef={(node) => { aim.columns.current[2] = node }}>
-          {provider && model ? provider.efforts.map((candidate) => (
-            <Option
-              key={candidate}
-              selected={value?.provider === provider.id && value.model === model && value.effort === candidate}
-              onSelect={() => finish({ provider: provider.id, model, effort: candidate })}
-            >
-              {candidate}
-            </Option>
-          )) : null}
+        <Column
+          title="추론 수준"
+          rows={rows}
+          value={value?.provider === providerId && value.model === model ? value.effort : ''}
+          columnRef={(node) => {
+            aim.columns.current[2] = node
+          }}
+          onValueChange={(next) => {
+            if (provider && model) finish({ provider: provider.id, model, effort: next })
+          }}
+        >
+          {provider && model
+            ? provider.efforts.map((candidate) => (
+                <Option key={candidate} value={candidate}>
+                  {candidate}
+                </Option>
+              ))
+            : null}
         </Column>
       </PopoverContent>
     </Popover>
   )
 }
 
+/** 열 하나는 세로 shadcn ToggleGroup입니다. 하나만 고르고, 화살표 키로 항목 사이를 옮깁니다. */
 function Column({
   title,
   rows,
+  value,
   columnRef,
+  onValueChange,
   children,
 }: {
   title: string
   rows: number
+  value: string
   columnRef: Ref<HTMLDivElement>
+  onValueChange: (value: string) => void
   children: ReactNode
 }) {
   const headingId = useId()
   return (
-    <div
-      ref={columnRef}
-      role="group"
-      aria-labelledby={headingId}
-      style={{ gridTemplateRows: `auto repeat(${rows}, 2.25rem)` }}
-      className="grid w-44 content-start gap-0.5 border-e p-1.5 last:border-e-0"
-    >
+    <div ref={columnRef} className="w-44 border-e p-1.5 last:border-e-0">
       <p id={headingId} className="px-2 pt-1 pb-1.5 text-label font-semibold text-muted-foreground">
         {title}
       </p>
-      {children}
+      <ToggleGroup
+        aria-labelledby={headingId}
+        orientation="vertical"
+        size="sm"
+        spacing={0.5}
+        value={value ? [value] : []}
+        // 고른 항목을 다시 눌러도 선택이 풀리지 않게 빈 값은 무시합니다
+        onValueChange={(next) => {
+          if (next[0]) onValueChange(next[0])
+        }}
+        // 세 열을 가장 긴 목록 높이로 맞춰, 고르는 동안 팝오버 크기가 바뀌지 않게 합니다
+        style={{ minHeight: `calc(${rows} * 2.25rem + ${rows - 1} * 0.125rem)` }}
+        className="w-full justify-start"
+      >
+        {children}
+      </ToggleGroup>
     </div>
   )
 }
@@ -236,37 +274,31 @@ function Column({
  * 포인터로 미리 볼 때는 안전 삼각형을 거치도록 fromPointer를 넘깁니다.
  */
 function Option({
-  selected,
+  value,
   mono,
   onPreview,
   onLeave,
-  onSelect,
   children,
 }: {
-  selected: boolean
+  value: string
   mono?: boolean
   onPreview?: (fromPointer: boolean) => void
   onLeave?: () => void
-  onSelect: () => void
   children: ReactNode
 }) {
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      aria-pressed={selected}
+    <ToggleGroupItem
+      value={value}
       onPointerEnter={() => onPreview?.(true)}
       onPointerMove={() => onPreview?.(true)}
       onPointerLeave={onLeave}
       onFocus={() => onPreview?.(false)}
-      onClick={onSelect}
       className={cn(
-        'h-9 w-full justify-start px-2 text-body font-normal tracking-normal normal-case',
+        'w-full justify-start px-2 text-body font-normal tracking-normal normal-case',
         mono && 'font-mono text-label',
-        selected && 'bg-muted font-semibold',
       )}
     >
       <span className="min-w-0 truncate">{children}</span>
-    </Button>
+    </ToggleGroupItem>
   )
 }
