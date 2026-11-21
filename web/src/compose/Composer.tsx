@@ -40,8 +40,8 @@ export function Composer({ roomId }: { roomId?: number }) {
   }
 
   const assigning = global
-  const repositoryId = rooms.find(({ id }) => String(id) === target)?.repository_id
-  const { profiles, verify, error: optionsError } = useVerificationProfiles(repositoryId, profile, assigning)
+  const selectedRoom = rooms.find(({ id }) => String(id) === target)
+  const { profiles, verify, error: optionsError } = useVerificationProfiles(selectedRoom, profile, assigning)
   const taskUnavailable = assigning && (Boolean(optionsError) || (target !== '' && !verify))
 
   const send = useMutation({

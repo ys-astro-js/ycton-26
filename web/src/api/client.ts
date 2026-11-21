@@ -49,8 +49,16 @@ export interface Room {
   id: number
   name: string
   repository_id: string
+  /** 폴더 선택으로 연결한 Git 저장소의 절대 경로. 있으면 repository_id(빈 문자열) 대신 이 폴더를 씁니다 */
+  repo: string | null
   paused: number
   chat_rounds: number
+}
+
+/** 서버 컴퓨터의 폴더 선택 창에서 고른 Git 저장소. 취소하면 둘 다 null입니다 */
+export interface PickedFolder {
+  path: string | null
+  name: string | null
 }
 
 export interface RuntimeRepositoryOption {
@@ -64,8 +72,10 @@ export interface RuntimeOptions {
   mode: 'acp' | 'mock'
   agent_kinds: string[]
   default_agent_kind: string
-  default_repository_id: 'default'
+  default_repository_id: string | null
   repositories: RuntimeRepositoryOption[]
+  /** 폴더 선택으로 연결한 프로젝트가 쓸 수 있는 검증 프로필 */
+  folder: Pick<RuntimeRepositoryOption, 'verification_profiles' | 'default_verification_profile'>
 }
 
 export interface Agent {
@@ -156,7 +166,10 @@ export const api = {
   postMessage: (roomId: number, content: string) =>
     request<{ ok: boolean }>(`/api/rooms/${roomId}/messages`, { method: 'POST', body: { content } }),
   agentModels: () => request<ModelProvider[]>('/api/agent-models'),
-  createRoom: (body: { name: string; repository_id: string }) =>
+  /** 경로를 입력받지 않고, 서버가 띄운 OS 폴더 선택 창에서 고른 결과만 씁니다 */
+  pickFolder: () => request<PickedFolder>('/api/folders/pick', { method: 'POST' }),
+  /** 설정 저장소(repository_id) 또는 고른 폴더(repo) 가운데 하나로 만듭니다 */
+  createRoom: (body: { name: string; repository_id: string } | { name: string; repo: string }) =>
     request<Room>('/api/rooms', { method: 'POST', body }),
   addAgent: (roomId: number, agent: { name: string; kind: string; model: string; effort: string; good_at: string[] }) =>
     request<Agent>(`/api/rooms/${roomId}/agents`, { method: 'POST', body: agent }),

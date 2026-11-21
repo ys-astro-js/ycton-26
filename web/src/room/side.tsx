@@ -116,7 +116,7 @@ function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: numbe
   const [invalid, setInvalid] = useState(false)
   const textRef = useRef<HTMLTextAreaElement>(null)
   const ids = { text: useId(), profile: useId(), error: useId() }
-  const { profiles, verify, error: optionsError } = useVerificationProfiles(state.room.repository_id, profile, open)
+  const { profiles, verify, error: optionsError } = useVerificationProfiles(state.room, profile, open)
   const add = useRoomMutation(state.room.id, ({ body, verify }: { body: string; verify: string }) => {
     const { title, detail } = splitRequest(body)
     return api.createTask(state.room.id, { title, detail, scope: '', verify })

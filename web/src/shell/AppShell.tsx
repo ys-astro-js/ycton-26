@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { Arc } from 'loading-dev'
-import { Check, FolderGit2, Menu, Sunrise, X } from 'lucide-react'
+import { Check, FolderGit2, FolderOpen, Menu, Sunrise, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 
 import { IconButton } from '@/components/icon-button'
@@ -142,10 +142,18 @@ function RailNav() {
   )
 }
 
+/** 고른 폴더를 저장소 선택 목록에 넣을 때 쓰는 값. 설정 저장소 ID는 비어 있을 수 없어 겹치지 않습니다 */
+const PICKED_FOLDER = ''
+
+/**
+ * 프로젝트는 Git 저장소 하나에 연결됩니다. 서버 설정에 등록된 저장소를 고르거나, OS 폴더 선택 창으로 폴더를 고릅니다.
+ * 경로는 타이핑받지 않습니다. 고른 폴더는 선택 목록에 들어가고, 이름이 비어 있으면 폴더 이름으로 채웁니다.
+ */
 function NewRoom() {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
-  const [repositoryId, setRepositoryId] = useState('')
+  const [repositoryId, setRepositoryId] = useState<string | null>(null)
+  const [folder, setFolder] = useState<string | null>(null)
   const [error, setError] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const fieldId = useId()
@@ -155,16 +163,43 @@ function NewRoom() {
   const client = useQueryClient()
   const options = useRuntimeOptions(open)
   const catalog = options.isError ? undefined : options.data
-  const repository = catalog?.repositories.some(({ id }) => id === repositoryId)
-    ? repositoryId
-    : catalog?.default_repository_id
+  const configured = catalog?.repositories ?? []
+  // 사람이 고른 값, 없으면 방금 고른 폴더, 없으면 서버의 기본 저장소
+  const selection =
+    repositoryId === PICKED_FOLDER && folder ? PICKED_FOLDER
+    : repositoryId && configured.some(({ id }) => id === repositoryId) ? repositoryId
+    : folder ? PICKED_FOLDER
+    : (catalog?.default_repository_id ?? null)
+  const ready = selection === PICKED_FOLDER ? Boolean(folder) : Boolean(selection)
+
+  const reset = () => {
+    setName('')
+    setRepositoryId(null)
+    setFolder(null)
+    setError(false)
+    pick.reset()
+    create.reset()
+  }
+
+  const pick = useMutation({
+    mutationFn: () => api.pickFolder(),
+    onSuccess: (picked) => {
+      if (!picked.path) return
+      setFolder(picked.path)
+      setRepositoryId(PICKED_FOLDER)
+      if (!name.trim() && picked.name) {
+        setName(picked.name)
+        setError(false)
+      }
+    },
+  })
+
   const create = useMutation({
     mutationFn: api.createRoom,
     onSuccess: async (room) => {
       await client.invalidateQueries({ queryKey: ROOMS_KEY })
       await client.invalidateQueries({ queryKey: ['overnight-report'] })
-      setName('')
-      setRepositoryId('')
+      reset()
       setOpen(false)
       navigate({ to: '/rooms/$roomId', params: { roomId: String(room.id) } })
     },
@@ -177,15 +212,22 @@ function NewRoom() {
       inputRef.current?.focus()
       return
     }
-    if (repository && !create.isPending) create.mutate({ name: name.trim(), repository_id: repository })
+    if (!ready || create.isPending) return
+    create.mutate(
+      selection === PICKED_FOLDER && folder
+        ? { name: name.trim(), repo: folder }
+        : { name: name.trim(), repository_id: selection as string },
+    )
   }
+
+  const failure = options.isError ? null : (pick.error ?? create.error)
 
   return (
     <Popover
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        if (!next) setError(false)
+        if (!next) reset()
       }}
     >
       <PopoverTrigger
@@ -198,7 +240,7 @@ function NewRoom() {
       >
         새 프로젝트
       </PopoverTrigger>
-      <PopoverContent side="right" align="start" initialFocus={inputRef} className="w-64">
+      <PopoverContent side="right" align="start" initialFocus={inputRef} className="w-72">
         <form noValidate onSubmit={submit} className="grid gap-3">
           <Field data-invalid={error || undefined} className="gap-0">
             <FieldLabel htmlFor={fieldId} className="text-label font-medium">
@@ -216,26 +258,51 @@ function NewRoom() {
                   if (error) setError(false)
                 }}
               />
-              <IconButton type="submit" icon={Check} label="프로젝트 만들기" disabled={!repository || create.isPending} />
+              <IconButton type="submit" icon={Check} label="프로젝트 만들기" disabled={!ready || create.isPending} />
             </div>
             {error ? <FieldError id={errorId}>이름을 입력하세요.</FieldError> : null}
           </Field>
           <Field className="gap-0">
             <FieldLabel htmlFor={repositoryFieldId} className="text-label font-medium">Git 저장소</FieldLabel>
-            <NativeSelect
-              id={repositoryFieldId}
-              className="w-full"
-              value={repository ?? ''}
-              disabled={!catalog}
-              onChange={(event) => setRepositoryId(event.target.value)}
-            >
-              {catalog?.repositories.map(({ id, label }) => <NativeSelectOption key={id} value={id}>{label}</NativeSelectOption>)}
-            </NativeSelect>
+            {configured.length > 0 || folder ? (
+              <div className="flex items-center gap-2">
+                <NativeSelect
+                  id={repositoryFieldId}
+                  className="w-full min-w-0"
+                  value={selection ?? ''}
+                  disabled={!catalog}
+                  onChange={(event) => setRepositoryId(event.target.value)}
+                >
+                  {configured.map(({ id, label }) => <NativeSelectOption key={id} value={id}>{label}</NativeSelectOption>)}
+                  {folder ? <NativeSelectOption value={PICKED_FOLDER}>{folder}</NativeSelectOption> : null}
+                </NativeSelect>
+                <IconButton
+                  type="button"
+                  variant="outline"
+                  icon={FolderOpen}
+                  label="폴더 선택"
+                  disabled={pick.isPending}
+                  onClick={() => pick.mutate()}
+                />
+              </div>
+            ) : (
+              <Button
+                id={repositoryFieldId}
+                type="button"
+                variant="outline"
+                focusableWhenDisabled
+                disabled={!catalog || pick.isPending}
+                onClick={() => pick.mutate()}
+                className="w-full tracking-normal normal-case"
+              >
+                폴더 선택
+              </Button>
+            )}
           </Field>
           {options.isError ? <p role="alert" className="text-label text-destructive">실행 설정을 불러오지 못했습니다</p> : null}
-          {create.error ? (
+          {failure ? (
             <p role="alert" className="text-label text-destructive">
-              {create.error instanceof ApiError ? create.error.message : '프로젝트를 만들지 못했습니다'}. 잠시 후 다시 시도하세요.
+              {failure instanceof ApiError ? failure.message : '프로젝트를 만들지 못했습니다'}.
             </p>
           ) : null}
         </form>
