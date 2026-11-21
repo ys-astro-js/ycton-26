@@ -1,5 +1,5 @@
 import { Arc } from 'loading-dev'
-import { Ban, Bot, FolderCode, GitCommitHorizontal, History, RotateCcw, Square, Plus } from 'lucide-react'
+import { Ban, Bot, Check, FolderCode, GitCommitHorizontal, History, Plus, RotateCcw, Square } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 
 import { api, ApiError, type RoomState, type Task } from '@/api/client'
@@ -170,7 +170,7 @@ function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: numbe
                   if (invalid) setInvalid(false)
                 }}
               />
-              <IconButton type="submit" icon={Plus} label="할 일 추가" disabled={add.isPending} />
+              <IconButton type="submit" icon={Check} label="할 일 추가" disabled={add.isPending} />
             </div>
             {invalid ? <FieldError id={ids.error}>할 일을 입력하세요.</FieldError> : null}
           </Field>
@@ -548,7 +548,7 @@ function AddAgent({ state, onClose }: { state: RoomState; onClose: () => void })
         </p>
       ) : null}
       <div className="flex justify-end">
-        <IconButton type="submit" icon={Plus} label="에이전트 추가" disabled={add.isPending} />
+        <IconButton type="submit" icon={Check} label="에이전트 추가" disabled={add.isPending} />
       </div>
     </form>
   )
