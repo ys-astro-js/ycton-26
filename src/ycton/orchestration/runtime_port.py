@@ -12,6 +12,8 @@ class RuntimeRequest:
     prompt: str
     agent_kind: str
     task_id: int | None = None
+    model: str = ""
+    effort: str = ""
 
 
 @dataclass(frozen=True)

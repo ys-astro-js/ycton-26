@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { Arc } from 'loading-dev'
-import { FolderGit2, Menu, Plus, Sunrise, X } from 'lucide-react'
+import { Check, FolderGit2, Menu, Sunrise, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 
 import { IconButton } from '@/components/icon-button'
@@ -207,7 +207,7 @@ function NewRoom() {
                   if (error) setError(false)
                 }}
               />
-              <IconButton type="submit" icon={Plus} label="프로젝트 만들기" disabled={create.isPending} />
+              <IconButton type="submit" icon={Check} label="프로젝트 만들기" disabled={create.isPending} />
             </div>
             {error ? <FieldError id={errorId}>이름을 입력하세요.</FieldError> : null}
           </Field>

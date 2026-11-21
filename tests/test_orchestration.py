@@ -194,3 +194,39 @@ def test_scheduler_limit_timeout_and_cancel(service):
         assert svc.snapshot(room)["tasks"][1]["status"] == "open"
         await scheduler.stop()
     asyncio.run(exercise())
+
+
+def test_agent_models_list_example_catalog_and_validate_choice(tmp_path):
+    settings = Settings(db_path=tmp_path / "models.db", runtime_config=str(tmp_path / "missing.toml"))
+    app = create_app(settings, start_scheduler=False)
+    with TestClient(app, base_url="http://localhost", headers={"X-Orch-Client": "web"}) as client:
+        providers = client.get("/api/agent-models").json()
+        assert [p["label"] for p in providers] == ["Claude", "GPT", "Gemini"]
+        claude = providers[0]
+        room = client.post("/api/rooms", json={"name": "r"}).json()["id"]
+        body = {"name": "A", "kind": claude["id"], "model": claude["models"][0], "effort": claude["efforts"][-1],
+                "good_at": ["프론트엔드"]}
+        assert client.post(f"/api/rooms/{room}/agents", json={**body, "model": "nope"}).status_code == 422
+        assert client.post(f"/api/rooms/{room}/agents", json={**body, "effort": "nope"}).status_code == 422
+        assert client.post(f"/api/rooms/{room}/agents", json=body).status_code == 201
+        agent = client.get(f"/api/rooms/{room}/state").json()["agents"][0]
+        assert (agent["model"], agent["effort"], agent["good_at"]) == (body["model"], body["effort"], ["프론트엔드"])
+
+
+def test_session_config_sets_matching_options_and_rejects_unknown_values():
+    from types import SimpleNamespace
+    from ycton.acp_runtime import apply_session_config
+    calls = []
+
+    class Connection:
+        async def set_config_option(self, **kwargs):
+            calls.append(kwargs)
+
+    def select(option_id, category, *values):
+        return SimpleNamespace(id=option_id, category=category, options=[SimpleNamespace(value=v) for v in values])
+
+    session = SimpleNamespace(session_id="s", config_options=[select("m", "model", "a", "b"), select("t", "thought_level", "high")])
+    asyncio.run(apply_session_config(Connection(), session, {"model": "b", "thought_level": "high"}))
+    assert calls == [{"config_id": "m", "session_id": "s", "value": "b"}, {"config_id": "t", "session_id": "s", "value": "high"}]
+    with pytest.raises(RuntimeError):
+        asyncio.run(apply_session_config(Connection(), session, {"model": "c"}))

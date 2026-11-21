@@ -13,6 +13,8 @@ class RoomCreate(Input):
 class AgentCreate(Input):
     name: str = Field(min_length=1, max_length=100)
     kind: str = Field(min_length=1, max_length=100)
+    model: str = Field(default="", max_length=100)
+    effort: str = Field(default="", max_length=50)
     good_at: list[str] = Field(default_factory=list, max_length=30)
 
 

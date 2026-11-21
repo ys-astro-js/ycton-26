@@ -12,6 +12,14 @@ export class ApiError extends Error {
   }
 }
 
+/** 서버 설정에 정의된 모델 제공자. 사람은 이 안의 모델과 추론 수준만 고릅니다 */
+export interface ModelProvider {
+  id: string
+  label: string
+  models: string[]
+  efforts: string[]
+}
+
 async function request<T>(path: string, init?: { method?: 'GET' | 'POST'; body?: unknown }): Promise<T> {
   let response: Response
   try {
@@ -49,6 +57,8 @@ export interface Agent {
   room_id: number
   name: string
   kind: string
+  model: string
+  effort: string
   good_at: string[]
 }
 
@@ -127,8 +137,9 @@ export const api = {
   retry: (taskId: number, note: string) => request<Task>(`/api/tasks/${taskId}/retry`, { method: 'POST', body: { note } }),
   postMessage: (roomId: number, content: string) =>
     request<{ ok: boolean }>(`/api/rooms/${roomId}/messages`, { method: 'POST', body: { content } }),
+  agentModels: () => request<ModelProvider[]>('/api/agent-models'),
   createRoom: (name: string) => request<Room>('/api/rooms', { method: 'POST', body: { name } }),
-  addAgent: (roomId: number, agent: { name: string; kind: string; good_at: string[] }) =>
+  addAgent: (roomId: number, agent: { name: string; kind: string; model: string; effort: string; good_at: string[] }) =>
     request<Agent>(`/api/rooms/${roomId}/agents`, { method: 'POST', body: agent }),
   /** verify는 acp 모드에서 서버에 등록된 검증 프로필 이름이어야 합니다 */
   createTask: (roomId: number, task: { title: string; detail: string; scope: string; verify: string }) =>

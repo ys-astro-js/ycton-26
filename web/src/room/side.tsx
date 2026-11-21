@@ -1,5 +1,5 @@
 import { Arc } from 'loading-dev'
-import { Ban, Bot, FolderCode, GitCommitHorizontal, History, RotateCcw, Square, Plus } from 'lucide-react'
+import { Ban, Bot, Check, Cpu, FolderCode, Gauge, GitCommitHorizontal, History, Plus, RotateCcw, Square } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 
 import { api, ApiError, type RoomState, type Task } from '@/api/client'
@@ -14,7 +14,8 @@ import { cn } from '@/lib/utils'
 
 import { StatusNode } from '../review/ledger.tsx'
 import { DisclosurePanel, Glyph, Handoff, STATUS, countFormat } from '../review/shared.tsx'
-import { clock, lines, splitRequest, taskPhase, useRoomMutation, useTaskEvents, type TaskPhase } from './data.ts'
+import { clock, lines, splitRequest, taskPhase, useAgentModels, useRoomMutation, useTaskEvents, type TaskPhase } from './data.ts'
+import { ModelPicker, type ModelChoice } from './model-picker.tsx'
 import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
 
 /**
@@ -170,7 +171,7 @@ function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: numbe
                   if (invalid) setInvalid(false)
                 }}
               />
-              <IconButton type="submit" icon={Plus} label="할 일 추가" disabled={add.isPending} />
+              <IconButton type="submit" icon={Check} label="할 일 추가" disabled={add.isPending} />
             </div>
             {invalid ? <FieldError id={ids.error}>할 일을 입력하세요.</FieldError> : null}
           </Field>
@@ -429,13 +430,24 @@ export function AgentList({ state }: { state: RoomState }) {
           {state.agents.map((agent) => (
             <li key={agent.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 px-4 py-2">
               <div className="min-w-0">
-                <p className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="text-body font-semibold break-words">{agent.name}</span>
-                  <span className="font-mono text-xs text-muted-foreground">{agent.kind}</span>
+                <p className="text-body font-semibold break-words">{agent.name}</p>
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-muted-foreground">
+                  <span className="flex min-w-0 items-center gap-1.5 break-all">
+                    <Glyph icon={Cpu} className="size-3.5" />
+                    <span className="sr-only">모델</span>
+                    <span className="font-mono">{agent.model || agent.kind}</span>
+                  </span>
+                  {agent.effort ? (
+                    <span className="flex items-center gap-1.5">
+                      <Glyph icon={Gauge} className="size-3.5" />
+                      <span className="sr-only">추론 수준</span>
+                      {agent.effort}
+                    </span>
+                  ) : null}
                 </p>
                 {agent.good_at.length > 0 ? (
                   <p className="mt-0.5 text-label text-pretty text-muted-foreground">
-                    <span className="sr-only">잘하는 작업: </span>
+                    <span className="sr-only">담당 업무: </span>
                     {agent.good_at.join(', ')}
                   </p>
                 ) : null}
@@ -455,101 +467,104 @@ export function AgentList({ state }: { state: RoomState }) {
 }
 
 function AddAgent({ state, onClose }: { state: RoomState; onClose: () => void }) {
+  const providers = useAgentModels()
+  const [choice, setChoice] = useState<ModelChoice | null>(null)
+  const [duty, setDuty] = useState('')
   const [name, setName] = useState('')
-  const [kind, setKind] = useState('')
-  const [goodAt, setGoodAt] = useState('')
-  const [invalid, setInvalid] = useState<{ name?: boolean; kind?: boolean }>({})
+  const [invalid, setInvalid] = useState<{ name?: boolean; model?: boolean }>({})
   const nameRef = useRef<HTMLInputElement>(null)
-  const kindRef = useRef<HTMLInputElement>(null)
-  const ids = { name: useId(), kind: useId(), goodAt: useId(), nameError: useId(), kindError: useId(), serverError: useId() }
-  const add = useRoomMutation(state.room.id, (body: { name: string; kind: string; good_at: string[] }) =>
-    api.addAgent(state.room.id, body),
+  const ids = {
+    model: useId(),
+    modelError: useId(),
+    modelsError: useId(),
+    duty: useId(),
+    name: useId(),
+    nameError: useId(),
+    serverError: useId(),
+  }
+  const add = useRoomMutation(
+    state.room.id,
+    (body: { name: string; kind: string; model: string; effort: string; good_at: string[] }) => api.addAgent(state.room.id, body),
   )
-
-  // 팝오버가 열리면 이름 입력에 초점을 둡니다
-  useEffect(() => {
-    nameRef.current?.focus()
-  }, [])
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    const next = { name: !name.trim(), kind: !kind.trim() }
+    const next = { model: !choice, name: !name.trim() }
     setInvalid(next)
-    if (next.name) return nameRef.current?.focus()
-    if (next.kind) return kindRef.current?.focus()
+    if (next.model) return document.getElementById(ids.model)?.focus()
+    if (next.name || !choice) return nameRef.current?.focus()
     add.mutate(
       {
         name: name.trim(),
-        kind: kind.trim(),
-        good_at: goodAt
+        kind: choice.provider,
+        model: choice.model,
+        effort: choice.effort,
+        good_at: duty
           .split(',')
           .map((item) => item.trim())
           .filter(Boolean),
       },
-      {
-        onSuccess: () => {
-          setName('')
-          setKind('')
-          setGoodAt('')
-          onClose()
-        },
-      },
+      { onSuccess: onClose },
     )
   }
 
   const label = 'text-label font-medium'
   return (
     <form noValidate aria-label="에이전트 추가" onSubmit={submit} className="grid gap-3">
+      <Field data-invalid={invalid.model || undefined} className="gap-0">
+        <FieldLabel htmlFor={ids.model} className={label}>
+          모델
+        </FieldLabel>
+        <ModelPicker
+          id={ids.model}
+          providers={providers.data ?? []}
+          value={choice}
+          disabled={!providers.data}
+          invalid={invalid.model}
+          describedBy={cn(invalid.model && ids.modelError, providers.error && ids.modelsError) || undefined}
+          onChange={(next) => {
+            setChoice(next)
+            setInvalid((current) => ({ ...current, model: false }))
+          }}
+        />
+        {invalid.model ? <FieldError id={ids.modelError}>모델을 선택하세요.</FieldError> : null}
+        {providers.error ? (
+          <p id={ids.modelsError} role="alert" className="mt-1 text-label text-destructive">
+            모델 목록을 불러오지 못했습니다.
+          </p>
+        ) : null}
+      </Field>
+      <Field className="gap-0">
+        <FieldLabel htmlFor={ids.duty} className={label}>
+          담당 업무
+        </FieldLabel>
+        <Input id={ids.duty} value={duty} onChange={(event) => setDuty(event.target.value)} />
+      </Field>
       <Field data-invalid={invalid.name || undefined} className="gap-0">
         <FieldLabel htmlFor={ids.name} className={label}>
           이름
         </FieldLabel>
-        <Input
-          ref={nameRef}
-          id={ids.name}
-          value={name}
-          aria-invalid={invalid.name || undefined}
-          aria-describedby={invalid.name ? ids.nameError : undefined}
-          onChange={(event) => {
-            setName(event.target.value)
-            setInvalid((current) => ({ ...current, name: false }))
-          }}
-        />
+        <div className="flex items-center gap-2">
+          <Input
+            ref={nameRef}
+            id={ids.name}
+            value={name}
+            aria-invalid={invalid.name || undefined}
+            aria-describedby={invalid.name ? ids.nameError : undefined}
+            onChange={(event) => {
+              setName(event.target.value)
+              setInvalid((current) => ({ ...current, name: false }))
+            }}
+          />
+          <IconButton type="submit" icon={Check} label="에이전트 추가" disabled={add.isPending} />
+        </div>
         {invalid.name ? <FieldError id={ids.nameError}>에이전트 이름을 입력하세요.</FieldError> : null}
-      </Field>
-      {/* 종류 목록을 주는 API가 없어 runtime.toml의 [kinds.*] 이름을 직접 씁니다 */}
-      <Field data-invalid={invalid.kind || undefined} className="gap-0">
-        <FieldLabel htmlFor={ids.kind} className={label}>
-          종류
-        </FieldLabel>
-        <Input
-          ref={kindRef}
-          id={ids.kind}
-          value={kind}
-          className="font-mono"
-          aria-invalid={invalid.kind || undefined}
-          aria-describedby={invalid.kind ? ids.kindError : undefined}
-          onChange={(event) => {
-            setKind(event.target.value)
-            setInvalid((current) => ({ ...current, kind: false }))
-          }}
-        />
-        {invalid.kind ? <FieldError id={ids.kindError}>runtime.toml에 등록된 종류 이름을 입력하세요.</FieldError> : null}
-      </Field>
-      <Field className="gap-0">
-        <FieldLabel htmlFor={ids.goodAt} className={label}>
-          잘하는 작업
-        </FieldLabel>
-        <Input id={ids.goodAt} value={goodAt} onChange={(event) => setGoodAt(event.target.value)} />
       </Field>
       {add.error ? (
         <p id={ids.serverError} role="alert" className="text-label text-destructive">
           {add.error instanceof ApiError ? add.error.message : '에이전트를 추가하지 못했습니다.'} 잠시 후 다시 시도하세요.
         </p>
       ) : null}
-      <div className="flex justify-end">
-        <IconButton type="submit" icon={Plus} label="에이전트 추가" disabled={add.isPending} />
-      </div>
     </form>
   )
 }

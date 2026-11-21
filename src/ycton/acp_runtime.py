@@ -88,6 +88,7 @@ async def run_session(
     timeout: float = 600,
     mcp_servers: list[McpServerStdio] | None = None,
     on_update: Callable[[SessionNotification], None] | None = None,
+    config: dict[str, str] | None = None,
 ) -> SessionResult:
     """Run one chat prompt, then shut down the adapter before returning.
 
@@ -96,8 +97,32 @@ async def run_session(
     """
     return await _run_session(
         executable, *args, cwd=cwd, prompt=prompt, timeout=timeout,
-        mcp_servers=mcp_servers, on_update=on_update, work=False,
+        mcp_servers=mcp_servers, on_update=on_update, work=False, config=config,
     )
+
+
+def _select_values(option: Any) -> set[str]:
+    values = set()
+    for item in getattr(option, "options", None) or []:
+        for value in getattr(item, "options", None) or [item]:
+            values.add(value.value)
+    return values
+
+
+async def apply_session_config(connection: Any, session: Any, config: dict[str, str]) -> None:
+    """Set each requested value on the session option of the same ACP category.
+
+    Fails instead of silently running on the adapter's default when the adapter
+    does not offer that option or value.
+    """
+    options = getattr(session, "config_options", None) or []
+    for category, value in config.items():
+        option = next((o for o in options if getattr(o, "category", None) == category), None)
+        if option is None:
+            raise RuntimeError(f"ACP adapter offers no {category} option")
+        if value not in _select_values(option):
+            raise RuntimeError(f"ACP adapter does not offer {category} {value!r}")
+        await connection.set_config_option(config_id=option.id, session_id=session.session_id, value=value)
 
 
 async def _run_session(
@@ -109,6 +134,7 @@ async def _run_session(
     mcp_servers: list[McpServerStdio] | None,
     on_update: Callable[[SessionNotification], None] | None,
     work: bool,
+    config: dict[str, str] | None = None,
 ) -> SessionResult:
     workdir = cwd.resolve()
     servers = mcp_servers or []
@@ -131,6 +157,8 @@ async def _run_session(
                     raise RuntimeError(f"Unsupported ACP protocol version: {initialized.protocol_version}")
                 session = await connection.new_session(cwd=str(workdir), mcp_servers=servers)
                 session_id = session.session_id
+                if config:
+                    await apply_session_config(connection, session, config)
                 response = await connection.prompt(session_id=session_id, prompt=[TextContentBlock(text=prompt)])
         except (TimeoutError, asyncio.CancelledError):
             if session_id is not None:

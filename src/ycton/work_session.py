@@ -75,6 +75,7 @@ async def run_work_session(
     mcp_servers: list[McpServerStdio] | None = None,
     on_update: Callable[[SessionNotification], None] | None = None,
     branch: str | None = None,
+    config: dict[str, str] | None = None,
 ) -> WorkSessionResult:
     """Run Codex at a new worktree path. Keep the checkout for review or handoff.
 
@@ -92,6 +93,6 @@ async def run_work_session(
     session = await _run_session(
         executable, *args, cwd=workdir,
         prompt=_work_prompt(task, can_commit=any(is_room_mcp_server(s) for s in mcp_servers or ())), timeout=timeout,
-        mcp_servers=mcp_servers, on_update=on_update, work=True,
+        mcp_servers=mcp_servers, on_update=on_update, work=True, config=config,
     )
     return WorkSessionResult(worktree=workdir, session=session)

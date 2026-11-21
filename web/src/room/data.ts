@@ -15,6 +15,11 @@ export function useRooms() {
   return useQuery({ queryKey: ROOMS_KEY, queryFn: api.rooms, refetchInterval: 5000, retry: 1 })
 }
 
+/** 에이전트 추가 팝오버가 열릴 때마다 서버의 모델 목록을 다시 읽습니다. 실패하면 같은 요청을 되풀이하지 않습니다. */
+export function useAgentModels() {
+  return useQuery({ queryKey: ['agent-models'], queryFn: api.agentModels, retry: false })
+}
+
 /** 서버에 실시간 채널이 없어 1초마다 방 상태를 다시 읽습니다 */
 export function useRoomState(roomId: number) {
   return useQuery<RoomState>({

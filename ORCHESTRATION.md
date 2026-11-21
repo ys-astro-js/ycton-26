@@ -73,7 +73,10 @@ python3 scripts/demo.py --fail
 | `logs` | 원본·작업 worktree 밖의 로그 경로 |
 | `api_url` | 서버 포트와 일치하는 `http://127.0.0.1:8000` |
 | `kinds.*.command` | 담당 1이 확인한 ACP 어댑터의 실제 실행 명령 배열 |
-| `kinds.*.instructions` | 종류별 지침 |
+| `kinds.*.label` | 화면에 보일 모델 제공자 이름(Claude, GPT, Gemini) |
+| `kinds.*.models` | 고를 수 있는 모델. ACP 세션의 `model` 설정 값과 같아야 합니다 |
+| `kinds.*.efforts` | 고를 수 있는 추론 수준. ACP 세션의 `thought_level` 설정 값과 같아야 합니다. 없으면 비웁니다 |
+| `kinds.*.instructions` | 제공자별 지침(선택) |
 | `verify.unit.command` | 서버가 직접 실행할 검증 명령 배열 |
 | `verify.unit.contains` | 선택적인 성공 stdout 문자열 |
 
@@ -105,7 +108,7 @@ API 문서 또는 프론트에서 아래 순서로 요청합니다.
 
 1. `POST /api/rooms`: `{"name":"데모"}`
 2. `POST /api/rooms/{id}/pause`: 준비 중 자동 채팅을 잠시 멈춥니다.
-3. `POST /api/rooms/{id}/agents`: frontend와 backend 종류로 각각 한 명을 추가합니다.
+3. `POST /api/rooms/{id}/agents`: 프론트엔드와 백엔드 담당으로 각각 한 명을 추가합니다.
 4. `POST /api/rooms/{id}/tasks`: 아래 예시로 할 일을 등록합니다.
 5. `POST /api/rooms/{id}/resume`: 에이전트들의 턴을 시작합니다.
 6. `GET /api/rooms/{id}/state`: 메시지, 담당자, 작업 세션, 검증 결과를 확인합니다.
@@ -113,7 +116,7 @@ API 문서 또는 프론트에서 아래 순서로 요청합니다.
 에이전트 예시:
 
 ```json
-{"name":"프론트 담당", "kind":"frontend", "good_at":["UI 구현"]}
+{"name":"프론트 담당", "kind":"claude", "model":"claude-opus-5-5", "effort":"high", "good_at":["프론트엔드", "UI 구현"]}
 ```
 
 할 일 예시:
