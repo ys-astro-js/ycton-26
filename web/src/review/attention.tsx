@@ -5,7 +5,6 @@ import {
   CircleCheck,
   CirclePause,
   FolderGit2,
-  ListTodo,
   MessageCircleQuestionMark,
   OctagonPause,
   Play,
@@ -255,7 +254,17 @@ function AttentionRow({
               {projectName}
             </Link>
           </p>
-          <p className={cn('font-semibold text-pretty', isResolved && 'text-muted-foreground line-through')}>
+          {/* 제목은 다룰 대상(할 일, 질문, 멈춘 이유)입니다. 종류는 앞의 아이콘이 알립니다. 긴 질문은 접힌 동안 두 줄까지만 보입니다. */}
+          <p
+            className={cn(
+              'max-w-[65ch] font-semibold text-pretty whitespace-pre-line',
+              !open && 'line-clamp-2',
+              isResolved && 'text-muted-foreground line-through',
+            )}
+          >
+            {item.task ? (
+              <span className="me-2 font-mono font-normal text-muted-foreground tabular-nums">{item.task.id}</span>
+            ) : null}
             <button
               type="button"
               data-row-toggle=""
@@ -271,29 +280,13 @@ function AttentionRow({
             </button>
           </p>
           {item.detail ? <p className="max-w-[65ch] text-muted-foreground text-pretty">{item.detail}</p> : null}
-          {item.agent || item.task ? (
-            <dl className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-label">
-              {item.agent ? (
-                <div className="flex items-center gap-1.5">
-                  <dt className="text-muted-foreground">
-                    <Glyph icon={Bot} className="size-3.5" />
-                    <span className="sr-only">에이전트</span>
-                  </dt>
-                  <dd>{item.agent}</dd>
-                </div>
-              ) : null}
-              {item.task ? (
-                <div className="flex items-center gap-1.5">
-                  <dt className="text-muted-foreground">
-                    <Glyph icon={ListTodo} className="size-3.5" />
-                    <span className="sr-only">할 일</span>
-                  </dt>
-                  <dd className="flex gap-1.5">
-                    <span className="font-mono tabular-nums">{item.task.id}</span>
-                    <span>{item.task.title}</span>
-                  </dd>
-                </div>
-              ) : null}
+          {item.agent ? (
+            <dl className="mt-1 flex items-center gap-1.5 text-label">
+              <dt className="text-muted-foreground">
+                <Glyph icon={Bot} className="size-3.5" />
+                <span className="sr-only">에이전트</span>
+              </dt>
+              <dd>{item.agent}</dd>
             </dl>
           ) : null}
         </div>

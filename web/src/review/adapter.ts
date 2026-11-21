@@ -89,8 +89,8 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
           at: '',
           projectId,
           kind: 'jev-stop',
-          title: '자동 진행 멈춤',
-          detail: state.jev.reason,
+          // 종류(멈춤)는 아이콘이 알리므로 제목은 멈춘 이유입니다
+          title: state.jev.reason || '자동 진행 멈춤',
           handoff: [],
           log: [],
           target: { roomId: state.room.id },
@@ -114,7 +114,8 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
             at: hm(finished) ?? '',
             projectId,
             kind: status === 'held' ? 'held' : timedOut ? 'timeout' : 'failed',
-            title: status === 'held' ? '사용자가 중단한 작업' : timedOut ? '작업 시간 초과' : '작업 실패',
+            // 종류(실패, 시간 초과, 중단됨)는 아이콘이 알리므로 제목은 할 일입니다
+            title: task.title,
             detail: lines(last.summary)[0],
             agent: agentLabel(agents.get(last.agent_id)),
             task: { id: `#${task.id}`, title: task.title },
@@ -154,8 +155,8 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
           at: hm(at) ?? '',
           projectId,
           kind: 'question',
-          title: `${agent?.name ?? '에이전트'}의 질문`,
-          detail: message.content,
+          // 종류(질문)는 아이콘이 알리고 누가 물었는지는 에이전트 줄에 있으므로 제목은 질문 자체입니다
+          title: message.content.trim(),
           agent: agentLabel(agent),
           handoff: [],
           log: [],
