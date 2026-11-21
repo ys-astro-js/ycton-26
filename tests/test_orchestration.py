@@ -139,7 +139,7 @@ def test_http_auth_origin_and_validation(tmp_path):
         room = client.post("/api/rooms", json={"name": "x"}).json()["id"]
         a = client.post(f"/api/rooms/{room}/agents", json={"name": "A", "kind": "demo"}).json()["id"]
         task = client.post(f"/api/rooms/{room}/tasks", json={"title": "task", "verify": "pytest"}).json()["id"]
-        assert client.post(f"/api/rooms/{room}/tasks", json={"title": "task"}).status_code == 422
+        assert client.post(f"/api/rooms/{room}/tasks", json={"title": ""}).status_code == 422
         assert client.post("/api/agent/tasks/claim", json={"room_id": str(room), "participant_id": str(a), "task_id": str(task)}).status_code == 401
         assert client.post(f"/api/agents/{a}/token").status_code == 404
         assert client.get("/openapi.json").status_code == 200

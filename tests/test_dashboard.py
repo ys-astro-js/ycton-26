@@ -20,7 +20,8 @@ def test_session_events_are_paginated_and_exclude_raw_acp_data(tmp_path):
         logs = tmp_path / "logs"
         svc.runtime_config = SimpleNamespace(logs=logs, repositories={})
         room = svc.create_room("room")["id"]
-        svc.create_agent(room, "adapter", "demo", [])
+        agent = svc.create_agent(room, "adapter", "demo", [])["id"]
+        svc.wake_agents(room, [agent])
         sid = svc.snapshot(room)["sessions"][0]["id"]
         path = logs / f"{sid}.jsonl"
         svc.execution_metadata(sid, log_path=str(path), acp_session_id="actual-acp-id")

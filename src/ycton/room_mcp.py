@@ -73,7 +73,10 @@ def build_room_server(client: httpx.AsyncClient, *, room_id: str, participant_id
 
     @server.tool()
     async def send(text: str) -> str:
-        """Post a message to this room as this authenticated agent."""
+        """Post a message to this room as this authenticated agent.
+
+        Write @name to wake another agent in the room; only the agents you name take a turn.
+        """
         await post("/api/agent/messages", text=text)
         return "Message sent."
 

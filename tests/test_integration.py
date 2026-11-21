@@ -28,6 +28,7 @@ def bridge(tmp_path):
         aid = client.post(f'/api/rooms/{room}/agents', json={'name':'A','kind':'demo'}).json()['id']
         tid = client.post(f'/api/rooms/{room}/tasks', json={'title':'task','verify':'unit'}).json()['id']
         svc = app.state.service
+        svc.wake_agents(room, [aid])
         with svc.db.connect(write=True) as c:
             sid = c.execute("SELECT id FROM sessions WHERE agent_id=? AND kind='chat'", (aid,)).fetchone()[0]
             c.execute("UPDATE sessions SET status='running' WHERE id=?", (sid,))
@@ -517,6 +518,7 @@ def test_scheduler_routes_chat_work_and_verification_to_selected_project(project
         task = svc.create_task(room, "change", "", "", "custom")["id"]
         svc.claim(task, agent)
         sid = svc.delegate(task, agent, "route-test", "")["id"]
+        svc.wake_agents(room, [agent])
 
         async def dispatch():
             scheduler.dispatch()

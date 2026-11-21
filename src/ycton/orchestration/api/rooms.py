@@ -2,7 +2,7 @@
 import asyncio
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 from ycton.orchestration.api.dependencies import human, service
 from ycton.orchestration.schemas import RoomCreate, AgentCreate, MessageCreate
@@ -70,8 +70,11 @@ async def state(room_id: int, request: Request, svc=Depends(service)):
 
 
 @router.post("/rooms/{room_id}/messages", status_code=201)
-def message(room_id: int, body: MessageCreate, svc=Depends(service)):
-    svc.post_message(room_id, body.content, reply_to_message_id=body.reply_to_message_id)
+def message(room_id: int, body: MessageCreate, request: Request, background: BackgroundTasks, svc=Depends(service)):
+    posted = svc.post_message(room_id, body.content, reply_to_message_id=body.reply_to_message_id)
+    if posted["needs_routing"]:
+        # 아무도 부르지 않은 사람 메시지는 응답 뒤에 Jev가 답할 에이전트 하나를 고른다.
+        background.add_task(request.app.state.dispatcher.route_message, room_id, posted["id"])
     return {"ok": True}
 
 

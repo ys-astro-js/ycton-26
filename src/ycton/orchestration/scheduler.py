@@ -14,6 +14,8 @@ class Scheduler:
         self.running = {}
         self.manual_cancels: dict[str, asyncio.Task[None]] = {}
         self.loop_task = None
+        # Jev 배정기. main이 연결한다. 없으면 담당 없는 할 일을 배정하지 않는다.
+        self.dispatcher = None
 
     def start(self):
         self.loop_task = asyncio.create_task(self.loop())
@@ -32,6 +34,8 @@ class Scheduler:
         while True:
             try:
                 self.dispatch()
+                if self.dispatcher is not None:
+                    self.dispatcher.assign_open()
             except Exception:
                 logger.exception("스케줄러 틱 실패; 다음 틱에 재시도")
             await asyncio.sleep(self.settings.tick_seconds)

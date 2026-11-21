@@ -1,5 +1,6 @@
 """상태 변경의 단일 진입점. 모든 변경·이력·메시지를 같은 트랜잭션에 저장한다."""
 import json
+import re
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -15,10 +16,17 @@ from ycton.subprocess_env import child_environment
 # mock 모드에 runtime.toml이 없을 때 고를 모델을 저장소의 예시 설정에서 가져온다.
 EXAMPLE_RUNTIME_CONFIG = Path(__file__).resolve().parents[4] / "runtime.example.toml"
 
+RECENT_ROUTING_MESSAGES = 10
 UNKNOWN_REPOSITORY = "서버 설정에 없는 저장소입니다"
 MISSING_FOLDER = "연결한 폴더를 찾을 수 없습니다"
 UNAVAILABLE_VERIFICATION = "이 프로젝트에서 사용할 수 없는 검증 프로필입니다"
 RETRY_REQUIRED = "사용자가 중단한 작업입니다. 다시 실행이 필요합니다"
+
+
+def mentioned_agents(agents, content):
+    """본문에서 @이름으로 부른 에이전트. 더 긴 이름의 앞부분만 맞는 경우는 세지 않는다."""
+    return [agent for agent in agents
+            if re.search("@" + re.escape(agent["name"]) + r"(?![\w-])", content)]
 
 
 class DomainError(Exception):
@@ -54,6 +62,11 @@ class TaskService:
     @staticmethod
     def event(conn, task, event, detail):
         conn.execute("INSERT INTO task_events(task_id,event,detail) VALUES(?,?,?)", (task, event, detail))
+
+    def wake_agents(self, room_id, agent_ids, reset=False):
+        with self.db.connect(write=True) as c:
+            for agent_id in agent_ids:
+                self.wake(c, room_id, agent_id=agent_id, reset=reset)
 
     def wake(self, conn, room_id, agent_id=None, reset=False):
         """같은 에이전트의 대기 턴은 하나로 합친다. 실행 중에도 다음 턴 하나 예약 가능."""
@@ -190,7 +203,6 @@ class TaskService:
                                 (room_id, name, kind, model, effort, json.dumps(good_at, ensure_ascii=False))).lastrowid
             except sqlite3.IntegrityError as exc:
                 raise DomainError("방 안에서 에이전트 이름이 중복됩니다") from exc
-            self.wake(c, room_id, reset=True)
             return require(c, "agents", aid)
 
     def post_message(self, room_id, content, agent_id=None, *, reply_to_message_id=None):
@@ -209,20 +221,99 @@ class TaskService:
                 if agent_id is not None or question is None:
                     raise DomainError("이 프로젝트의 에이전트 질문에만 답장할 수 있습니다", 422)
             self.message(c, room_id, author, content, reply_to_message_id=reply_to_message_id)
-            self.wake(c, room_id, reset=agent_id is None)
+            message_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            agents = [dict(r) for r in c.execute("SELECT id,name FROM agents WHERE room_id=?", (room_id,))]
+            targets = [a["id"] for a in mentioned_agents(agents, content) if a["id"] != agent_id]
+            if reply_to_message_id is not None:
+                asker = c.execute("SELECT author FROM messages WHERE id=?", (reply_to_message_id,)).fetchone()["author"]
+                targets.append(int(asker.removeprefix("agent:")))
+            # 사람 메시지는 새 대화이므로 턴 수를 다시 센다. 에이전트끼리는 부른 상대만 깨우고 턴 수를 이어 센다.
+            for target in dict.fromkeys(targets):
+                self.wake(c, room_id, agent_id=target, reset=agent_id is None)
+            # 사람이 아무도 부르지 않았으면 Jev가 답할 에이전트를 고른다.
+            return {"id": message_id, "needs_routing": agent_id is None and not targets}
 
     def create_task(self, room_id, title, detail, scope, verify):
         with self.db.connect(write=True) as c:
             room = require(c, "rooms", room_id)
             repo = self.room_repository(room)
-            if repo is not None and verify not in repo.verification_profiles:
+            if verify and repo is not None and verify not in repo.verification_profiles:
                 raise DomainError(UNAVAILABLE_VERIFICATION, 422)
+            # 검증 프로필을 비워 두면 Jev가 배정할 때 고른다.
             tid = c.execute("INSERT INTO tasks(room_id,title,detail,scope,verify) VALUES(?,?,?,?,?)",
                             (room_id, title, detail, scope, verify)).lastrowid
             self.event(c, tid, "created", title)
             self.message(c, room_id, "system", f"할 일 #{tid} 등록: {title}")
-            self.wake(c, room_id, reset=True)
             return require(c, "tasks", tid)
+
+    def tasks_to_assign(self):
+        """멈추지 않은 방에서 에이전트가 있고 담당이 없는 할 일."""
+        with self.db.connect() as c:
+            return [r["id"] for r in c.execute("""
+                SELECT t.id FROM tasks t JOIN rooms r ON r.id=t.room_id
+                WHERE t.status='open' AND t.retry_required=0 AND t.attempts<? AND r.paused=0
+                AND EXISTS (SELECT 1 FROM agents a WHERE a.room_id=t.room_id) ORDER BY t.id""",
+                (self.settings.max_attempts,))]
+
+    def assignment_context(self, task_id):
+        """Jev가 담당과 검증 프로필을 고를 때 보는 내용. 배정할 수 없는 할 일이면 None."""
+        with self.db.connect() as c:
+            task = require(c, "tasks", task_id)
+            if task["status"] != "open":
+                return None
+            room = require(c, "rooms", task["room_id"])
+            agents = [dict(r) for r in c.execute("""
+                SELECT a.*, (SELECT count(*) FROM tasks t WHERE t.owner_id=a.id AND t.status='claimed') AS load
+                FROM agents a WHERE a.room_id=? ORDER BY a.id""", (task["room_id"],))]
+        if not agents:
+            return None
+        repo = self.room_repository(room)
+        if repo is None:
+            return {"task": task, "agents": agents, "profiles": {}, "default_verify": "unit"}
+        verifiers = getattr(self, "runtime_config", None)
+        profiles = {name: " ".join(verifiers.verifiers[name].command) if verifiers else ""
+                    for name in repo.verification_profiles}
+        return {"task": task, "agents": agents, "profiles": profiles,
+                "default_verify": repo.default_verification_profile}
+
+    def assign(self, task_id, agent_id, verify):
+        """Jev가 정한 담당과 검증 프로필을 할 일에 적고 담당 에이전트만 깨운다."""
+        with self.db.connect(write=True) as c:
+            task = require(c, "tasks", task_id)
+            agent = require(c, "agents", agent_id)
+            room = require(c, "rooms", task["room_id"])
+            if agent["room_id"] != task["room_id"]:
+                raise DomainError("다른 방의 작업입니다", 403)
+            if room["paused"]:
+                raise DomainError("자동 진행이 중지된 방입니다")
+            repo = self.room_repository(room)
+            if repo is not None and verify not in repo.verification_profiles:
+                raise DomainError(UNAVAILABLE_VERIFICATION, 422)
+            changed = c.execute("""UPDATE tasks SET status='claimed',owner_id=?,verify=?
+                                   WHERE id=? AND status='open' AND retry_required=0 AND attempts<?""",
+                                (agent_id, verify, task_id, self.settings.max_attempts)).rowcount
+            if not changed:
+                raise DomainError("이미 담당자가 있거나 배정할 수 없는 작업입니다")
+            self.event(c, task_id, "assigned", f"agent:{agent_id} verify={verify}")
+            self.message(c, task["room_id"], "system",
+                         f"Jev가 할 일 #{task_id}을 {agent['name']}에게 맡겼습니다 (검증: {verify})")
+            self.wake(c, task["room_id"], agent_id=agent_id, reset=True)
+            return require(c, "tasks", task_id)
+
+    def routing_context(self, room_id, message_id):
+        """Jev가 사람 메시지에 답할 에이전트를 고를 때 보는 내용."""
+        with self.db.connect() as c:
+            agents = [dict(r) for r in c.execute("SELECT * FROM agents WHERE room_id=? ORDER BY id", (room_id,))]
+            message = dict(require(c, "messages", message_id))
+            names = {f"agent:{a['id']}": a["name"] for a in agents}
+            rows = c.execute("""SELECT * FROM (SELECT * FROM messages WHERE room_id=? AND id<?
+                                ORDER BY id DESC LIMIT ?) ORDER BY id""", (room_id, message_id, RECENT_ROUTING_MESSAGES))
+            recent = []
+            for row in rows:
+                agent_id = int(row["author"].removeprefix("agent:")) if row["author"].startswith("agent:") else None
+                recent.append({"author": names.get(row["author"], row["author"]),
+                               "content": row["content"][:500], "agent_id": agent_id})
+        return {"agents": agents, "message": message, "recent": recent}
 
     def claim(self, task_id, agent_id):
         with self.db.connect(write=True) as c:
@@ -254,7 +345,6 @@ class TaskService:
                 raise DomainError("실행 중/대기 중 세션을 먼저 취소해야 합니다")
             c.execute("UPDATE tasks SET status='open',owner_id=NULL,handoff=? WHERE id=?", (note, task_id))
             self.event(c, task_id, "released", note)
-            self.wake(c, task["room_id"])
             return require(c, "tasks", task_id)
 
     def delegate(self, task_id, agent_id, request_id, instruction):
@@ -351,9 +441,12 @@ class TaskService:
                 pending = c.execute("SELECT id FROM tasks WHERE owner_id=? AND status='claimed' AND active_session_id IS NULL", (s["agent_id"],)).fetchall()
                 for row in pending:
                     if status != "succeeded":
-                        c.execute("UPDATE tasks SET status='open',owner_id=NULL,handoff=? WHERE id=?", (summary, row["id"]))
+                        # 실패한 시도로 세어 같은 에이전트에게 끝없이 다시 배정되지 않게 한다.
+                        c.execute("""UPDATE tasks SET status='open',owner_id=NULL,handoff=?,attempts=attempts+1
+                                     WHERE id=?""", (summary, row["id"]))
                         self.event(c, row["id"], "chat_failed_release", summary)
-                    self.wake(c, s["room_id"], agent_id=s["agent_id"] if status == "succeeded" else None)
+                    elif row is pending[0]:
+                        self.wake(c, s["room_id"], agent_id=s["agent_id"])
                 if status == "failed":
                     self.message(c, s["room_id"], "system", f"채팅 실행 실패: {summary}")
             return True
@@ -365,7 +458,11 @@ class TaskService:
                 self.room_repository(room)
             c.execute("UPDATE rooms SET paused=? WHERE id=?", (int(paused), room_id))
             if not paused:
-                self.wake(c, room_id, reset=True)
+                # 담당은 정해졌지만 아직 위임하지 않은 에이전트만 다시 깨운다. 담당 없는 일은 Jev가 배정한다.
+                owners = c.execute("""SELECT DISTINCT owner_id FROM tasks WHERE room_id=? AND status='claimed'
+                                      AND active_session_id IS NULL""", (room_id,)).fetchall()
+                for owner in owners:
+                    self.wake(c, room_id, agent_id=owner["owner_id"], reset=True)
             return require(c, "rooms", room_id)
 
     def manual_task_action(self, task_id, action, note):
@@ -377,12 +474,11 @@ class TaskService:
                 c.execute("""UPDATE tasks SET status='open',owner_id=NULL,attempts=0,retry_required=0,handoff=?
                              WHERE id=?""", (note, task_id))
                 self.message(c, task["room_id"], "system",
-                             f"사용자가 할 일 #{task_id}의 다시 실행을 요청했습니다. 이 할 일을 다시 맡을 수 있습니다.")
+                             f"사용자가 할 일 #{task_id}의 다시 실행을 요청했습니다. Jev가 담당을 다시 정합니다.")
             else:
                 c.execute("""UPDATE tasks SET status='dropped',owner_id=NULL,retry_required=0,handoff=?
                              WHERE id=?""", (note, task_id))
             self.event(c, task_id, action, note)
-            self.wake(c, task["room_id"], reset=True)
             return require(c, "tasks", task_id)
 
     def snapshot(self, room_id, *, dashboard=False):
@@ -404,7 +500,7 @@ class TaskService:
                     WHERE question.room_id=? AND question.author GLOB 'agent:*' AND instr(question.content,'@')>0
                     AND NOT EXISTS (SELECT 1 FROM messages reply WHERE reply.reply_to_message_id=question.id)
                     ORDER BY question.id
-                """, (room_id,))]
+                """, (room_id,)) if not mentioned_agents(result["agents"], row["content"])]
             return result
 
     def recover(self):

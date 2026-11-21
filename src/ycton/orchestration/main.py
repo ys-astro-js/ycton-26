@@ -11,6 +11,7 @@ from ycton.orchestration.db import Database
 from ycton.orchestration.services.task_service import TaskService, DomainError
 from ycton.orchestration.fake_runtime import FakeRuntime
 from ycton.orchestration.scheduler import Scheduler
+from ycton.orchestration.dispatch import Dispatcher
 from ycton.orchestration.jev import OpenRouterJev
 from ycton.orchestration.api import rooms, tasks, sessions, agent_bridge
 from ycton.orchestration.identity import Tokens
@@ -59,6 +60,7 @@ def create_app(settings=None, runtime_factory=None, start_scheduler=True, folder
         scheduler = Scheduler(svc, runtime, config)
         app.state.service, app.state.scheduler = svc, scheduler
         app.state.jev = OpenRouterJev(config.openrouter_api_key, config.jev_model) if config.openrouter_api_key else None
+        app.state.dispatcher = scheduler.dispatcher = Dispatcher(svc, app.state.jev)
         if start_scheduler:
             scheduler.start()
         try:
@@ -72,6 +74,7 @@ def create_app(settings=None, runtime_factory=None, start_scheduler=True, folder
             finally:
                 try:
                     await scheduler.stop()
+                    await app.state.dispatcher.close()
                 finally:
                     if app.state.jev is not None:
                         await app.state.jev.close()

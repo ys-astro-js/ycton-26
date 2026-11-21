@@ -13,12 +13,11 @@ class FakeRuntime:
             await asyncio.sleep(self.settings.chat_delay_seconds)
             state = self.service.snapshot(request.room_id)
             for task in state["tasks"]:
-                if (task["status"] != "open" or task["retry_required"]
-                        or task["attempts"] >= self.settings.max_attempts):
+                # 담당은 Jev가 정한다. 가짜 에이전트는 자기에게 배정된 일만 위임한다.
+                if (task["status"] != "claimed" or task["owner_id"] != request.agent_id
+                        or task["active_session_id"]):
                     continue
                 try:
-                    # 선택은 가짜 에이전트 내부에서 한다. 서버 스케줄러는 담당자를 고르지 않는다.
-                    self.service.claim(task["id"], request.agent_id)
                     self.service.post_message(request.room_id,
                         f"[MOCK] #{task['id']} 작업을 맡아 별도 세션에 위임합니다.", request.agent_id)
                     self.service.delegate(task["id"], request.agent_id,

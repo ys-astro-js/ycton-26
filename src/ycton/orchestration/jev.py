@@ -1,4 +1,4 @@
-"""Report scheduler constraints and request optional typed advice from OpenRouter Jev."""
+"""Report scheduler constraints and ask OpenRouter Jev for typed advice and routing decisions."""
 import asyncio
 import json
 import logging
@@ -99,6 +99,25 @@ class OpenRouterJev:
             logger.warning("OpenRouter Jev 요청 실패: %s", type(exc).__name__)
         finally:
             self.running.pop(room_id)
+
+    async def decide(self, state, questions):
+        """choice 질문마다 고른 선택지 이름을 돌려준다. 실패하거나 선택지 밖의 답이면 None."""
+        try:
+            async with asyncio.timeout(8):
+                response = await self.client.post(DECISIONS_URL, json={
+                    "model": self.model, "state": json.dumps(state, ensure_ascii=False), "questions": questions})
+            response.raise_for_status()
+            answers = response.json()["answers"]
+            picked = {}
+            for name, question in questions.items():
+                answer = answers[name]
+                if answer["type"] != "choice" or answer["choice"] not in question["criteria"]:
+                    raise ValueError(f"invalid Jev choice for {name}")
+                picked[name] = answer["choice"]
+            return picked
+        except (httpx.HTTPError, TimeoutError, ValueError, KeyError, TypeError) as exc:
+            logger.warning("OpenRouter Jev 판단 실패: %s", type(exc).__name__)
+            return None
 
     async def close(self):
         for task in self.running.values():

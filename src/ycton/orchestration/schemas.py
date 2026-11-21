@@ -30,7 +30,8 @@ class TaskCreate(Input):
     title: str = Field(min_length=1, max_length=200)
     detail: str = Field(default="", max_length=20000)
     scope: str = Field(default="", max_length=5000)
-    verify: str = Field(min_length=1, max_length=5000)
+    # 비우면 Jev가 배정할 때 검증 프로필을 고른다.
+    verify: str = Field(default="", max_length=5000)
 
 
 class Delegate(Input):
