@@ -21,6 +21,48 @@
         }
       }
     },
+    "/api/folders/pick": {
+      "post": {
+        "tags": [
+          "프론트: 방"
+        ],
+        "summary": "Pick Folder",
+        "description": "서버 컴퓨터에 OS 폴더 선택 창을 띄운다. 취소하면 path가 null이다.",
+        "operationId": "pick_folder_api_folders_pick_post",
+        "parameters": [
+          {
+            "name": "x-orch-client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Orch-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/rooms": {
       "post": {
         "tags": [
@@ -77,6 +119,88 @@
         ],
         "summary": "List Rooms",
         "operationId": "list_rooms_api_rooms_get",
+        "parameters": [
+          {
+            "name": "x-orch-client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Orch-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runtime/options": {
+      "get": {
+        "tags": [
+          "프론트: 방"
+        ],
+        "summary": "Runtime Options",
+        "operationId": "runtime_options_api_runtime_options_get",
+        "parameters": [
+          {
+            "name": "x-orch-client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Orch-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent-models": {
+      "get": {
+        "tags": [
+          "프론트: 방"
+        ],
+        "summary": "Agent Models",
+        "operationId": "agent_models_api_agent_models_get",
         "parameters": [
           {
             "name": "x-orch-client",
@@ -1004,6 +1128,18 @@
             "minLength": 1,
             "title": "Kind"
           },
+          "model": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Model",
+            "default": ""
+          },
+          "effort": {
+            "type": "string",
+            "maxLength": 50,
+            "title": "Effort",
+            "default": ""
+          },
           "good_at": {
             "items": {
               "type": "string"
@@ -1212,6 +1348,26 @@
             "maxLength": 100,
             "minLength": 1,
             "title": "Name"
+          },
+          "repository_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Repository Id",
+            "default": "default"
+          },
+          "repo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo"
           }
         },
         "additionalProperties": false,
