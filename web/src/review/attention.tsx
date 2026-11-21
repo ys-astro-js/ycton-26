@@ -272,11 +272,12 @@ function AttentionRow({
               aria-controls={panelId}
               onClick={onToggle}
               className={cn(
-                'cursor-pointer text-start outline-none after:absolute after:inset-0',
+                // inline이어야 부모 문단의 두 줄 자르기가 버튼 안 글자에도 적용됩니다
+                'inline cursor-pointer text-start outline-none after:absolute after:inset-0',
                 isResolved && 'line-through decoration-from-font',
               )}
             >
-              {item.title}
+              {open && item.body ? item.body : item.title}
             </button>
           </p>
           {item.detail ? <p className="max-w-[65ch] text-muted-foreground text-pretty">{item.detail}</p> : null}

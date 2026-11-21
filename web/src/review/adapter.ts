@@ -36,6 +36,13 @@ function lines(text: string) {
     .filter(Boolean)
 }
 
+/** 에이전트 메시지에서 @human이 든 문장만 뽑습니다. 없으면 전체를 씁니다 */
+function humanQuestion(content: string) {
+  const text = content.trim()
+  const sentences = text.split(/(?<=[.?!。？！])\s+|\n+/).filter((sentence) => /@human/i.test(sentence))
+  return sentences.length ? sentences.join(' ').replace(/@human\s*/gi, '').trim() : text
+}
+
 function agentLabel(agent?: Agent) {
   return agent ? `${agent.name}(${agent.kind})` : undefined
 }
@@ -156,8 +163,10 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
           at: hm(at) ?? '',
           projectId,
           kind: 'question',
-          // 종류(질문)는 아이콘이 알리고 누가 물었는지는 에이전트 줄에 있으므로 제목은 질문 자체입니다
-          title: message.content.trim(),
+          // 종류(질문)는 아이콘이 알리고 누가 물었는지는 에이전트 줄에 있으므로 제목은 질문 문장만 씁니다.
+          // 앞의 설명까지 담긴 전체 메시지는 펼쳤을 때 보입니다.
+          title: humanQuestion(message.content),
+          body: message.content.trim(),
           agent: agentLabel(agent),
           handoff: [],
           log: [],
