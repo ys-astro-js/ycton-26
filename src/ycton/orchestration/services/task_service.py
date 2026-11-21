@@ -259,7 +259,7 @@ class TaskService:
                 return {"ok": True}
             if c.execute("""SELECT 1 FROM sessions WHERE agent_id=? AND status IN ('queued','running')
                             AND (kind='work' OR status='running')""", (agent_id,)).fetchone():
-                raise DomainError("실행 중인 세션이 있는 에이전트입니다. 실행이 끝나거나 취소한 뒤 지우세요")
+                raise DomainError("실행 중인 세션이 있는 에이전트입니다. 실행이 끝나거나 취소한 뒤 삭제하세요")
             c.execute("UPDATE sessions SET status='cancelled',summary='에이전트 삭제',finished_at=CURRENT_TIMESTAMP "
                       "WHERE agent_id=? AND status='queued'", (agent_id,))
             for task in c.execute("SELECT id FROM tasks WHERE owner_id=? AND status='claimed'", (agent_id,)).fetchall():
