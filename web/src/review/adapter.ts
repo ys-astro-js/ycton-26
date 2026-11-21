@@ -4,6 +4,9 @@ import type { Agent, RoomState, Session, Task, TaskEvent } from '@/api/client'
 
 import type { AttentionItem, LedgerEntry, LedgerStatus, LogLine, OvernightReport } from './model.ts'
 
+/** 서버 재시작 복구가 멈춘 방의 rooms.paused 값(jev.py의 PAUSED_BY_RESTART) */
+const PAUSED_BY_RESTART = 2
+
 /** 백엔드 시각은 시간대 없는 UTC("2026-11-21 04:05:01")입니다 */
 function parse(value: string | null | undefined) {
   if (!value) return undefined
@@ -80,8 +83,8 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
       for (const stamp of [parse(session.created_at), parse(session.finished_at)]) if (stamp) stamps.push(stamp)
     }
 
-    // 사람이 멈췄거나 Jev가 멈춘 방
-    if (state.room.paused || state.jev.action === 'stop') {
+    // 서버 재시작으로 멈춘 방과 Jev가 스스로 멈춘 방만 처리할 일입니다. 사람이 멈춘 방은 이미 아는 상태라 올리지 않습니다.
+    if (state.room.paused === PAUSED_BY_RESTART || (!state.room.paused && state.jev.action === 'stop')) {
       attention.push({
         sortKey: Number.MAX_SAFE_INTEGER,
         item: {

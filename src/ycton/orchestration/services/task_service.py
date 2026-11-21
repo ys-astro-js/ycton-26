@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from ycton.orchestration.folders import FolderError, git_root
 from ycton.orchestration.git_commit import CommitError, commit_paths
+from ycton.orchestration.jev import PAUSED_BY_RESTART
 from ycton.orchestration.runtime_config import Repository, read_catalog
 from ycton.orchestration.runtime_port import RuntimeResult
 
@@ -393,8 +394,9 @@ class TaskService:
             for row in stranded:
                 c.execute("UPDATE tasks SET status='open',owner_id=NULL,handoff='서버 재시작으로 claim 반환' WHERE id=?", (row["id"],))
                 self.event(c, row["id"], "recovered", "서버 재시작")
-            # 부팅만으로 실작업이 재시작되지 않도록 기존 방은 일시 중지한다.
-            c.execute("UPDATE rooms SET paused=1")
+            # 부팅만으로 실작업이 재시작되지 않도록 진행 중이던 방은 일시 중지한다.
+            # 사람이 멈춘 방과 구분해 두어, 재시작으로 멈춘 방만 사람이 확인할 일로 올린다.
+            c.execute("UPDATE rooms SET paused=? WHERE paused=0", (PAUSED_BY_RESTART,))
 
     def execution_metadata(self, session_id, **fields):
         """런타임 기록 전용. 컬럼 이름은 코드 상수 허용 목록으로 제한한다."""

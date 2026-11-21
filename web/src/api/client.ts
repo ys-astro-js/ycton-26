@@ -58,6 +58,7 @@ export interface Room {
   repository_id: string
   /** 폴더 선택으로 연결한 Git 저장소의 절대 경로. 있으면 repository_id(빈 문자열) 대신 이 폴더를 씁니다 */
   repo: string | null
+  /** 0은 진행, 1은 사람이 멈춤, 2는 서버 재시작으로 멈춤 */
   paused: number
   chat_rounds: number
 }

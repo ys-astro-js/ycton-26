@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from ycton.orchestration.config import Settings
 from ycton.orchestration.db import Database
+from ycton.orchestration.jev import PAUSED_BY_RESTART, advise
 from ycton.orchestration.main import create_app
 from ycton.orchestration.runtime_port import RuntimeRequest, RuntimeResult
 from ycton.orchestration.services.task_service import TaskService, DomainError
@@ -97,7 +98,17 @@ def test_recovery_releases_work_and_pauses_room(service):
     svc.delegate(task, a, "x", "")
     svc.recover()
     state = svc.snapshot(room)
+    assert state["room"]["paused"] == PAUSED_BY_RESTART
+    assert advise(state, svc.settings)["reason"] == "서버 재시작으로 일시 정지"
+
+
+def test_recovery_keeps_a_room_the_person_paused(service):
+    svc, room, *_ = service
+    svc.pause(room, True)
+    svc.recover()
+    state = svc.snapshot(room)
     assert state["room"]["paused"] == 1
+    assert advise(state, svc.settings)["reason"] == "일시 정지"
     assert state["tasks"][0]["status"] == "open"
     assert all(s["status"] not in ("queued", "running") for s in state["sessions"])
 

@@ -1,9 +1,15 @@
 """Jev의 임시 규칙판. LLM 판단·자동 spawn은 아직 구현하지 않았다."""
 
+# rooms.paused 값. 0은 진행, 1은 사람이 멈춤, 2는 서버 재시작 복구가 멈춤.
+PAUSED_BY_PERSON = 1
+PAUSED_BY_RESTART = 2
+
 
 def advise(state, settings):
+    if state["room"]["paused"] == PAUSED_BY_RESTART:
+        return {"action": "stop", "reason": "서버 재시작으로 일시 정지"}
     if state["room"]["paused"]:
-        return {"action": "stop", "reason": "사용자가 자동 진행을 중지했습니다"}
+        return {"action": "stop", "reason": "일시 정지"}
     opened = any(t["status"] == "open" and not t["retry_required"] and t["attempts"] < settings.max_attempts
                  for t in state["tasks"])
     if opened and not state["agents"]:
