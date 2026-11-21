@@ -1,5 +1,5 @@
 import { Arc } from 'loading-dev'
-import { Bot, Check, ChevronDown, FolderGit2, GitCommitHorizontal, X } from 'lucide-react'
+import { Bot, ChevronDown, CircleCheck, CircleDashed, CircleX, FolderGit2, GitCommitHorizontal } from 'lucide-react'
 import { useId, useMemo, useState } from 'react'
 
 import { cn } from '@/lib/utils'
@@ -36,12 +36,26 @@ const WIDE_LINE = '@min-[52rem]:min-h-9'
 
 const META_TEXT = 'text-[0.8125rem] text-muted-foreground'
 
-/** 상태 표식: 완료는 체크, 진행 중은 돌아가는 표시, 대기는 빈 고리, 제외는 X. 뜻은 sr-only 글자가 전합니다. */
+/**
+ * 상태 표식. 네 상태 모두 같은 16px 원 하나로 그립니다.
+ * 완료는 체크 원, 진행 중은 같은 지름으로 도는 호, 대기는 점선 원, 제외는 X 원. 뜻은 sr-only 글자가 전합니다.
+ */
+const NODE_ICON = { done: CircleCheck, waiting: CircleDashed, dropped: CircleX } as const
+
 function StatusNode({ status }: { status: LedgerStatus }) {
-  if (status === 'done') return <Check aria-hidden="true" strokeWidth={2.25} className="size-3.5 text-muted-foreground" />
-  if (status === 'running') return <Arc size={14} color="var(--live)" />
-  if (status === 'waiting') return <span aria-hidden="true" className="size-2.5 rounded-full ring-[1.5px] ring-muted-foreground ring-inset" />
-  return <X aria-hidden="true" strokeWidth={2.25} className="size-3.5 text-muted-foreground" />
+  if (status === 'running') {
+    // 다른 표식과 같은 원이 보이도록, 흐린 고리 위에서 호가 돕니다
+    return (
+      <span aria-hidden="true" className="relative size-4">
+        <svg viewBox="0 0 24 24" fill="none" className="absolute inset-0 size-4 text-border">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={2.5} />
+        </svg>
+        <Arc size={16} color="var(--live)" className="absolute inset-0" />
+      </span>
+    )
+  }
+  const Icon = NODE_ICON[status]
+  return <Icon aria-hidden="true" strokeWidth={2.5} className="size-4 text-muted-foreground" />
 }
 
 export function LedgerSection({ projects, entries }: { projects: Project[]; entries: LedgerEntry[] }) {
