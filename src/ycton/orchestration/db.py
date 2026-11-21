@@ -18,6 +18,8 @@ MESSAGE_REPLY = "reply_to_message_id INTEGER REFERENCES messages(id)"
 MESSAGE_ADDRESSED = "addressed_to TEXT NOT NULL DEFAULT '[]'"
 # 사람이 답장 없이 처리했다고 표시한 질문. 처리할 일 목록에서 빠진다.
 MESSAGE_RESOLVED = "resolved INTEGER NOT NULL DEFAULT 0"
+# 사람 메시지로 시작한 토론의 진행 상태(JSON). lead, order(말할 순서), step(지금 말할 차례), done.
+MESSAGE_DISCUSSION = "discussion TEXT"
 # 검토처럼 파일을 바꿀 필요가 없는 작업 세션이 남긴 이유. 있으면 커밋 없이도 완료로 본다.
 SESSION_NO_CHANGES = "no_changes TEXT"
 # 사람이 지운 에이전트. 이력(메시지, 세션, 할 일)은 남기고 깨우기·배정·목록에서만 뺀다.
@@ -93,7 +95,7 @@ class Database:
             for table, column in (("rooms", ROOM_REPOSITORY), ("rooms", ROOM_FOLDER), ("rooms", ROOM_AUTO_TASKS),
                                   ("rooms", ROOM_IDLE_CHECKED),
                                   ("tasks", TASK_RETRY), ("tasks", TASK_AFTER), ("messages", MESSAGE_REPLY),
-                                  ("messages", MESSAGE_ADDRESSED), ("messages", MESSAGE_RESOLVED),
+                                  ("messages", MESSAGE_ADDRESSED), ("messages", MESSAGE_RESOLVED), ("messages", MESSAGE_DISCUSSION),
                                   ("sessions", SESSION_NO_CHANGES), ("agents", AGENT_REMOVED)):
                 if not any(row["name"] == column.split(" ", 1)[0]
                            for row in conn.execute(f"PRAGMA table_info({table})")):

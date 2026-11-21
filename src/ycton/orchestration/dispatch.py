@@ -9,6 +9,8 @@ import logging
 from ycton.orchestration.services.task_service import DomainError
 
 logger = logging.getLogger(__name__)
+# 진행자를 포함한 토론 참여자 수 상한. 차례대로 말하므로 많으면 느려진다.
+MAX_DISCUSSANTS = 4
 
 
 def agent_option(agent):
@@ -27,29 +29,54 @@ class Dispatcher:
         self.continuing: dict[int, asyncio.Task[None]] = {}
 
     async def route_message(self, room_id, message_id):
-        """멘션이나 답장 대상이 없는 사람 메시지에 답할 에이전트 하나를 깨운다."""
+        """멘션이나 답장 대상이 없는 사람 메시지. 기본은 토론이다. Jev가 진행자와 참여자를 고르고,
+        사실 확인이나 상태 질문처럼 한 명이 답하면 되는 메시지만 한 에이전트에게 맡긴다."""
         context = self.service.routing_context(room_id, message_id)
         agents = context["agents"]
         if not agents:
             return None
         by_name = {agent["name"]: agent for agent in agents}
-        picked = None
+        lead, mode, joined = None, "discuss", None
         if self.jev is not None and len(agents) > 1:
-            answers = await self.jev.decide(
-                {"message": context["message"]["content"], "recent_messages": context["recent"]},
-                {"responder": {
+            questions = {
+                "mode": {
                     "type": "choice",
-                    "instructions": "Pick the one agent who should answer the latest human message. "
-                                    "Prefer the agent whose strengths fit the request, "
-                                    "or the agent the human is already talking with.",
+                    "instructions": "Decide how the team should handle the latest human message.",
+                    "criteria": {
+                        "discuss": "It needs opinions: a request, plan, design, trade-off, approach, review, "
+                                   "or anything where agents with different strengths could disagree.",
+                        "answer": "One agent can simply answer: a status check, a factual question, a thanks, "
+                                  "or a short reply in an ongoing exchange.",
+                    }},
+                "lead": {
+                    "type": "choice",
+                    "instructions": "Pick the agent who should lead: answer it, or open and conclude the discussion. "
+                                    "Prefer the agent whose strengths fit the request.",
                     "criteria": {name: agent_option(agent) for name, agent in by_name.items()},
-                }})
+                },
+            }
+            for agent in agents:
+                questions[f"join_{agent['id']}"] = {
+                    "type": "noul",
+                    "instructions": f"If this becomes a discussion, would {agent['name']} ({agent_option(agent)}) "
+                                    "add a useful view from its strengths?",
+                }
+            answers = await self.jev.decide(
+                {"message": context["message"]["content"], "recent_messages": context["recent"]}, questions)
             if answers is not None:
-                picked = by_name[answers["responder"]]
-        if picked is None:
-            picked = self.fallback_responder(context)
-        self.service.route_message(room_id, message_id, picked["id"])
-        return picked["id"]
+                lead, mode = by_name[answers["lead"]], answers["mode"]
+                joined = [a["id"] for a in agents if answers[f"join_{a['id']}"] >= 0.5]
+        if lead is None:
+            lead = self.fallback_responder(context)
+        if mode == "answer" or len(agents) == 1:
+            self.service.route_message(room_id, message_id, lead["id"])
+            return lead["id"]
+        # 참여자가 너무 적으면 토론이 되지 않으므로 둘 이상, 너무 많으면 길어지므로 진행자 포함 넷까지만 둔다.
+        participants = [a for a in (joined or []) if a != lead["id"]]
+        if not participants:
+            participants = [a["id"] for a in agents if a["id"] != lead["id"]]
+        self.service.start_discussion(room_id, message_id, lead["id"], participants[:MAX_DISCUSSANTS - 1])
+        return lead["id"]
 
     @staticmethod
     def fallback_responder(context):

@@ -17,6 +17,8 @@ def build_prompt(service, session):
         return json.dumps({
             "rules": "담당은 Jev가 정한다. 내게 배정된 할 일은 delegate. 방 발언은 send, 다른 에이전트는 @이름으로 부른다.",
             "agent_id": session["agent_id"],
+            # 지금 진행 중인 토론과 이 에이전트의 역할(open, opinion, conclude, listener). 없으면 null.
+            "discussion": service.discussion_view(session["room_id"], session["agent_id"]),
             "agents": state["agents"],
             "messages": [chat_message(m, session["agent_id"]) for m in state["messages"][-40:]],
             "tasks": [t for t in state["tasks"] if t["status"] in ("open", "claimed") and not t["retry_required"]],

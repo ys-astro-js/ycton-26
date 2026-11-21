@@ -87,6 +87,79 @@ class TaskService:
     def event(conn, task, event, detail):
         conn.execute("INSERT INTO task_events(task_id,event,detail) VALUES(?,?,?)", (task, event, detail))
 
+    def start_discussion(self, room_id, message_id, lead_id, participant_ids):
+        """사람 메시지를 토론으로 시작한다. 진행자가 첫 안을 내고, 참여자가 차례로 의견을 낸 뒤 진행자가 결론을 낸다.
+        차례가 된 에이전트만 깨우므로 여럿이 한꺼번에 답하지 않는다."""
+        order = [lead_id] + [a for a in dict.fromkeys(participant_ids) if a != lead_id]
+        with self.db.connect(write=True) as c:
+            self._end_discussions(c, room_id, before=message_id)
+            state = {"lead": lead_id, "order": order, "step": 0, "done": False}
+            c.execute("UPDATE messages SET discussion=?, addressed_to=? WHERE id=? AND room_id=?",
+                      (json.dumps(state), json.dumps([lead_id]), message_id, room_id))
+            self.wake(c, room_id, agent_id=lead_id, reset=True)
+
+    @staticmethod
+    def _end_discussions(c, room_id, before=None):
+        """새 사람 메시지가 오면 앞의 토론은 끝낸다. 새 메시지가 지난 토론을 이어받아 다시 판단된다."""
+        for row in c.execute("""SELECT id, discussion FROM messages WHERE room_id=? AND discussion IS NOT NULL
+                                AND (? IS NULL OR id<?)""", (room_id, before, before)).fetchall():
+            state = json.loads(row["discussion"])
+            if not state["done"]:
+                state["done"] = True
+                c.execute("UPDATE messages SET discussion=? WHERE id=?", (json.dumps(state), row["id"]))
+
+    @staticmethod
+    def _open_discussion(c, room_id):
+        row = c.execute("""SELECT id, content, discussion FROM messages WHERE room_id=? AND discussion IS NOT NULL
+                           ORDER BY id DESC LIMIT 1""", (room_id,)).fetchone()
+        if row is None:
+            return None
+        state = json.loads(row["discussion"])
+        return None if state["done"] else (row["id"], row["content"], state)
+
+    @staticmethod
+    def _speaker(state):
+        order = state["order"]
+        return order[state["step"]] if state["step"] < len(order) else state["lead"]
+
+    def _advance_discussion(self, c, room_id, agent_id):
+        """차례였던 에이전트의 채팅 턴이 끝나면 다음 차례를 깨운다. 말하지 않고 끝났어도 넘어간다."""
+        found = self._open_discussion(c, room_id)
+        if found is None:
+            return
+        message_id, _, state = found
+        if self._speaker(state) != agent_id:
+            return
+        state["step"] += 1
+        active = {r["id"] for r in c.execute("SELECT id FROM agents WHERE room_id=? AND removed=0", (room_id,))}
+        # 지운 에이전트의 차례는 건너뛴다.
+        while state["step"] < len(state["order"]) and state["order"][state["step"]] not in active:
+            state["step"] += 1
+        if state["step"] > len(state["order"]) or state["lead"] not in active:
+            state["done"] = True
+            c.execute("UPDATE messages SET discussion=? WHERE id=?", (json.dumps(state), message_id))
+            return
+        speaker = self._speaker(state)
+        c.execute("UPDATE messages SET discussion=?, addressed_to=? WHERE id=?",
+                  (json.dumps(state), json.dumps([speaker]), message_id))
+        self.wake(c, room_id, agent_id=speaker, reset=True)
+
+    def discussion_view(self, room_id, agent_id):
+        """채팅 프롬프트에 넣을 지금 토론과 이 에이전트의 역할. 토론이 없으면 None."""
+        with self.db.connect() as c:
+            found = self._open_discussion(c, room_id)
+            if found is None:
+                return None
+            message_id, content, state = found
+            names = {r["id"]: r["name"] for r in c.execute("SELECT id, name FROM agents WHERE room_id=?", (room_id,))}
+        speaker = self._speaker(state)
+        concluding = state["step"] >= len(state["order"])
+        role = ("listener" if speaker != agent_id else
+                "conclude" if concluding else "open" if state["step"] == 0 else "opinion")
+        return {"message_id": message_id, "topic": content, "role": role,
+                "lead": names.get(state["lead"]), "order": [names.get(a) for a in state["order"]],
+                "now_speaking": names.get(speaker)}
+
     def route_message(self, room_id, message_id, agent_id):
         """Jev가 고른 에이전트를 사람 메시지의 답변자로 적고 그 에이전트만 깨운다."""
         with self.db.connect(write=True) as c:
@@ -295,9 +368,10 @@ class TaskService:
                 if agent_id is not None or question is None or not _asks_human(question["content"]):
                     raise DomainError("이 프로젝트에서 사람에게 보낸 질문에만 답장할 수 있습니다", 422)
             self.message(c, room_id, author, content, reply_to_message_id=reply_to_message_id)
+            message_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
             if agent_id is None:
                 c.execute("UPDATE rooms SET auto_tasks=0 WHERE id=?", (room_id,))
-            message_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+                self._end_discussions(c, room_id, before=message_id)
             agents = [dict(r) for r in c.execute("SELECT id,name FROM agents WHERE room_id=? AND removed=0", (room_id,))]
             targets = [a["id"] for a in mentioned_agents(agents, content) if a["id"] != agent_id]
             if reply_to_message_id is not None:
@@ -679,6 +753,7 @@ class TaskService:
                 if not held:
                     self.wake(c, s["room_id"], agent_id=s["agent_id"], reset=True)
             else:
+                self._advance_discussion(c, s["room_id"], s["agent_id"])
                 # claim 이후 위임 전에 채팅이 실패하면 작업을 영구 점유하지 않게 반환한다.
                 pending = c.execute("SELECT id FROM tasks WHERE owner_id=? AND status='claimed' AND active_session_id IS NULL", (s["agent_id"],)).fetchall()
                 if pending:

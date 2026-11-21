@@ -107,23 +107,77 @@ def test_fallback_continues_with_the_agent_already_talking(room):
     assert run(lambda: Dispatcher(svc).route_message(rid, posted["id"])) == ids["Bob"]
 
 
-def test_jev_picks_the_responder(room):
-    svc, rid, ids = room
-    posted = svc.post_message(rid, "아무나 답해 줘")
-    requests = []
-
+def jev_route(svc, rid, message_id, answers, requests=None):
     async def route():
-        jev = fake_jev({"responder": {"type": "choice", "choice": "Bob"}}, requests=requests)
+        jev = fake_jev(answers, requests=requests)
         try:
-            return await Dispatcher(svc, jev).route_message(rid, posted["id"])
+            return await Dispatcher(svc, jev).route_message(rid, message_id)
         finally:
             await jev.close()
+    return run(route)
 
-    assert run(route) == ids["Bob"]
+
+def joins(ids, yes):
+    return {f"join_{aid}": {"type": "noul", "noul": 0.9 if name in yes else 0.1} for name, aid in ids.items()}
+
+
+def test_jev_picks_one_responder_for_a_simple_question(room):
+    svc, rid, ids = room
+    posted = svc.post_message(rid, "지금 어디까지 됐어?")
+    requests = []
+    answers = {"mode": {"type": "choice", "choice": "answer"}, "lead": {"type": "choice", "choice": "Bob"},
+               **joins(ids, [])}
+    assert jev_route(svc, rid, posted["id"], answers, requests) == ids["Bob"]
     assert queued(svc, rid) == [ids["Bob"]]
-    question = requests[0]["questions"]["responder"]
-    assert question["type"] == "choice" and set(question["criteria"]) == {"Al", "Alice", "Bob"}
-    assert json.loads(requests[0]["state"])["message"] == "아무나 답해 줘"
+    questions = requests[0]["questions"]
+    assert set(questions["lead"]["criteria"]) == {"Al", "Alice", "Bob"} and questions["join_%d" % ids["Al"]]["type"] == "noul"
+    assert json.loads(requests[0]["state"])["message"] == "지금 어디까지 됐어?"
+    assert svc.discussion_view(rid, ids["Bob"]) is None
+
+
+def test_discussion_runs_in_turns_and_ends_with_the_lead(room):
+    svc, rid, ids = room
+    posted = svc.post_message(rid, "로그인 화면을 어떻게 바꿀지 정해 보자")
+    answers = {"mode": {"type": "choice", "choice": "discuss"}, "lead": {"type": "choice", "choice": "Alice"},
+               **joins(ids, ["Alice", "Al"])}
+    assert jev_route(svc, rid, posted["id"], answers) == ids["Alice"]
+    assert queued(svc, rid) == [ids["Alice"]]
+    assert svc.discussion_view(rid, ids["Alice"])["role"] == "open"
+    assert svc.discussion_view(rid, ids["Bob"])["role"] == "listener"
+
+    def turn(agent, text=None):
+        with svc.db.connect(write=True) as c:
+            c.execute("DELETE FROM sessions WHERE agent_id=?", (agent,))
+            sid = str(__import__("uuid").uuid4())
+            c.execute("INSERT INTO sessions(id,room_id,agent_id,kind,status) VALUES(?,?,?,'chat','running')", (sid, rid, agent))
+        if text:
+            svc.post_message(rid, text, agent)
+        svc.finish(sid, RuntimeResult(True, "채팅 턴 종료"))
+
+    turn(ids["Alice"], "첫 안: 대비를 높이자")
+    assert queued(svc, rid) == [ids["Al"]] and svc.discussion_view(rid, ids["Al"])["role"] == "opinion"
+    turn(ids["Al"])  # 말하지 않고 끝나도 차례는 넘어간다
+    assert queued(svc, rid) == [ids["Alice"]] and svc.discussion_view(rid, ids["Alice"])["role"] == "conclude"
+    turn(ids["Alice"], "결론: 대비를 높인다")
+    assert queued(svc, rid) == [] and svc.discussion_view(rid, ids["Alice"]) is None
+
+
+def test_new_human_message_ends_the_running_discussion(room):
+    svc, rid, ids = room
+    first = svc.post_message(rid, "구조를 정해 보자")
+    svc.start_discussion(rid, first["id"], ids["Al"], [ids["Bob"]])
+    assert svc.discussion_view(rid, ids["Al"])["role"] == "open"
+    svc.post_message(rid, "그건 그만하고 다른 얘기")
+    assert svc.discussion_view(rid, ids["Al"]) is None
+
+
+def test_without_jev_a_message_becomes_a_discussion_led_by_one_agent(room):
+    svc, rid, ids = room
+    posted = svc.post_message(rid, "API 구조를 정하자")
+    lead = run(lambda: Dispatcher(svc).route_message(rid, posted["id"]))
+    assert lead == ids["Al"] and queued(svc, rid) == [ids["Al"]]
+    view = svc.discussion_view(rid, ids["Al"])
+    assert view["role"] == "open" and view["order"][0] == "Al" and len(view["order"]) == 3
 
 
 @pytest.mark.parametrize("answers,status", [

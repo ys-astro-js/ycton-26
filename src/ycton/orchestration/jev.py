@@ -101,7 +101,7 @@ class OpenRouterJev:
             self.running.pop(room_id)
 
     async def decide(self, state, questions):
-        """choice 질문마다 고른 선택지 이름을 돌려준다. 실패하거나 선택지 밖의 답이면 None."""
+        """choice 질문은 고른 선택지 이름을, noul 질문은 '예'일 확률(0~1)을 돌려준다. 실패하거나 형식이 다르면 None."""
         try:
             async with asyncio.timeout(8):
                 response = await self.client.post(DECISIONS_URL, json={
@@ -111,6 +111,11 @@ class OpenRouterJev:
             picked = {}
             for name, question in questions.items():
                 answer = answers[name]
+                if question["type"] == "noul":
+                    if answer["type"] != "noul" or not isinstance(answer["noul"], (int, float)):
+                        raise ValueError(f"invalid Jev noul for {name}")
+                    picked[name] = float(answer["noul"])
+                    continue
                 if answer["type"] != "choice" or answer["choice"] not in question["criteria"]:
                     raise ValueError(f"invalid Jev choice for {name}")
                 picked[name] = answer["choice"]
