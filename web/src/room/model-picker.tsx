@@ -42,6 +42,8 @@ export function ModelPicker({
   const [providerId, setProviderId] = useState(value?.provider ?? '')
   const [model, setModel] = useState(value?.model ?? '')
   const provider = providers.find((candidate) => candidate.id === providerId)
+  // 세 열을 처음부터 같은 크기로 띄워, 고를 때마다 팝오버 크기가 바뀌지 않게 합니다
+  const rows = Math.max(providers.length, ...providers.flatMap((p) => [p.models.length, p.efforts.length]), 1)
 
   const finish = (choice: ModelChoice) => {
     onChange(choice)
@@ -79,7 +81,7 @@ export function ModelPicker({
         <span className="min-w-0 truncate">{value ? describeChoice(value, providers) : '모델 선택'}</span>
       </PopoverTrigger>
       <PopoverContent side="bottom" align="start" className="w-auto flex-row gap-0 p-0">
-        <Column title="제공자">
+        <Column title="제공자" rows={rows}>
           {providers.map((candidate) => (
             <Option
               key={candidate.id}
@@ -93,45 +95,46 @@ export function ModelPicker({
             </Option>
           ))}
         </Column>
-        {provider ? (
-          <Column title="모델">
-            {provider.models.map((candidate) => (
-              <Option
-                key={candidate}
-                mono
-                selected={candidate === model}
-                onSelect={() => {
-                  if (provider.efforts.length === 0) finish({ provider: provider.id, model: candidate, effort: '' })
-                  else setModel(candidate)
-                }}
-              >
-                {candidate}
-              </Option>
-            ))}
-          </Column>
-        ) : null}
-        {provider && model && provider.efforts.length > 0 ? (
-          <Column title="추론 수준">
-            {provider.efforts.map((candidate) => (
-              <Option
-                key={candidate}
-                selected={value?.provider === provider.id && value.model === model && value.effort === candidate}
-                onSelect={() => finish({ provider: provider.id, model, effort: candidate })}
-              >
-                {candidate}
-              </Option>
-            ))}
-          </Column>
-        ) : null}
+        <Column title="모델" rows={rows}>
+          {provider?.models.map((candidate) => (
+            <Option
+              key={candidate}
+              mono
+              selected={candidate === model}
+              onSelect={() => {
+                if (provider.efforts.length === 0) finish({ provider: provider.id, model: candidate, effort: '' })
+                else setModel(candidate)
+              }}
+            >
+              {candidate}
+            </Option>
+          ))}
+        </Column>
+        <Column title="추론 수준" rows={rows}>
+          {provider && model ? provider.efforts.map((candidate) => (
+            <Option
+              key={candidate}
+              selected={value?.provider === provider.id && value.model === model && value.effort === candidate}
+              onSelect={() => finish({ provider: provider.id, model, effort: candidate })}
+            >
+              {candidate}
+            </Option>
+          )) : null}
+        </Column>
       </PopoverContent>
     </Popover>
   )
 }
 
-function Column({ title, children }: { title: string; children: ReactNode }) {
+function Column({ title, rows, children }: { title: string; rows: number; children: ReactNode }) {
   const headingId = useId()
   return (
-    <div role="group" aria-labelledby={headingId} className="grid w-44 content-start gap-0.5 border-e p-1.5 last:border-e-0">
+    <div
+      role="group"
+      aria-labelledby={headingId}
+      style={{ gridTemplateRows: `auto repeat(${rows}, 2.25rem)` }}
+      className="grid w-44 content-start gap-0.5 border-e p-1.5 last:border-e-0"
+    >
       <p id={headingId} className="px-2 pt-1 pb-1.5 text-label font-semibold text-muted-foreground">
         {title}
       </p>
