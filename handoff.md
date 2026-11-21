@@ -1,14 +1,14 @@
 # 2번 담당 인계: 오케스트레이션 연결
 
-1번 런타임은 실제 Codex로 **ACP 채팅 턴**, **MCP `send`의 HTTP 왕복**, **전용 git worktree에서 작업·검증**을 확인했습니다. MCP 검증에는 임시 HTTP 수신기를 사용했습니다. 이제 FastAPI·SQLite에 연결해서 할 일이 등록된 뒤 담당 결정부터 결과 기록까지 자동으로 이어지게 하면 됩니다.
+1번의 ACP 실행 런타임은 2번의 FastAPI·SQLite 오케스트레이션에 연결되어 있습니다. 실제 실행 설정은 [ORCHESTRATION.md](ORCHESTRATION.md#3-실제-acp-실행-준비), HTTP 요청과 응답은 [API 계약](docs/API.md#내부-mcp-요청--담당-1-계약)을 참고하세요.
 
 ## 1. 채팅 턴과 메시지 저장
 
-- `uv sync --locked`로 런타임 의존성을 설치합니다. Codex 로그인과 ACP 어댑터 실행 예시는 [PLAN.md의 ACP 연결 확인](PLAN.md#acp-연결-확인)을 참고하세요. 채팅용 서버 프로세스에는 `INITIAL_AGENT_MODE=read-only`를 설정합니다. `run_session()`은 이 설정을 상속하고, 작업 서브세션만 `workspace-write`로 바꿉니다.
+- `uv sync --locked`로 런타임 의존성을 설치합니다. Codex 로그인과 ACP 어댑터 실행 예시는 [PLAN.md의 ACP 연결 확인](PLAN.md#acp-연결-확인)을 참고하세요. 런타임이 채팅 턴에는 `read-only`, 작업 서브세션에는 `workspace-write`를 설정합니다.
 - `ycton.room_mcp.room_mcp_server(api_url=..., token=..., room_id=..., participant_id=...)`로 방과 에이전트에 맞는 MCP 설정을 만듭니다. `api_url`에는 경로 없이 `http://127.0.0.1:<포트>`를 넘깁니다.
 - `ycton.acp_runtime.run_session(executable, *args, cwd=room_dir, prompt=prompt, mcp_servers=[room_mcp], on_update=on_update)`로 채팅 턴을 엽니다. 에이전트에게는 방에 말할 때 `send({"text": "메시지"})`를 쓰라고 지시합니다. `run_session()`의 최종 텍스트는 채팅 메시지로 저장하지 않습니다.
 
-구현할 내부 엔드포인트:
+메시지 저장 엔드포인트:
 
 ```http
 POST /api/agent/messages
@@ -24,14 +24,15 @@ Content-Type: application/json
 
 ## 2. 할 일 할당과 작업 서브세션
 
-채팅 턴의 `claim({"task_id": 37})`과 `delegate({"task_id": 37, "instructions": "..."})`는 아래 내부 HTTP 요청으로 연결됩니다. 두 요청 모두 메시지 API와 동일한 Bearer 토큰을 쓰고, JSON 본문에 문자열 `room_id`, `participant_id`를 함께 보냅니다. `task_id`는 정수입니다.
+채팅 턴의 `list_tasks()`, `claim({"task_id": 37})`, `delegate({"task_id": 37, "instructions": "..."})`는 아래 내부 HTTP 요청으로 연결됩니다. 요청에 세션별 Bearer 토큰과 문자열 `room_id`, `participant_id`를 함께 보냅니다. `task_id`는 정수 또는 숫자 문자열을 받습니다.
 
 | HTTP 요청 | 본문에 추가되는 필드 | 성공 응답 |
 | --- | --- | --- |
-| `POST /api/agent/tasks/claim` | `task_id` | 담당자 저장을 마친 뒤 `200` 등 2xx |
-| `POST /api/agent/tasks/delegate` | `task_id`, 문자열 `instructions` | 실행을 등록한 뒤 `202` 권장. 작업 완료까지 기다리지 않음 |
+| `POST /api/agent/tasks/list` | 없음 | `200`과 방의 할 일·에이전트 목록 |
+| `POST /api/agent/tasks/claim` | `task_id` | 담당자 저장 후 `200`과 할 일 |
+| `POST /api/agent/tasks/delegate` | `task_id`, 문자열 `instructions`, 선택적 `request_id` | 실행 등록 후 `202`와 대기 세션. 작업 완료까지 기다리지 않음 |
 
-MCP 도구는 응답 본문에 의존하지 않습니다. 2xx가 아니면 성공으로 응답하지 않습니다. 이미 맡긴 작업이나 다른 에이전트가 가져간 일은 `409`, 방 또는 담당자 권한이 없으면 `403`으로 거절할 수 있습니다.
+2xx가 아니면 MCP 도구 오류로 반환합니다. 이미 맡긴 작업이나 다른 에이전트가 가져간 일은 `409`, 방 또는 담당자 권한이 없으면 `403`으로 거절합니다. `request_id`를 생략하면 채팅 세션과 할 일 ID로 중복 위임을 방지합니다.
 
 1. **`claim`**: `open`인 할 일만 원자적으로 `claimed`로 바꿉니다. 동시에 두 요청이 들어와도 한 에이전트만 성공해야 합니다.
 2. **`delegate`**: 요청한 에이전트가 그 할 일의 담당자이고 해당 할 일에 실행 중인 서브세션이 없는지 확인합니다. 작업을 등록한 뒤 바로 응답하고, 실제 ACP 실행은 요청 밖에서 처리합니다.
@@ -50,10 +51,10 @@ result = await run_work_session(
 
 - `repo_dir`은 Git 저장소입니다. `attempt_worktree`는 **원본 체크아웃 밖의 아직 없는 경로**로, 시도마다 달라야 합니다. 런타임은 커밋된 `HEAD`를 체크아웃하므로 데모에 필요한 원본 파일은 미리 커밋해 두세요. 채팅 기록은 작업 프롬프트에 전달하지 않습니다.
 - `on_update`는 `SessionNotification`을 받는 **동기 콜백**입니다. DB 쓰기처럼 대기하는 작업은 콜백에서 직접 처리하지 말고 소비할 큐로 넘깁니다. 작업 결과는 `result.worktree`, `result.session.session_id`, `result.session.stop_reason`, `result.session.text`로 받습니다.
-- **성공**: 실제 확인 명령의 결과가 `verify` 기준을 충족하면 `done`으로 바꾸고, 작업 보고와 검증 결과를 인계 노트·방 메시지에 남깁니다. `end_turn`은 턴 종료일 뿐 검증 통과가 아닙니다. 데모에서는 미리 정한 확인 명령의 종료 코드와 성공 출력을 진행 이벤트에서 확인하세요.
+- **성공**: `end_turn` 이후 서버가 같은 worktree에서 TOML에 등록된 검증 명령을 독립적으로 실행합니다. 종료 코드와 성공 출력 조건을 충족한 경우에만 `done`으로 바꾸고, 작업 보고와 검증 결과를 인계 노트·방 메시지에 남깁니다.
 - **실패·시간 초과**: 검증 실패, 정상 종료가 아닌 `stop_reason`, `TimeoutError` 또는 실행 오류는 인계 노트와 함께 `open`으로 돌립니다. 만들어진 worktree는 실패 시에도 남으므로 시도 경로를 등록할 때부터 기록해 두세요. 런타임은 자동 커밋·병합하거나 작업 상태를 갱신하지 않습니다.
 
-**통합에 필요한 남은 연결:** 2번이 위 HTTP 라우트를 구현하고, 채팅 턴 프롬프트에 열린 할 일과 번호를 포함해야 합니다. 작업 결과를 기록한 뒤 맡긴 에이전트의 다음 채팅 턴을 예약하는 것도 오케스트레이션이 맡습니다. 서브세션에 같은 방의 MCP 설정을 넘겨도 `claim`과 `delegate`는 노출되지 않습니다.
+작업 결과를 기록한 뒤 맡긴 에이전트의 다음 채팅 턴을 오케스트레이션이 예약합니다. 현재 오케스트레이터는 작업 서브세션에 방 MCP 설정이나 토큰을 전달하지 않습니다.
 
 ## 3. 통합 완료 기준
 

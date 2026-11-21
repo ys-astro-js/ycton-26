@@ -5,7 +5,7 @@
 - 기본 `mock` 모드: 모델 없이 서버·DB·스케줄러 흐름을 확인합니다.
 - 선택 `acp` 모드: 담당 1의 `run_session()` / `run_work_session()`을 호출합니다.
 - MCP `send`, `list_tasks`, `claim`, `delegate` → 실제 HTTP API → SQLite 연결을 구현했습니다.
-- 실제 Codex 로그인·모델 실행은 이 통합본에서 검증하지 않았습니다. 설치된 어댑터와 사용자 설정이 필요합니다.
+- 실제 Codex ACP 2.8.0으로 HTTP 작업 등록부터 worktree 수정·서버 검증·결과 저장·다음 턴 실행까지 확인했습니다. [검증 기록](docs/VALIDATION.md#실제-codex-통합-검증)을 참고하세요.
 
 ## 먼저 읽을 문서
 
@@ -63,7 +63,7 @@ python3 scripts/demo.py --fail
 
 1. 담당 1이 검증한 ACP 어댑터가 설치되어 있고 Codex 로그인이 되어 있는지 확인합니다.
 2. 데모용 Git 저장소의 필요한 파일을 커밋합니다. 작업은 커밋된 HEAD 기준의 새 worktree에서 시작합니다.
-3. `runtime.example.toml`을 `runtime.toml`로 복사합니다.
+3. `runtime.example.toml`을 UTF-8로 저장된 `runtime.toml`로 복사합니다.
 4. 다음을 실제 환경에 맞춥니다.
 
 | 설정 | 내용 |
@@ -77,7 +77,9 @@ python3 scripts/demo.py --fail
 | `verify.unit.command` | 서버가 직접 실행할 검증 명령 배열 |
 | `verify.unit.contains` | 선택적인 성공 stdout 문자열 |
 
-실행 명령은 예를 들어 `['실행파일', '인자1']` 구조입니다. 문자열 전체를 셸 명령으로 실행하지 않습니다. 어댑터의 실제 명령은 임의로 가정하지 않았습니다.
+Codex 어댑터는 [ACP 연결 확인](PLAN.md#acp-연결-확인)의 Node 실행 방식으로 설정합니다. `kinds.*.command`에는 `"node"`와 어댑터 `dist/index.js`의 실제 경로를 별도 인자로 넣습니다. 명령 문자열 전체를 셸에 넘기지 않습니다.
+
+Windows에서는 `worktrees`에 원본 저장소 밖의 일반 폴더를 지정하세요. Python `TemporaryDirectory`처럼 소유자 전용 권한으로 생성된 폴더 아래에서, Codex의 `workspace-write` 샌드박스가 중첩 worktree 경로를 열지 못하는 경우를 확인했습니다. 샌드박스는 그대로 두고 작업 폴더 위치를 바꾸세요.
 
 macOS/Linux에서:
 
