@@ -1,4 +1,4 @@
-"""Expose the room send tool over MCP stdio."""
+"""Expose the room tools over MCP stdio: chat turns talk and assign, work sessions commit."""
 
 import asyncio
 import os
@@ -15,8 +15,8 @@ _TOKEN = "YCTON_AGENT_TOKEN"
 _ROOM_ID = "YCTON_ROOM_ID"
 _PARTICIPANT_ID = "YCTON_PARTICIPANT_ID"
 ROOM_MCP_NAME = "room"
-ROOM_WORK_TOOLS = ("send",)
-ROOM_CHAT_TOOLS = (*ROOM_WORK_TOOLS, "list_tasks", "claim", "delegate")
+ROOM_WORK_TOOLS = ("commit",)
+ROOM_CHAT_TOOLS = ("send", "list_tasks", "claim", "delegate")
 _STDIO_ARGS = ("-I", "-m", "ycton.room_mcp")
 
 
@@ -49,10 +49,27 @@ def build_room_server(client: httpx.AsyncClient, *, room_id: str, participant_id
             response = await client.post(path, json={**actor, **fields})
             response.raise_for_status()
         except httpx.HTTPStatusError as error:
-            raise ToolError(f"Room API rejected the request (HTTP {error.response.status_code}).") from None
+            # 거절 이유(예: 커밋할 변경 없음)를 알아야 에이전트가 고쳐서 다시 시도할 수 있다.
+            try:
+                detail = error.response.json().get("detail")
+            except ValueError:
+                detail = None
+            reason = f": {detail[:500]}" if isinstance(detail, str) else ""
+            raise ToolError(f"Room API rejected the request (HTTP {error.response.status_code}){reason}.") from None
         except httpx.RequestError:
             raise ToolError("Could not confirm delivery to the room API.") from None
         return response
+
+    if work:
+        @server.tool()
+        async def commit(paths: list[str], message: str) -> dict:
+            """Commit only the listed files (paths relative to the worktree root) with this message.
+
+            Other changes, staged or not, stay uncommitted. Returns the new commit hash.
+            """
+            return (await post("/api/agent/commit", paths=paths, message=message)).json()
+
+        return server
 
     @server.tool()
     async def send(text: str) -> str:
@@ -60,22 +77,21 @@ def build_room_server(client: httpx.AsyncClient, *, room_id: str, participant_id
         await post("/api/agent/messages", text=text)
         return "Message sent."
 
-    if not work:
-        @server.tool()
-        async def list_tasks() -> dict:
-            """Read tasks and agents in this room before choosing work."""
-            return (await post("/api/agent/tasks/list")).json()
+    @server.tool()
+    async def list_tasks() -> dict:
+        """Read tasks and agents in this room before choosing work."""
+        return (await post("/api/agent/tasks/list")).json()
 
-        @server.tool()
-        async def claim(task_id: str | int) -> dict:
-            """Atomically claim an open task. A conflict means it was not assigned to you."""
-            return (await post("/api/agent/tasks/claim", task_id=task_id)).json()
+    @server.tool()
+    async def claim(task_id: str | int) -> dict:
+        """Atomically claim an open task. A conflict means it was not assigned to you."""
+        return (await post("/api/agent/tasks/claim", task_id=task_id)).json()
 
-        @server.tool()
-        async def delegate(task_id: str | int, instructions: str = "", request_id: str | None = None) -> dict:
-            """Queue your claimed task. Reuse request_id only when retrying this identical request."""
-            return (await post("/api/agent/tasks/delegate", task_id=task_id,
-                               request_id=request_id, instructions=instructions)).json()
+    @server.tool()
+    async def delegate(task_id: str | int, instructions: str = "", request_id: str | None = None) -> dict:
+        """Queue your claimed task. Reuse request_id only when retrying this identical request."""
+        return (await post("/api/agent/tasks/delegate", task_id=task_id,
+                           request_id=request_id, instructions=instructions)).json()
 
     return server
 

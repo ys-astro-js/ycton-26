@@ -74,11 +74,15 @@ class AcpRuntime:
                         verify="서버가 재검증할 명령(argv): " + json.dumps(profile.command),
                         instructions=data["instruction"] + "\n이전 인계:\n" + data["handoff"],
                         agents_md=kind.instructions)
+        # 작업 세션은 이 토큰으로 commit 도구만 쓸 수 있다. 끝나면 바로 폐기한다.
+        token = self.tokens.issue(Identity(request.session_id, request.room_id, request.agent_id))
+        mcp = room_mcp_server(api_url=self.config.api_url, token=token,
+                              room_id=str(request.room_id), participant_id=str(request.agent_id))
         try:
-            async with EventLog(log, self.service, request.session_id) as events:
+            async with EventLog(log, self.service, request.session_id, secrets=(token,)) as events:
                 result = await run_work_session(*kind.command, repo=self.config.repo, worktree=worktree,
-                                               task=task, timeout=self.config.timeout, on_update=events.on_update,
-                                               branch=branch)
+                                               task=task, timeout=self.config.timeout, mcp_servers=[mcp],
+                                               on_update=events.on_update, branch=branch)
             self.service.execution_metadata(request.session_id, acp_session_id=result.session.session_id,
                                             stop_reason=str(result.session.stop_reason))
             if result.session.stop_reason != "end_turn":
@@ -94,3 +98,5 @@ class AcpRuntime:
             raise
         except Exception as exc:
             return RuntimeResult(False, f"작업 실행 오류: {type(exc).__name__}; worktree={worktree}; branch={branch}", log_path=str(log))
+        finally:
+            self.tokens.revoke(token)

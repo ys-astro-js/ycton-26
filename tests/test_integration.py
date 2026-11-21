@@ -190,11 +190,11 @@ def test_wrong_stop_reason_cannot_complete_work(bridge,monkeypatch):
     assert not result.succeeded
 
 
-def test_work_mcp_exposes_only_send():
+def test_work_mcp_exposes_only_commit():
     async def exercise():
         async with httpx.AsyncClient(base_url="http://127.0.0.1") as client:
             server = build_room_server(client, room_id="1", participant_id="2", work=True)
-            assert {t.name for t in await server.list_tools()} == {"send"}
+            assert {t.name for t in await server.list_tools()} == {"commit"}
     asyncio.run(exercise())
 
 
@@ -233,3 +233,113 @@ def test_work_session_starts_worktree_on_requested_branch(tmp_path, monkeypatch)
     current = subprocess.run(('git', '-C', str(result.worktree), 'branch', '--show-current'),
                              check=True, capture_output=True, text=True).stdout.strip()
     assert current == 'ycton/task-1-abc'
+
+
+def running_work(bridge):
+    """실제 git worktree에서 실행 중인 작업 세션과 그 세션의 토큰을 만든다."""
+    import subprocess
+    app, client, actor, token, sid, tid, root = bridge
+    svc, _, request = setup_work(bridge)
+    repo = git_repo(root / 'repo')
+    worktree = root / 'wt'
+    subprocess.run(('git', '-C', str(repo), 'worktree', 'add', '-q', '-b', 'ycton/task', str(worktree)), check=True)
+    with svc.db.connect(write=True) as c:
+        c.execute("UPDATE sessions SET status='running' WHERE id=?", (request.session_id,))
+    svc.execution_metadata(request.session_id, worktree=str(worktree))
+    work_token = app.state.tokens.issue(Identity(request.session_id, request.room_id, request.agent_id))
+    return svc, request, worktree, work_token
+
+
+def git_out(worktree, *args):
+    import subprocess
+    return subprocess.run(('git', '-C', str(worktree), *args), check=True, capture_output=True, text=True).stdout
+
+
+def test_commit_tool_commits_only_chosen_files_and_links_task(bridge):
+    from ycton.orchestration.runtime_port import RuntimeResult
+    app, client, actor, token, sid, tid, root = bridge
+    svc, request, worktree, work_token = running_work(bridge)
+    (worktree / 'app.txt').write_text('after\n')
+    (worktree / 'new.txt').write_text('new\n')
+    (worktree / 'other.txt').write_text('not part of the task\n')
+    git_out(worktree, 'add', 'other.txt')
+
+    async def exercise():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://127.0.0.1',
+                                    headers={'Authorization': f'Bearer {work_token}'}) as http:
+            mcp = build_room_server(http, room_id=actor['room_id'], participant_id=actor['participant_id'], work=True)
+            return await mcp.call_tool('commit', {'paths': ['app.txt', 'new.txt'], 'message': 'Update app'})
+    asyncio.run(exercise())
+
+    head = git_out(worktree, 'rev-parse', 'HEAD').strip()
+    assert sorted(git_out(worktree, 'show', '--name-only', '--format=', 'HEAD').split()) == ['app.txt', 'new.txt']
+    assert git_out(worktree, 'log', '-1', '--format=%an').strip() == 'A (ycton)'
+    assert 'A  other.txt' in git_out(worktree, 'status', '--short')
+    session = next(s for s in svc.snapshot(request.room_id)['sessions'] if s['id'] == request.session_id)
+    assert session['commit_hash'] == head
+    assert any(e['event'] == 'committed' and head in e['detail']
+               for e in client.get(f'/api/tasks/{tid}/events').json())
+
+    svc.finish(request.session_id, RuntimeResult(True, 'report', 'passed'))
+    task = svc.snapshot(request.room_id)['tasks'][0]
+    assert task['status'] == 'done' and task['commit_hash'] == head
+    assert f'commit={head}' in task['handoff']
+
+
+def test_commit_tool_rejects_outside_paths_and_wrong_sessions(bridge):
+    app, client, actor, token, sid, tid, root = bridge
+    svc, request, worktree, work_token = running_work(bridge)
+    (worktree / 'app.txt').write_text('after\n')
+    work = {'Authorization': f'Bearer {work_token}'}
+    body = {**actor, 'paths': ['app.txt'], 'message': 'Update app'}
+    for paths in (['../repo/app.txt'], [str(worktree / 'app.txt')], ['.git/config'], ['.']):
+        response = client.post('/api/agent/commit', headers=work, json={**body, 'paths': paths})
+        assert response.status_code == 422, paths
+    # 채팅 토큰은 커밋할 수 없고, 작업 토큰은 방에 말할 수 없다.
+    assert client.post('/api/agent/commit', headers={'Authorization': f'Bearer {token}'}, json=body).status_code == 403
+    assert client.post('/api/agent/messages', headers=work, json={**actor, 'text': 'hi'}).status_code == 403
+    # 변경이 없는 파일은 커밋할 것이 없어 거절하고, 그 이유를 돌려준다.
+    nothing = client.post('/api/agent/commit', headers=work, json={**body, 'paths': ['missing.txt']})
+    assert nothing.status_code == 422 and 'git add' in nothing.json()['detail']
+    assert git_out(worktree, 'rev-list', '--count', 'HEAD').strip() == '1'
+
+
+def test_failed_attempt_keeps_commit_in_handoff_only(bridge):
+    from ycton.orchestration.runtime_port import RuntimeResult
+    app, client, actor, token, sid, tid, root = bridge
+    svc, request, worktree, work_token = running_work(bridge)
+    (worktree / 'app.txt').write_text('after\n')
+    response = client.post('/api/agent/commit', headers={'Authorization': f'Bearer {work_token}'},
+                           json={**actor, 'paths': ['app.txt'], 'message': 'Try fix'})
+    assert response.status_code == 201
+    svc.finish(request.session_id, RuntimeResult(False, 'verification failed', 'failed'))
+    task = svc.snapshot(request.room_id)['tasks'][0]
+    assert task['status'] == 'open' and task['commit_hash'] is None
+    assert f"commit={response.json()['commit']}" in task['handoff']
+
+
+def test_work_runtime_passes_commit_mcp_and_revokes_token(bridge, monkeypatch):
+    import ycton.orchestration.acp_bridge as module
+    svc, config, request = setup_work(bridge)
+    tokens = Tokens()
+    seen = {}
+    async def work(*args, **kwargs):
+        server = kwargs['mcp_servers'][0]
+        env = {v.name: v.value for v in server.env}
+        seen['token'] = env['YCTON_AGENT_TOKEN']
+        seen['identity'] = tokens.resolve(seen['token'])
+        seen['branch'] = kwargs['branch']
+        kwargs['worktree'].mkdir(parents=True)
+        return SimpleNamespace(session=SimpleNamespace(session_id='acp-1', stop_reason='end_turn', text='report'))
+    monkeypatch.setattr(module, 'run_work_session', work)
+    asyncio.run(AcpRuntime(svc, config, tokens).run(request))
+    assert seen['identity'].session_id == request.session_id
+    assert seen['branch'].startswith(f'ycton/task-{request.task_id}-')
+    assert tokens.resolve(seen['token']) is None
+
+
+def test_work_prompt_mentions_commit_only_with_room_mcp():
+    from ycton.work_session import WorkTask, _work_prompt
+    task = WorkTask(title='t', detail='', scope='', verify='', instructions='')
+    assert '`commit` tool' in _work_prompt(task, can_commit=True)
+    assert 'Do not commit' in _work_prompt(task)

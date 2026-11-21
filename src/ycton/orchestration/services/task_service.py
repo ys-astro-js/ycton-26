@@ -1,8 +1,10 @@
 """상태 변경의 단일 진입점. 모든 변경·이력·메시지를 같은 트랜잭션에 저장한다."""
 import json
 import sqlite3
+from pathlib import Path
 from uuid import uuid4
 
+from ycton.orchestration.git_commit import CommitError, commit_paths
 from ycton.orchestration.runtime_port import RuntimeResult
 
 
@@ -146,6 +148,30 @@ class TaskService:
             self.event(c, task_id, "delegated", sid)
             return require(c, "sessions", sid)
 
+    def commit_work(self, session_id, paths, message):
+        """활성 작업 세션의 worktree에서 고른 파일만 커밋하고 해시를 세션에 기록한다."""
+        with self.db.connect() as c:
+            s = require(c, "sessions", session_id)
+            if s["kind"] != "work" or s["status"] != "running":
+                raise DomainError("실행 중인 작업 세션만 커밋할 수 있습니다", 403)
+            task = require(c, "tasks", s["task_id"])
+            if task["active_session_id"] != session_id:
+                raise DomainError("이 할 일의 현재 작업 세션이 아닙니다", 403)
+            agent = require(c, "agents", s["agent_id"])
+        worktree = Path(s["worktree"] or "")
+        if not s["worktree"] or not worktree.is_dir():
+            raise DomainError("작업 worktree가 아직 없습니다")
+        # git은 DB 트랜잭션 밖에서 실행한다. 커밋 작성자는 맡은 에이전트로 남긴다.
+        try:
+            commit = commit_paths(worktree, paths, message, f"{agent['name']} (ycton)",
+                                  f"agent-{agent['id']}@ycton.local")
+        except CommitError as exc:
+            raise DomainError(str(exc), 422) from None
+        with self.db.connect(write=True) as c:
+            c.execute("UPDATE sessions SET commit_hash=? WHERE id=?", (commit, session_id))
+            self.event(c, task["id"], "committed", f"{commit} {message.splitlines()[0]}")
+        return commit
+
     def finish(self, session_id, result: RuntimeResult, cancelled=False):
         """중복 종료는 무시. 활성 실행 ID를 확인하여 오래된 결과의 덮어쓰기를 차단한다."""
         with self.db.connect(write=True) as c:
@@ -157,17 +183,23 @@ class TaskService:
                 summary += f"\nworktree={s['worktree']}"
             success = result.succeeded and (s["kind"] == "chat" or result.verification == "passed")
             status = "cancelled" if cancelled else ("succeeded" if success else "failed")
+            # commit 도구가 실행 중에 기록한 해시를 런타임 결과가 비어 있다고 지우지 않는다.
+            commit = result.commit_hash or s["commit_hash"]
+            if commit and commit not in summary:
+                summary += f"\ncommit={commit}"
             c.execute("""UPDATE sessions SET status=?,summary=?,verification=?,commit_hash=?,log_path=COALESCE(?,log_path),
                          finished_at=CURRENT_TIMESTAMP WHERE id=?""",
-                      (status, summary, result.verification, result.commit_hash, result.log_path, session_id))
+                      (status, summary, result.verification, commit, result.log_path, session_id))
             if s["kind"] == "work":
                 task = require(c, "tasks", s["task_id"])
                 if task["active_session_id"] != session_id:
                     return False
                 done = status == "succeeded"
-                c.execute("""UPDATE tasks SET status=?,owner_id=?,active_session_id=NULL,handoff=?,commit_hash=?
-                             WHERE id=?""", ("done" if done else "open", s["agent_id"] if done else None,
-                                             summary, result.commit_hash, task["id"]))
+                # 실패한 시도의 커밋은 인계 노트에만 남기고, 할 일에는 완료된 커밋만 연결한다.
+                c.execute("""UPDATE tasks SET status=?,owner_id=?,active_session_id=NULL,handoff=?,
+                             commit_hash=COALESCE(?,commit_hash) WHERE id=?""",
+                          ("done" if done else "open", s["agent_id"] if done else None,
+                           summary, commit if done else None, task["id"]))
                 self.event(c, task["id"], status, summary)
                 self.message(c, s["room_id"], "system", f"할 일 #{task['id']} {status}: {summary}")
                 self.wake(c, s["room_id"], agent_id=s["agent_id"], reset=True)

@@ -42,15 +42,21 @@ def identity(request: Request, authorization: str = Header(default="")):
     return actor
 
 
-def validate(svc, actor, body):
+class Commit(Actor):
+    paths: list[str] = Field(min_length=1, max_length=200)
+    message: str = Field(min_length=1, max_length=2000)
+
+
+def validate(svc, actor, body, kind="chat"):
     if body.room_id != str(actor.room_id) or body.participant_id != str(actor.agent_id):
         raise DomainError("토큰의 방·작성자와 요청이 일치하지 않습니다", 403)
     with svc.db.connect() as c:
         s = require(c, "sessions", actor.session_id)
         a = require(c, "agents", actor.agent_id)
-        if (s["status"] != "running" or s["kind"] != "chat" or s["agent_id"] != actor.agent_id
+        if (s["status"] != "running" or s["kind"] != kind or s["agent_id"] != actor.agent_id
                 or s["room_id"] != actor.room_id or a["room_id"] != actor.room_id):
-            raise DomainError("활성 채팅 세션만 방 도구를 사용할 수 있습니다", 403)
+            label = "채팅" if kind == "chat" else "작업"
+            raise DomainError(f"활성 {label} 세션만 이 도구를 사용할 수 있습니다", 403)
 
 
 def task_number(value):
@@ -85,3 +91,9 @@ def delegate(body: Delegation, actor=Depends(identity), svc=Depends(service)):
     # 기존 담당 1 규격은 request_id가 없다. 같은 채팅 세션의 같은 작업은 같은 키로 합친다.
     key = body.request_id or f"session:{actor.session_id}:task:{body.task_id}"
     return svc.delegate(task_number(body.task_id), actor.agent_id, key, body.instructions)
+
+
+@router.post("/commit", status_code=201)
+def commit(body: Commit, actor=Depends(identity), svc=Depends(service)):
+    validate(svc, actor, body, kind="work")
+    return {"commit": svc.commit_work(actor.session_id, body.paths, body.message)}

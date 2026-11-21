@@ -9,6 +9,7 @@ from pathlib import Path
 from acp.schema import McpServerStdio, SessionNotification
 
 from .acp_runtime import SessionResult, _run_session
+from .room_mcp import is_room_mcp_server
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,11 +28,19 @@ class WorkSessionResult:
     session: SessionResult
 
 
-def _work_prompt(task: WorkTask) -> str:
+def _work_prompt(task: WorkTask, *, can_commit: bool = False) -> str:
+    if can_commit:
+        finish = (
+            "When the change is complete and the verification passes, call the room `commit` tool with "
+            "the exact worktree-relative paths of the files this task changed and a short commit message. "
+            "Do not run git commit, merge, or push yourself, and do not start detached processes.\n\n"
+        )
+    else:
+        finish = "Leave edits in the worktree. Do not commit, merge, or start detached processes.\n\n"
     return (
         "Complete the delegated task using only the current worktree. "
         "Run the requested verification here and report the exact command and observed outcome. "
-        "Leave edits in the worktree. Do not commit, merge, or start detached processes.\n\n"
+        + finish +
         f"Title: {task.title}\n\nDetail:\n{task.detail}\n\nScope:\n{task.scope}\n\n"
         f"Verification:\n{task.verify}\n\nInstructions:\n{task.instructions}\n\n"
         f"Agent instructions:\n{task.agents_md}"
@@ -80,7 +89,8 @@ async def run_work_session(
     await _git(repo_root, "worktree", "add", *start, "--", str(workdir), "HEAD")
 
     session = await _run_session(
-        executable, *args, cwd=workdir, prompt=_work_prompt(task), timeout=timeout,
+        executable, *args, cwd=workdir,
+        prompt=_work_prompt(task, can_commit=any(is_room_mcp_server(s) for s in mcp_servers or ())), timeout=timeout,
         mcp_servers=mcp_servers, on_update=on_update, work=True,
     )
     return WorkSessionResult(worktree=workdir, session=session)
