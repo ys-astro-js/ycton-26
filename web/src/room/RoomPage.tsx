@@ -163,7 +163,7 @@ export function RoomPage() {
         <ProjectSource state={state} repositoryLabel={repositoryLabel} />
         <div className="flex items-center gap-3">
           <p role="status" className="text-label font-semibold whitespace-nowrap empty:hidden">
-            {stopped ? '자동 진행 멈춤' : null}
+            {stopped ? '일시 정지' : null}
           </p>
           {stopped ? (
             <IconButton icon={Play} label="자동 진행 재개하기" disabled={resume.isPending} onClick={() => resume.mutate(undefined)} />

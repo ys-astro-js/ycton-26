@@ -90,7 +90,7 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
           projectId,
           kind: 'jev-stop',
           // 종류(멈춤)는 아이콘이 알리므로 제목은 멈춘 이유입니다
-          title: state.jev.reason || '자동 진행 멈춤',
+          title: state.jev.reason || '일시 정지',
           handoff: [],
           log: [],
           target: { roomId: state.room.id },
