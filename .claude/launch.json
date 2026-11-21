@@ -13,6 +13,13 @@
       "runtimeArgs": ["run", "uvicorn", "ycton.orchestration.main:app", "--host", "127.0.0.1", "--port", "8000"],
       "port": 8000,
       "autoPort": false
+    },
+    {
+      "name": "orchestration-acp",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["ORCH_MODE=acp", "ORCH_RUNTIME_CONFIG=runtime.toml", "ORCH_DB=data/acp.db", "uv", "run", "uvicorn", "ycton.orchestration.main:app", "--host", "127.0.0.1", "--port", "8000", "--workers", "1"],
+      "port": 8000,
+      "autoPort": false
     }
   ]
 }
