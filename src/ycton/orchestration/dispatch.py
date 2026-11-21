@@ -111,7 +111,8 @@ class Dispatcher:
                 "criteria": {
                     "continue": "Steps the agents proposed, follow-ups, fixes or reviews are still left and "
                                 "need no human decision, or a plan or design task finished but its review or "
-                                "implementation steps are not registered as tasks yet.",
+                                "implementation steps are not registered as tasks yet, or finished results "
+                                "have not been merged into the project branch although the request asked to proceed.",
                     "wait": "The request is done, or the next step needs the human's decision or answer.",
                 }},
              "agent": {
