@@ -12,6 +12,8 @@ from .runtime_port import RuntimeResult
 from .identity import Identity
 from .services.task_service import require
 from .event_log import EventLog
+from .runtime_config import Repository
+from .services.task_service import UNKNOWN_REPOSITORY, UNAVAILABLE_VERIFICATION
 
 
 async def verify_worktree(profile, worktree):
@@ -41,14 +43,17 @@ class AcpRuntime:
         return {category: value for category, value in (("model", request.model), ("thought_level", request.effort)) if value}
 
     async def run(self, request):
+        repository = self.config.repositories.get(request.repository_id)
+        if repository is None:
+            return RuntimeResult(False, UNKNOWN_REPOSITORY)
         kind = self.config.kinds[request.agent_kind]
         log = self.config.logs / f"{request.session_id}.jsonl"
         self.service.execution_metadata(request.session_id, log_path=str(log))
         if request.kind == "chat":
-            return await self.chat(request, kind, log)
-        return await self.work(request, kind, log)
+            return await self.chat(request, kind, log, repository)
+        return await self.work(request, kind, log, repository)
 
-    async def chat(self, request, kind, log):
+    async def chat(self, request, kind, log, repository: Repository):
         token = self.tokens.issue(Identity(request.session_id, request.room_id, request.agent_id))
         try:
             mcp = room_mcp_server(api_url=self.config.api_url, token=token,
@@ -60,7 +65,7 @@ class AcpRuntime:
                       "위임했으면 턴을 끝내세요. 직접 파일을 수정하거나 명령을 실행하지 마세요. "
                       "할 일이 없으면 불필요한 메시지 없이 턴을 끝내세요.\n" + kind.instructions + "\n" + request.prompt)
             async with EventLog(log, self.service, request.session_id, secrets=(token,)) as events:
-                result = await run_session(*kind.command, cwd=self.config.repo, prompt=prompt,
+                result = await run_session(*kind.command, cwd=repository.path, prompt=prompt,
                                           timeout=self.config.timeout, mcp_servers=[mcp], on_update=events.on_update,
                                           config=self.session_config(request))
             self.service.execution_metadata(request.session_id, acp_session_id=result.session_id,
@@ -70,8 +75,10 @@ class AcpRuntime:
         finally:
             self.tokens.revoke(token)
 
-    async def work(self, request, kind, log):
+    async def work(self, request, kind, log, repository: Repository):
         data = json.loads(request.prompt)
+        if data["verify"] not in repository.verification_profiles:
+            return RuntimeResult(False, UNAVAILABLE_VERIFICATION, log_path=str(log))
         profile = self.config.verifiers[data["verify"]]
         worktree = self.config.worktrees / f"task-{request.task_id}" / request.session_id
         # 시도마다 새 브랜치를 만들어, worktree를 지워도 커밋을 찾을 수 있게 한다.
@@ -88,7 +95,7 @@ class AcpRuntime:
                               room_id=str(request.room_id), participant_id=str(request.agent_id))
         try:
             async with EventLog(log, self.service, request.session_id, secrets=(token,)) as events:
-                result = await run_work_session(*kind.command, repo=self.config.repo, worktree=worktree,
+                result = await run_work_session(*kind.command, repo=repository.path, worktree=worktree,
                                                task=task, timeout=self.config.timeout, mcp_servers=[mcp],
                                                on_update=events.on_update, branch=branch,
                                                config=self.session_config(request))

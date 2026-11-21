@@ -1,6 +1,7 @@
 """실제 모델 호출 없이 런타임 계약·HTTP·MCP·검증 프로세스를 연결해 검증한다."""
 import asyncio
 import json
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,7 +12,7 @@ from fastapi.testclient import TestClient
 from ycton.orchestration.config import Settings
 from ycton.orchestration.main import create_app
 from ycton.orchestration.identity import Identity, Tokens
-from ycton.orchestration.runtime_config import RuntimeConfig, AgentKind, Verification
+from ycton.orchestration.runtime_config import AgentKind, Repository, RuntimeConfig, Verification
 from ycton.orchestration.runtime_port import RuntimeRequest
 from ycton.orchestration.acp_bridge import AcpRuntime, verify_worktree
 from ycton.orchestration.event_log import EventLog
@@ -91,11 +92,13 @@ def setup_work(bridge):
     svc=app.state.service
     svc.claim(tid,int(actor['participant_id']))
     session=svc.delegate(tid,int(actor['participant_id']),'runtime-test','go')
-    config=RuntimeConfig(root,root/'worktrees',root/'logs','http://127.0.0.1:8000',
+    config=RuntimeConfig({'default':Repository(root,'기본 저장소',('unit',),'unit')},
+                         root/'worktrees',root/'logs','http://127.0.0.1:8000',
                          {'demo':AgentKind(('fake-adapter',))},
                          {'unit':Verification((sys.executable,'-c',"print('verified')"))})
     prompt=json.dumps({'title':'task','detail':'','scope':'','verify':'unit','instruction':'go','handoff':''})
-    request=RuntimeRequest(session['id'],int(actor['room_id']),int(actor['participant_id']),'work',prompt,'demo',tid)
+    request=RuntimeRequest(session['id'],int(actor['room_id']),int(actor['participant_id']),'work',prompt,'demo',
+                           repository_id='default',task_id=tid)
     return svc, config, request
 
 
@@ -138,7 +141,8 @@ def test_chat_token_is_revoked_and_final_text_not_posted(bridge,monkeypatch):
     import ycton.orchestration.acp_bridge as module
     app,client,actor,token,sid,tid,root=bridge
     svc=app.state.service
-    config=RuntimeConfig(root,root/'worktrees',root/'logs','http://127.0.0.1:8000',
+    config=RuntimeConfig({'default':Repository(root,'기본 저장소',('unit',),'unit')},
+                         root/'worktrees',root/'logs','http://127.0.0.1:8000',
                          {'demo':AgentKind(('fake',))},{'unit':Verification(('echo','ok'))})
     tokens=Tokens()
     captured=[]
@@ -150,7 +154,8 @@ def test_chat_token_is_revoked_and_final_text_not_posted(bridge,monkeypatch):
         kwargs['on_update']({'token_echo':captured[0]})
         return SimpleNamespace(session_id='acp-chat',stop_reason='end_turn',text='SHOULD_NOT_BE_POSTED')
     monkeypatch.setattr(module,'run_session',chat)
-    request=RuntimeRequest(sid,int(actor['room_id']),int(actor['participant_id']),'chat','context','demo')
+    request=RuntimeRequest(sid,int(actor['room_id']),int(actor['participant_id']),'chat','context','demo',
+                           repository_id='default')
     result=asyncio.run(AcpRuntime(svc,config,tokens).run(request))
     assert result.succeeded and tokens.resolve(captured[0]) is None
     assert 'SHOULD_NOT_BE_POSTED' not in json.dumps(svc.snapshot(request.room_id))
@@ -361,3 +366,167 @@ def test_verified_work_without_commit_is_not_done(bridge, monkeypatch):
     svc.finish(request.session_id, result)
     task = svc.snapshot(request.room_id)['tasks'][0]
     assert task['status'] == 'open' and '커밋 없음' in task['handoff']
+
+
+@pytest.fixture
+def project_config(tmp_path):
+    for name in ("primary", "secondary"):
+        repo = tmp_path / name
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        subprocess.run(["git", "-C", str(repo), "-c", "user.name=Test",
+                        "-c", "user.email=test@example.invalid", "commit", "-qm", "fixture",
+                        "--allow-empty"], check=True)
+    root = """
+repo = "primary"
+worktrees = "worktrees"
+logs = "logs"
+api_url = "http://127.0.0.1:8000"
+"""
+    commands = f"""
+[kinds.frontend]
+command = ["unused-frontend"]
+[kinds.backend]
+command = ["unused-backend"]
+models = ["routing-model"]
+efforts = ["low"]
+[verify.unit]
+command = ["unused"]
+[verify.custom]
+command = {json.dumps([sys.executable, "-c", "from pathlib import Path; print(Path('proof.txt').read_text())"], ensure_ascii=False)}
+contains = "secondary-worktree"
+"""
+    extra = """
+[repositories.secondary]
+path = "secondary"
+label = "두 번째 저장소"
+verification_profiles = ["custom"]
+"""
+    path = tmp_path / "runtime.toml"
+    path.write_text(root + 'verification_profiles = ["unit"]\n' + extra + commands, encoding="utf-8")
+    settings = Settings(db_path=tmp_path / "binding.db", mode="acp", runtime_config=path)
+    return settings, root + commands
+
+
+def test_runtime_catalog_and_persistent_project_binding(project_config):
+    settings, old_config = project_config
+    url = "/api/runtime/options"
+    headers = {"X-Orch-Client": "web"}
+    with TestClient(create_app(settings, start_scheduler=False), base_url="http://localhost") as client:
+        assert client.get(url).status_code == 403
+        assert client.get(url, headers={**headers, "Authorization": "Bearer agent"}).status_code == 403
+        client.headers.update(headers)
+        assert client.get(url).json() == {
+            "mode": "acp", "agent_kinds": ["backend", "frontend"], "default_agent_kind": "backend",
+            "default_repository_id": "default",
+            "repositories": [
+                {"id": "default", "label": "기본 저장소", "verification_profiles": ["unit"],
+                 "default_verification_profile": "unit"},
+                {"id": "secondary", "label": "두 번째 저장소", "verification_profiles": ["custom"],
+                 "default_verification_profile": "custom"},
+            ],
+        }
+        for unknown in ("missing", "C:/external/repo"):
+            assert client.post("/api/rooms", json={"name": "unknown", "repository_id": unknown}).status_code == 422
+        response = client.post("/api/rooms", json={"name": "two", "repository_id": "secondary"})
+        assert response.status_code == 201 and response.json()["repository_id"] == "secondary"
+        room = response.json()["id"]
+        path = f"/api/rooms/{room}"
+        assert client.post(f"{path}/tasks", json={"title": "task", "verify": "unit"}).status_code == 422
+        assert client.post(f"{path}/tasks", json={"title": "task", "verify": "custom"}).status_code == 201
+
+    settings.runtime_config.write_text(old_config, encoding="utf-8")
+    with TestClient(create_app(settings, start_scheduler=False), base_url="http://localhost", headers=headers) as client:
+        assert client.get("/api/rooms").json()[0]["repository_id"] == "secondary"
+        state = client.get(f"{path}/state").json()
+        assert state["room"]["repository_id"] == "secondary" and state["tasks"][0]["verify"] == "custom"
+        assert client.get(url).json()["repositories"] == [
+            {"id": "default", "label": "기본 저장소", "verification_profiles": ["custom", "unit"],
+             "default_verification_profile": "unit"},
+        ]
+        assert client.post("/api/rooms", json={"name": "old caller"}).json()["repository_id"] == "default"
+        assert client.post(f"{path}/pause").status_code == 200
+        assert client.post(f"{path}/resume").status_code == 422
+        assert client.post(f"{path}/agents", json={"name": "new", "kind": "backend"}).status_code == 422
+        assert client.post(f"{path}/tasks", json={"title": "new", "verify": "unit"}).status_code == 422
+
+
+def test_invalid_checkout_stops_before_database_initialization(project_config):
+    settings, _ = project_config
+    uncommitted = settings.runtime_config.parent / "uncommitted"
+    subprocess.run(["git", "init", "-q", str(uncommitted)], check=True)
+    text = settings.runtime_config.read_text(encoding="utf-8")
+    settings.runtime_config.write_text(text.replace('path = "secondary"', 'path = "uncommitted"'), encoding="utf-8")
+    with pytest.raises(ValueError, match="저장소 secondary: 커밋이 있는 Git 저장소"):
+        with TestClient(create_app(settings, start_scheduler=False), base_url="http://localhost"):
+            pytest.fail("invalid repository started")
+    assert not settings.db_path.exists()
+
+
+def test_scheduler_routes_chat_work_and_verification_to_selected_project(project_config, monkeypatch):
+    import ycton.orchestration.acp_bridge as module
+
+    settings, _ = project_config
+    expected = settings.runtime_config.parent / "secondary"
+    calls = []
+
+    async def chat(*args, cwd, config, **kwargs):
+        calls.append(("chat", cwd, config))
+        return SimpleNamespace(session_id="chat-acp", stop_reason="end_turn")
+
+    async def work(*args, repo, worktree, branch, config, **kwargs):
+        calls.append(("work", repo, config))
+        worktree.parent.mkdir(parents=True)
+        git_out(repo, "worktree", "add", "-q", "-b", branch, str(worktree), "HEAD")
+        (worktree / "proof.txt").write_text("secondary-worktree", encoding="utf-8")
+        svc.commit_work(sid, ["proof.txt"], "Record verifier proof")
+        return SimpleNamespace(session=SimpleNamespace(session_id="work-acp", stop_reason="end_turn", text="report"))
+
+    monkeypatch.setattr(module, "run_session", chat)
+    monkeypatch.setattr(module, "run_work_session", work)
+    app = create_app(settings, start_scheduler=False)
+    with TestClient(app, base_url="http://localhost"):
+        svc = app.state.service
+        scheduler = app.state.scheduler
+        room = svc.create_room("two", "secondary")["id"]
+        agent = svc.create_agent(room, "runner", "backend", [], model="routing-model", effort="low")["id"]
+        task = svc.create_task(room, "change", "", "", "custom")["id"]
+        svc.claim(task, agent)
+        sid = svc.delegate(task, agent, "route-test", "")["id"]
+
+        async def dispatch():
+            scheduler.dispatch()
+            await asyncio.gather(*scheduler.running.values())
+
+        asyncio.run(dispatch())
+        state = svc.snapshot(room)
+        expected_config = {"model": "routing-model", "thought_level": "low"}
+        assert sorted(calls) == [("chat", expected, expected_config), ("work", expected, expected_config)]
+        assert state["tasks"][0]["status"] == "done"
+        session = next(s for s in state["sessions"] if s["id"] == sid)
+        assert session["acp_session_id"] == "work-acp"
+        assert "exit_code=0\nsecondary-worktree" in session["verification_output"]
+        assert session["commit_hash"] == state["tasks"][0]["commit_hash"] == git_out(session["worktree"], "rev-parse", "HEAD").strip()
+        assert not (expected / "proof.txt").exists()
+
+
+def test_manual_hold_is_visible_to_humans_but_not_mcp(bridge):
+    app, client, actor, token, sid, tid, _ = bridge
+    svc = app.state.service
+    agent = int(actor["participant_id"])
+    svc.claim(tid, agent)
+    work = svc.delegate(tid, agent, "hold-via-http", "")["id"]
+    assert client.post(f"/api/sessions/{work}/cancel").json()["status"] == "cancelled"
+    svc.create_task(int(actor["room_id"]), "other", "", "", "unit")
+
+    async def exercise():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1",
+                                     headers={"Authorization": f"Bearer {token}"}) as http:
+            mcp = build_room_server(http, **actor)
+            (content,) = await mcp.call_tool("list_tasks", {})
+            result = json.loads(content.text)
+            assert [task["title"] for task in result["tasks"]] == ["other"]
+
+    asyncio.run(exercise())
+    state = client.get(f"/api/rooms/{actor['room_id']}/state").json()
+    assert state["tasks"][0]["id"] == tid and state["tasks"][0]["retry_required"] == 1

@@ -8,6 +8,7 @@ class Input(BaseModel):
 
 class RoomCreate(Input):
     name: str = Field(min_length=1, max_length=100)
+    repository_id: str = Field(default="default", min_length=1, max_length=64)
 
 
 class AgentCreate(Input):

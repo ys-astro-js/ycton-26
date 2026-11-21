@@ -10,13 +10,7 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
-import { ROOMS_KEY, roomKey, splitRequest, useRooms } from '../room/data.ts'
-
-/**
- * 할 일마다 서버에 등록된 검증 프로필 이름을 보내야 합니다.
- * 사람이 고를 일이 아니고 목록을 주는 API도 없어, runtime.example.toml의 [verify.unit]을 늘 씁니다.
- */
-const VERIFY_PROFILE = 'unit'
+import { ROOMS_KEY, roomKey, splitRequest, useRooms, useVerificationProfiles } from '../room/data.ts'
 
 /**
  * 아침 리뷰와 프로젝트가 같이 쓰는 입력.
@@ -30,6 +24,7 @@ export function Composer({ roomId }: { roomId?: number }) {
   const client = useQueryClient()
 
   const [target, setTarget] = useState(roomId !== undefined ? String(roomId) : '')
+  const [profile, setProfile] = useState('')
   const [text, setText] = useState('')
   const [invalid, setInvalid] = useState<{ room?: boolean; text?: boolean }>({})
 
@@ -38,21 +33,25 @@ export function Composer({ roomId }: { roomId?: number }) {
   const ids = {
     room: useId(),
     text: useId(),
+    profile: useId(),
     textError: useId(),
     roomError: useId(),
     server: useId(),
   }
 
   const assigning = global
+  const repositoryId = rooms.find(({ id }) => String(id) === target)?.repository_id
+  const { profiles, verify, error: optionsError } = useVerificationProfiles(repositoryId, profile, assigning)
+  const taskUnavailable = assigning && (Boolean(optionsError) || (target !== '' && !verify))
 
   const send = useMutation({
-    mutationFn: async ({ room, body, asTask }: { room: number; body: string; asTask: boolean }) => {
-      if (!asTask) {
+    mutationFn: async ({ room, body, verify }: { room: number; body: string; verify?: string }) => {
+      if (verify === undefined) {
         await api.postMessage(room, body)
         return undefined
       }
       const { title: taskTitle, detail } = splitRequest(body)
-      return api.createTask(room, { title: taskTitle, detail, scope: '', verify: VERIFY_PROFILE })
+      return api.createTask(room, { title: taskTitle, detail, scope: '', verify })
     },
     onSuccess: async (task, { room }) => {
       setText('')
@@ -73,11 +72,12 @@ export function Composer({ roomId }: { roomId?: number }) {
     setInvalid(next)
     if (next.room) return roomSelectRef.current?.focus()
     if (next.text) return textRef.current?.focus()
-    send.mutate({ room, body: text.trim(), asTask: assigning })
+    if (send.isPending || (assigning && !verify)) return
+    send.mutate({ room, body: text.trim(), verify: assigning ? verify : undefined })
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit()
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit(event)
   }
 
   return (
@@ -118,6 +118,7 @@ export function Composer({ roomId }: { roomId?: number }) {
               aria-describedby={invalid.room ? ids.roomError : undefined}
               onChange={(event) => {
                 setTarget(event.target.value)
+                setProfile('')
                 setInvalid((current) => ({ ...current, room: false }))
               }}
             >
@@ -133,9 +134,20 @@ export function Composer({ roomId }: { roomId?: number }) {
           </Field>
         ) : null}
 
-        <IconButton type="submit" icon={assigning ? Plus : Send} label={assigning ? '할 일 추가' : '보내기'} disabled={send.isPending} />
+        {assigning ? (
+          <Field className="min-w-0 flex-1 basis-36 gap-0 sm:flex-none">
+            <FieldLabel htmlFor={ids.profile} className="text-label text-muted-foreground">검증 프로필</FieldLabel>
+            <NativeSelect id={ids.profile} className="w-full" value={verify ?? ''} disabled={!profiles} onChange={(event) => setProfile(event.target.value)}>
+              {profiles?.map((name) => <NativeSelectOption key={name} value={name}>{name}</NativeSelectOption>)}
+            </NativeSelect>
+          </Field>
+        ) : null}
+
+        <IconButton type="submit" icon={assigning ? Plus : Send} label={assigning ? '할 일 추가' : '보내기'}
+          disabled={send.isPending || taskUnavailable} />
       </div>
 
+      {assigning && optionsError ? <p role="alert" className="text-label text-destructive">{optionsError}</p> : null}
       {invalid.room ? <FieldError id={ids.roomError}>프로젝트를 선택하세요.</FieldError> : null}
       {invalid.text ? (
         <FieldError id={ids.textError}>{assigning ? '할 일을 입력하세요.' : '메시지를 입력하세요.'}</FieldError>

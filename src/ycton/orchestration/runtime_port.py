@@ -11,6 +11,7 @@ class RuntimeRequest:
     kind: Literal["chat", "work"]
     prompt: str
     agent_kind: str
+    repository_id: str
     task_id: int | None = None
     model: str = ""
     effort: str = ""

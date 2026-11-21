@@ -19,14 +19,15 @@ def create_app(settings=None, runtime_factory=None, start_scheduler=True):
 
     @asynccontextmanager
     async def lifespan(app):
+        runtime_config = RuntimeConfig.read(config.runtime_config) if config.mode == "acp" else None
         db = Database(config.db_path)
         db.initialize()
         svc = TaskService(db, config)
         svc.recover()
         app.state.tokens = Tokens()
-        if config.mode == "acp":
+        if runtime_config is not None:
             from ycton.orchestration.acp_bridge import AcpRuntime
-            svc.runtime_config = RuntimeConfig.read(config.runtime_config)
+            svc.runtime_config = runtime_config
             # ACP가 자체 시간 제한과 프로세스 정리를 수행할 여유를 포함한다.
             config.timeout_seconds = svc.runtime_config.timeout + max(v.timeout for v in svc.runtime_config.verifiers.values()) + 30
             runtime = AcpRuntime(svc, svc.runtime_config, app.state.tokens)

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { cn } from '@/lib/utils'
 
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -16,7 +17,7 @@ import { api, ApiError } from '@/api/client'
 
 import { useOvernightReport } from '../review/ReviewPage.tsx'
 import { Glyph, countFormat } from '../review/shared.tsx'
-import { ROOMS_KEY, useRooms } from '../room/data.ts'
+import { ROOMS_KEY, useRooms, useRuntimeOptions } from '../room/data.ts'
 
 /**
  * 레일과 좁은 화면의 이동 선택이 같이 쓰는 방별 신호.
@@ -144,18 +145,26 @@ function RailNav() {
 function NewRoom() {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
+  const [repositoryId, setRepositoryId] = useState('')
   const [error, setError] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const fieldId = useId()
+  const repositoryFieldId = useId()
   const errorId = useId()
   const navigate = useNavigate()
   const client = useQueryClient()
+  const options = useRuntimeOptions(open)
+  const catalog = options.isError ? undefined : options.data
+  const repository = catalog?.repositories.some(({ id }) => id === repositoryId)
+    ? repositoryId
+    : catalog?.default_repository_id
   const create = useMutation({
-    mutationFn: (roomName: string) => api.createRoom(roomName),
+    mutationFn: api.createRoom,
     onSuccess: async (room) => {
       await client.invalidateQueries({ queryKey: ROOMS_KEY })
       await client.invalidateQueries({ queryKey: ['overnight-report'] })
       setName('')
+      setRepositoryId('')
       setOpen(false)
       navigate({ to: '/rooms/$roomId', params: { roomId: String(room.id) } })
     },
@@ -168,7 +177,7 @@ function NewRoom() {
       inputRef.current?.focus()
       return
     }
-    create.mutate(name.trim())
+    if (repository && !create.isPending) create.mutate({ name: name.trim(), repository_id: repository })
   }
 
   return (
@@ -207,10 +216,23 @@ function NewRoom() {
                   if (error) setError(false)
                 }}
               />
-              <IconButton type="submit" icon={Check} label="프로젝트 만들기" disabled={create.isPending} />
+              <IconButton type="submit" icon={Check} label="프로젝트 만들기" disabled={!repository || create.isPending} />
             </div>
             {error ? <FieldError id={errorId}>이름을 입력하세요.</FieldError> : null}
           </Field>
+          <Field className="gap-0">
+            <FieldLabel htmlFor={repositoryFieldId} className="text-label font-medium">Git 저장소</FieldLabel>
+            <NativeSelect
+              id={repositoryFieldId}
+              className="w-full"
+              value={repository ?? ''}
+              disabled={!catalog}
+              onChange={(event) => setRepositoryId(event.target.value)}
+            >
+              {catalog?.repositories.map(({ id, label }) => <NativeSelectOption key={id} value={id}>{label}</NativeSelectOption>)}
+            </NativeSelect>
+          </Field>
+          {options.isError ? <p role="alert" className="text-label text-destructive">실행 설정을 불러오지 못했습니다</p> : null}
           {create.error ? (
             <p role="alert" className="text-label text-destructive">
               {create.error instanceof ApiError ? create.error.message : '프로젝트를 만들지 못했습니다'}. 잠시 후 다시 시도하세요.

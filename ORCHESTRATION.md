@@ -68,7 +68,7 @@ python3 scripts/demo.py --fail
 
 | 설정 | 내용 |
 |---|---|
-| `repo` | 커밋된 데모 저장소 절대 경로 |
+| `repo` | 커밋된 Git 체크아웃의 루트. 저장소 ID는 `default` |
 | `worktrees` | 원본 저장소 밖의 작업 디렉터리 부모 경로 |
 | `logs` | 원본·작업 worktree 밖의 로그 경로 |
 | `api_url` | 서버 포트와 일치하는 `http://127.0.0.1:8000` |
@@ -79,6 +79,18 @@ python3 scripts/demo.py --fail
 | `kinds.*.instructions` | 제공자별 지침(선택) |
 | `verify.unit.command` | 서버가 직접 실행할 검증 명령 배열 |
 | `verify.unit.contains` | 선택적인 성공 stdout 문자열 |
+
+프로젝트별 소스가 다르면 같은 TOML에 별도 저장소를 추가합니다.
+
+```toml
+[repositories.another]
+path = "../another-repo"
+label = "다른 저장소"
+verification_profiles = ["unit"]
+default_verification_profile = "unit"
+```
+
+추가 저장소에는 반드시 허용된 검증 프로필 이름을 나열합니다. `repo`는 최상위 `verification_profiles`를 생략하면 등록된 모든 프로필을 허용합니다. 기본 프로필을 생략하면 허용된 `unit`, 없으면 이름순 첫 항목을 선택합니다. 상대경로는 TOML 위치 기준입니다. 모든 저장소에 커밋된 `HEAD`가 필요합니다.
 
 Codex 어댑터는 [ACP 연결 확인](PLAN.md#acp-연결-확인)의 Node 실행 방식으로 설정합니다. `kinds.*.command`에는 `"node"`와 어댑터 `dist/index.js`의 실제 경로를 별도 인자로 넣습니다. 명령 문자열 전체를 셸에 넘기지 않습니다.
 
@@ -106,12 +118,13 @@ uv가 없다면 위 실행 명령의 `uv run uvicorn`을 `.venv/bin/python -m uv
 
 API 문서 또는 프론트에서 아래 순서로 요청합니다.
 
-1. `POST /api/rooms`: `{"name":"데모"}`
-2. `POST /api/rooms/{id}/pause`: 준비 중 자동 채팅을 잠시 멈춥니다.
-3. `POST /api/rooms/{id}/agents`: 프론트엔드와 백엔드 담당으로 각각 한 명을 추가합니다.
-4. `POST /api/rooms/{id}/tasks`: 아래 예시로 할 일을 등록합니다.
-5. `POST /api/rooms/{id}/resume`: 에이전트들의 턴을 시작합니다.
-6. `GET /api/rooms/{id}/state`: 메시지, 담당자, 작업 세션, 검증 결과를 확인합니다.
+1. `GET /api/runtime/options`: 선택할 수 있는 저장소 ID, 에이전트 종류, 저장소별 검증 프로필을 조회합니다. 경로와 명령은 응답에 포함되지 않습니다.
+2. `POST /api/rooms`: `{"name":"데모","repository_id":"another"}`. `repository_id`를 생략하면 `default`이며, 생성 후 연결된 ID는 바뀌지 않습니다.
+3. `POST /api/rooms/{id}/pause`: 준비 중 자동 채팅을 잠시 멈춥니다.
+4. `POST /api/rooms/{id}/agents`: `GET /api/agent-models`의 제공자·모델·추론 수준을 선택해 프론트엔드와 백엔드 담당을 추가합니다.
+5. `POST /api/rooms/{id}/tasks`: 해당 저장소에서 허용한 검증 프로필로 할 일을 등록합니다.
+6. `POST /api/rooms/{id}/resume`: 에이전트들의 턴을 시작합니다.
+7. `GET /api/rooms/{id}/state`: 메시지, 담당자, 작업 세션, 검증 결과를 확인합니다.
 
 에이전트 예시:
 
@@ -130,7 +143,7 @@ API 문서 또는 프론트에서 아래 순서로 요청합니다.
 }
 ```
 
-**acp 모드의 verify는 명령어가 아니라 TOML에 등록된 검증 프로필 이름입니다.** 기존 기획의 자유 텍스트 verify를 직접 실행하지 않습니다. 이 정책은 팀과 합의해 주세요.
+**acp 모드의 verify는 명령어가 아니라 프로젝트 저장소에 허용된 검증 프로필 이름입니다.** 프론트에서 프로젝트를 고르면 그 저장소의 허용 목록만 표시합니다. 저장소를 설정에서 제거해도 프로젝트의 이력은 남지만, 에이전트나 할 일을 추가하거나 자동 진행을 재개할 수 없습니다.
 
 ## 완료 판정
 
@@ -150,4 +163,4 @@ API 문서 또는 프론트에서 아래 순서로 요청합니다.
 
 pause는 새 실행 시작만 멈춥니다. 실행 중 작업은 별도 cancel로 취소합니다. 서버 재시작은 기존 방을 일시 중지하고 남은 실행을 실패 기록으로 정리합니다. 비정상 강제 종료 후 외부 프로세스의 존재 확인은 별도 운영 작업입니다.
 
-Jev는 규칙 안내만 있으며 실제 모델 판단/spawn, React 화면, 위키·이슈·think, WebSocket, 파일 충돌 조정은 이번 구현에 포함하지 않았습니다. 한 설정의 저장소를 모든 방이 공유하는 데모 범위입니다.
+Jev는 규칙 안내만 제공합니다. 실제 모델 판단 및 자동 에이전트 추가, 위키·이슈·think, WebSocket, 파일 충돌 조정은 범위에 포함하지 않습니다.

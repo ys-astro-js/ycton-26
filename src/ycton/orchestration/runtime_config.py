@@ -1,6 +1,8 @@
 """실행 명령·저장소·검증 명령은 서버 소유 TOML에서만 읽는다."""
 from dataclasses import dataclass
 from pathlib import Path
+import re
+import subprocess
 import tomllib
 from urllib.parse import urlsplit
 
@@ -41,8 +43,16 @@ class Verification:
 
 
 @dataclass(frozen=True)
+class Repository:
+    path: Path
+    label: str
+    verification_profiles: tuple[str, ...]
+    default_verification_profile: str
+
+
+@dataclass(frozen=True)
 class RuntimeConfig:
-    repo: Path
+    repositories: dict[str, Repository]
     worktrees: Path
     logs: Path
     api_url: str
@@ -62,12 +72,8 @@ class RuntimeConfig:
             if not isinstance(value, list) or not value or not all(isinstance(x, str) and x for x in value):
                 raise ValueError("command는 비어 있지 않은 문자열 배열이어야 합니다")
             return tuple(value)
-        repo, worktrees, logs = (location(data[k]) for k in ("repo", "worktrees", "logs"))
-        if not repo.is_dir():
-            raise ValueError(f"저장소 폴더를 찾을 수 없습니다: {repo}")
-        if worktrees.is_relative_to(repo):
-            raise ValueError("worktrees는 원본 저장소 밖이어야 합니다")
-        if logs.is_relative_to(repo) or logs.is_relative_to(worktrees):
+        worktrees, logs = (location(data[k]) for k in ("worktrees", "logs"))
+        if logs.is_relative_to(worktrees):
             raise ValueError("logs는 원본 저장소와 작업 worktrees 밖이어야 합니다")
         url = data["api_url"]
         parsed = urlsplit(url)
@@ -82,4 +88,53 @@ class RuntimeConfig:
         timeout = float(data.get("timeout", 600))
         if not kinds or not verifiers or timeout <= 0 or any(v.timeout <= 0 for v in verifiers.values()):
             raise ValueError("종류와 검증 프로필, 양수 시간 제한이 필요합니다")
-        return cls(repo, worktrees, logs, url.rstrip("/"), kinds, verifiers, timeout)
+
+        def repository(entry, path_key, label, profile_default):
+            value = entry.get(path_key)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{path_key}는 비어 있지 않은 경로 문자열이어야 합니다")
+            if not isinstance(label, str) or not label.strip():
+                raise ValueError("label은 비어 있지 않은 문자열이어야 합니다")
+            names = entry.get("verification_profiles", profile_default)
+            if not isinstance(names, list) or not names or not all(isinstance(n, str) and n in verifiers for n in names):
+                raise ValueError("verification_profiles에는 등록된 검증 프로필이 필요합니다")
+            if len(set(names)) != len(names):
+                raise ValueError("verification_profiles에 중복된 이름이 있습니다")
+            profiles = tuple(sorted(names))
+            default = entry.get("default_verification_profile", "unit" if "unit" in profiles else profiles[0])
+            if default not in profiles:
+                raise ValueError("default_verification_profile은 허용 목록에 있어야 합니다")
+            repo = location(value)
+            if not repo.is_dir():
+                raise ValueError(f"저장소 폴더를 찾을 수 없습니다: {repo}")
+            if worktrees.is_relative_to(repo) or logs.is_relative_to(repo):
+                raise ValueError("worktrees와 logs는 원본 저장소 밖이어야 합니다")
+            try:
+                root = subprocess.run(["git", "-C", str(repo), "rev-parse", "--show-toplevel"],
+                                      check=True, capture_output=True, encoding="utf-8", timeout=10)
+                subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", "HEAD"],
+                               check=True, capture_output=True, timeout=10)
+            except (OSError, subprocess.SubprocessError, UnicodeError) as exc:
+                raise ValueError(f"커밋이 있는 Git 저장소가 필요합니다: {repo} ({exc})") from exc
+            if Path(root.stdout.rstrip("\r\n")).resolve() != repo:
+                raise ValueError(f"Git 저장소 루트를 지정해야 합니다: {repo}")
+            return Repository(repo, label, profiles, default)
+
+        try:
+            default_repo = repository(data, "repo", "기본 저장소", list(verifiers))
+        except (ValueError, OSError, RuntimeError) as exc:
+            raise ValueError(f"저장소 default: {exc}") from exc
+        repositories = {"default": default_repo}
+        additional = data.get("repositories", {})
+        if not isinstance(additional, dict):
+            raise ValueError("repositories는 저장소 ID별 테이블이어야 합니다")
+        for identifier, entry in additional.items():
+            try:
+                if identifier == "default" or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", identifier):
+                    raise ValueError("허용되지 않는 ID입니다")
+                if not isinstance(entry, dict):
+                    raise ValueError("저장소 설정은 테이블이어야 합니다")
+                repositories[identifier] = repository(entry, "path", entry.get("label", identifier), None)
+            except (ValueError, OSError, RuntimeError) as exc:
+                raise ValueError(f"저장소 {identifier}: {exc}") from exc
+        return cls(repositories, worktrees, logs, url.rstrip("/"), kinds, verifiers, timeout)

@@ -8,13 +8,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 import { StatusNode } from '../review/ledger.tsx'
 import { DisclosurePanel, Glyph, Handoff, STATUS, countFormat } from '../review/shared.tsx'
-import { clock, lines, splitRequest, taskPhase, useAgentModels, useRoomMutation, useTaskEvents, type TaskPhase } from './data.ts'
+import { clock, lines, splitRequest, taskPhase, useAgentModels, useRoomMutation, useTaskEvents, useVerificationProfiles, type TaskPhase } from './data.ts'
 import { ModelPicker, type ModelChoice } from './model-picker.tsx'
 import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
 
@@ -108,21 +109,17 @@ export function TaskList({ state, focus }: { state: RoomState; focus?: number })
   )
 }
 
-/**
- * 할 일마다 서버에 등록된 검증 프로필 이름을 보내야 합니다.
- * 사람이 고를 일이 아니고 목록을 주는 API도 없어, runtime.example.toml의 [verify.unit]을 늘 씁니다.
- */
-const VERIFY_PROFILE = 'unit'
-
 function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: number) => void }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
+  const [profile, setProfile] = useState('')
   const [invalid, setInvalid] = useState(false)
   const textRef = useRef<HTMLTextAreaElement>(null)
-  const ids = { text: useId(), error: useId() }
-  const add = useRoomMutation(state.room.id, (body: string) => {
+  const ids = { text: useId(), profile: useId(), error: useId() }
+  const { profiles, verify, error: optionsError } = useVerificationProfiles(state.room.repository_id, profile, open)
+  const add = useRoomMutation(state.room.id, ({ body, verify }: { body: string; verify: string }) => {
     const { title, detail } = splitRequest(body)
-    return api.createTask(state.room.id, { title, detail, scope: '', verify: VERIFY_PROFILE })
+    return api.createTask(state.room.id, { title, detail, scope: '', verify })
   })
 
   const submit = (event?: FormEvent) => {
@@ -131,9 +128,11 @@ function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: numbe
       setInvalid(true)
       return textRef.current?.focus()
     }
-    add.mutate(text.trim(), {
+    if (!verify || add.isPending) return
+    add.mutate({ body: text.trim(), verify }, {
       onSuccess: (task) => {
         setText('')
+        setProfile('')
         setOpen(false)
         onAdded(task.id)
       },
@@ -164,17 +163,24 @@ function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: numbe
                 aria-describedby={invalid ? ids.error : undefined}
                 className="max-h-64 min-h-20"
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit()
+                  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit(event)
                 }}
                 onChange={(event) => {
                   setText(event.target.value)
                   if (invalid) setInvalid(false)
                 }}
               />
-              <IconButton type="submit" icon={Check} label="할 일 추가" disabled={add.isPending} />
+              <IconButton type="submit" icon={Check} label="할 일 추가" disabled={!verify || add.isPending} />
             </div>
             {invalid ? <FieldError id={ids.error}>할 일을 입력하세요.</FieldError> : null}
           </Field>
+          <Field className="gap-0">
+            <FieldLabel htmlFor={ids.profile} className="text-label font-medium">검증 프로필</FieldLabel>
+            <NativeSelect id={ids.profile} className="w-full" value={verify ?? ''} disabled={!profiles} onChange={(event) => setProfile(event.target.value)}>
+              {profiles?.map((name) => <NativeSelectOption key={name} value={name}>{name}</NativeSelectOption>)}
+            </NativeSelect>
+          </Field>
+          {optionsError ? <p role="alert" className="text-label text-destructive">{optionsError}</p> : null}
           {add.error ? (
             <p role="alert" className="text-label text-destructive">
               {add.error instanceof ApiError ? add.error.message : '할 일을 추가하지 못했습니다.'} 잠시 후 다시 시도하세요.

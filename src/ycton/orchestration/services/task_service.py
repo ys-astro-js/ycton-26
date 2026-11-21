@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from ycton.orchestration.git_commit import CommitError, commit_paths
-from ycton.orchestration.runtime_config import read_catalog
+from ycton.orchestration.runtime_config import Repository, read_catalog
 from ycton.orchestration.runtime_port import RuntimeResult
 
 # mock 모드에 runtime.toml이 없을 때 고를 모델을 저장소의 예시 설정에서 가져온다.
@@ -55,9 +55,44 @@ class TaskService:
             conn.execute("""INSERT OR IGNORE INTO sessions(id,room_id,agent_id,kind,status)
                             VALUES(?,?,?,'chat','queued')""", (str(uuid4()), room_id, agent["id"]))
 
-    def create_room(self, name):
+    def _require_repository(self, repository_id: str) -> Repository | None:
+        if self.settings.mode == "acp":
+            repository = self.runtime_config.repositories.get(repository_id)
+            if repository is not None:
+                return repository
+        elif repository_id == "default":
+            return None
+        raise DomainError(UNKNOWN_REPOSITORY, 422)
+
+    def runtime_options(self):
+        if self.settings.mode == "mock":
+            return {
+                "mode": "mock", "agent_kinds": ["backend", "demo", "frontend"],
+                "default_agent_kind": "demo", "default_repository_id": "default",
+                "repositories": [
+                    {"id": "default", "label": "모의 실행", "verification_profiles": ["unit"],
+                     "default_verification_profile": "unit"},
+                ],
+            }
+        kinds = sorted(self.runtime_config.kinds)
+        repos = self.runtime_config.repositories
+        return {
+            "mode": self.settings.mode,
+            "agent_kinds": kinds,
+            "default_agent_kind": "backend" if "backend" in kinds else kinds[0],
+            "default_repository_id": "default",
+            "repositories": [
+                {"id": key, "label": repos[key].label,
+                 "verification_profiles": list(repos[key].verification_profiles),
+                 "default_verification_profile": repos[key].default_verification_profile}
+                for key in sorted(repos, key=lambda key: (key != "default", key))
+            ],
+        }
+
+    def create_room(self, name, repository_id="default"):
+        self._require_repository(repository_id)
         with self.db.connect(write=True) as c:
-            rid = c.execute("INSERT INTO rooms(name) VALUES(?)", (name,)).lastrowid
+            rid = c.execute("INSERT INTO rooms(name,repository_id) VALUES(?,?)", (name, repository_id)).lastrowid
             return require(c, "rooms", rid)
 
     def agent_models(self):
@@ -80,7 +115,8 @@ class TaskService:
             if provider["efforts"] and effort not in provider["efforts"]:
                 raise DomainError("이 모델에 없는 추론 수준입니다", 422)
         with self.db.connect(write=True) as c:
-            require(c, "rooms", room_id)
+            room = require(c, "rooms", room_id)
+            self._require_repository(room["repository_id"])
             try:
                 aid = c.execute("INSERT INTO agents(room_id,name,kind,model,effort,good_at) VALUES(?,?,?,?,?,?)",
                                 (room_id, name, kind, model, effort, json.dumps(good_at, ensure_ascii=False))).lastrowid
@@ -102,10 +138,11 @@ class TaskService:
             self.wake(c, room_id, reset=agent_id is None)
 
     def create_task(self, room_id, title, detail, scope, verify):
-        if self.settings.mode == "acp" and verify not in self.runtime_config.verifiers:
-            raise DomainError("verify에는 서버에 등록된 검증 프로필 이름을 사용하세요", 422)
         with self.db.connect(write=True) as c:
-            require(c, "rooms", room_id)
+            room = require(c, "rooms", room_id)
+            repo = self._require_repository(room["repository_id"])
+            if repo is not None and verify not in repo.verification_profiles:
+                raise DomainError(UNAVAILABLE_VERIFICATION, 422)
             tid = c.execute("INSERT INTO tasks(room_id,title,detail,scope,verify) VALUES(?,?,?,?,?)",
                             (room_id, title, detail, scope, verify)).lastrowid
             self.event(c, tid, "created", title)
@@ -249,7 +286,9 @@ class TaskService:
 
     def pause(self, room_id, paused):
         with self.db.connect(write=True) as c:
-            require(c, "rooms", room_id)
+            room = require(c, "rooms", room_id)
+            if not paused:
+                self._require_repository(room["repository_id"])
             c.execute("UPDATE rooms SET paused=? WHERE id=?", (int(paused), room_id))
             if not paused:
                 self.wake(c, room_id, reset=True)

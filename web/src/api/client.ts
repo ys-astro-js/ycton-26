@@ -48,8 +48,24 @@ async function request<T>(path: string, init?: { method?: 'GET' | 'POST'; body?:
 export interface Room {
   id: number
   name: string
+  repository_id: string
   paused: number
   chat_rounds: number
+}
+
+export interface RuntimeRepositoryOption {
+  id: string
+  label: string
+  verification_profiles: string[]
+  default_verification_profile: string
+}
+
+export interface RuntimeOptions {
+  mode: 'acp' | 'mock'
+  agent_kinds: string[]
+  default_agent_kind: string
+  default_repository_id: 'default'
+  repositories: RuntimeRepositoryOption[]
 }
 
 export interface Agent {
@@ -130,6 +146,7 @@ export interface TaskEvent {
 }
 
 export const api = {
+  runtimeOptions: () => request<RuntimeOptions>('/api/runtime/options'),
   rooms: () => request<Room[]>('/api/rooms'),
   roomState: (roomId: number) => request<RoomState>(`/api/rooms/${roomId}/state`),
   taskEvents: (taskId: number) => request<TaskEvent[]>(`/api/tasks/${taskId}/events`),
@@ -139,10 +156,11 @@ export const api = {
   postMessage: (roomId: number, content: string) =>
     request<{ ok: boolean }>(`/api/rooms/${roomId}/messages`, { method: 'POST', body: { content } }),
   agentModels: () => request<ModelProvider[]>('/api/agent-models'),
-  createRoom: (name: string) => request<Room>('/api/rooms', { method: 'POST', body: { name } }),
+  createRoom: (body: { name: string; repository_id: string }) =>
+    request<Room>('/api/rooms', { method: 'POST', body }),
   addAgent: (roomId: number, agent: { name: string; kind: string; model: string; effort: string; good_at: string[] }) =>
     request<Agent>(`/api/rooms/${roomId}/agents`, { method: 'POST', body: agent }),
-  /** verify는 acp 모드에서 서버에 등록된 검증 프로필 이름이어야 합니다 */
+  /** verify는 이 프로젝트에서 허용된 검증 프로필 이름이어야 합니다 */
   createTask: (roomId: number, task: { title: string; detail: string; scope: string; verify: string }) =>
     request<Task>(`/api/rooms/${roomId}/tasks`, { method: 'POST', body: task }),
   drop: (taskId: number, note: string) => request<Task>(`/api/tasks/${taskId}/drop`, { method: 'POST', body: { note } }),

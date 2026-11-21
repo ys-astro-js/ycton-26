@@ -10,7 +10,12 @@ router = APIRouter(prefix="/api", tags=["프론트: 방"], dependencies=[Depends
 
 @router.post("/rooms", status_code=201)
 def create_room(body: RoomCreate, svc=Depends(service)):
-    return svc.create_room(body.name)
+    return svc.create_room(body.name, body.repository_id)
+
+
+@router.get("/runtime/options")
+def runtime_options(svc=Depends(service)):
+    return svc.runtime_options()
 
 
 @router.get("/rooms")

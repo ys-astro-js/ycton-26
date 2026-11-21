@@ -22,6 +22,21 @@ export function useAgentModels() {
   return useQuery({ queryKey: ['agent-models'], queryFn: api.agentModels, retry: false })
 }
 
+export function useRuntimeOptions(enabled = true) {
+  return useQuery({ queryKey: ['runtime-options'], queryFn: api.runtimeOptions, enabled, retry: 1 })
+}
+
+export function useVerificationProfiles(repositoryId: string | undefined, selection: string, enabled = true) {
+  const options = useRuntimeOptions(enabled)
+  const repository = options.isError ? undefined : options.data?.repositories.find(({ id }) => id === repositoryId)
+  const profiles = repository?.verification_profiles
+  const verify = profiles?.includes(selection) ? selection : repository?.default_verification_profile
+  const error = options.isError ? '실행 설정을 불러오지 못했습니다'
+    : options.data && repositoryId && !repository ? '서버 설정에 없는 저장소입니다'
+    : undefined
+  return { profiles, verify, error }
+}
+
 /** 서버에 실시간 채널이 없어 1초마다 방 상태를 다시 읽습니다 */
 export function useRoomState(roomId: number) {
   return useQuery<RoomState>({

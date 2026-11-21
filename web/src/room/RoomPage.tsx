@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 
 import { Composer } from '../compose/Composer.tsx'
 import { DisclosurePanel, Glyph, countFormat } from '../review/shared.tsx'
-import { useRoomMutation, useRoomState } from './data.ts'
+import { useRoomMutation, useRoomState, useRuntimeOptions } from './data.ts'
 import { AgentList, TaskList } from './side.tsx'
 import { Timeline } from './timeline.tsx'
 import { PageHeader } from '../shell/PageHeader.tsx'
@@ -33,6 +33,7 @@ export function RoomPage() {
   const roomId = Number(params.roomId)
   const { focus } = route.useSearch()
   const { data: state, error, isPending, refetch, isRefetching } = useRoomState(roomId)
+  const { data: runtimeOptions } = useRuntimeOptions(state !== undefined)
   const navigate = useNavigate()
   const wide = useWide()
   const [sideOpen, setSideOpen] = useState(false)
@@ -107,12 +108,13 @@ export function RoomPage() {
   }
 
   const { room } = state
+  const repositoryLabel = runtimeOptions?.repositories.find(({ id }) => id === room.repository_id)?.label ?? room.repository_id
   const stopped = Boolean(room.paused) || state.jev.action === 'stop'
   const toggleError = pause.error ?? resume.error
 
   const side = (
     <div className="grid content-start gap-8">
-      <TaskList state={state} focus={focus} />
+      <TaskList key={room.id} state={state} focus={focus} />
       <AgentList state={state} />
     </div>
   )
@@ -142,6 +144,7 @@ export function RoomPage() {
         ) : (
           <IconButton variant="outline" icon={Pause} label="자동 진행 멈추기" disabled={pause.isPending} onClick={() => pause.mutate(undefined)} />
         )}
+        <p className="col-span-2 text-label text-muted-foreground">Git 저장소: {repositoryLabel}</p>
         {toggleError ? (
           <p role="alert" className="col-span-2 mt-2 text-label text-destructive">
             {toggleError.message}. 잠시 후 다시 시도하세요.

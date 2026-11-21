@@ -1,6 +1,9 @@
 # 이 파일을 runtime.toml로 복사하고 실제 경로·명령을 입력하세요.
 # 상대 경로는 이 설정 파일의 위치 기준입니다.
 repo = "/absolute/path/to/committed-demo-repo"
+# 기본 저장소의 허용 목록을 생략하면 모든 [verify.*]를 허용합니다.
+# verification_profiles = ["unit"]
+# default_verification_profile = "unit"
 worktrees = "../../work/ycton-worktrees"
 logs = "../../work/ycton-logs"
 api_url = "http://127.0.0.1:8000"
@@ -34,3 +37,10 @@ command = ["/absolute/path/to/python", "-m", "pytest", "-q"]
 timeout = 60
 # 비우면 종료 코드 0만 요구합니다. 필요하면 성공 출력도 확인합니다.
 contains = "passed"
+
+# 필요하면 프로젝트 생성 시 선택할 수 있는 저장소를 추가하세요.
+# [repositories.another]
+# path = "/absolute/path/to/another-committed-repo"
+# label = "다른 저장소"
+# verification_profiles = ["unit"]
+# default_verification_profile = "unit"

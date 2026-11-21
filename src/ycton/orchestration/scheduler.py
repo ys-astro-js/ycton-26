@@ -66,9 +66,13 @@ class Scheduler:
         try:
             with self.service.db.connect() as c:
                 agent = require(c, "agents", session["agent_id"])
-            request = RuntimeRequest(session["id"], session["room_id"], session["agent_id"],
-                                     session["kind"], build_prompt(self.service, session), agent["kind"], session["task_id"],
-                                     agent["model"], agent["effort"])
+                room = require(c, "rooms", session["room_id"])
+            request = RuntimeRequest(
+                session_id=session_id, room_id=session["room_id"], agent_id=session["agent_id"],
+                kind=session["kind"], prompt=build_prompt(self.service, session), agent_kind=agent["kind"],
+                repository_id=room["repository_id"], task_id=session["task_id"],
+                model=agent["model"], effort=agent["effort"],
+            )
             async with asyncio.timeout(self.settings.timeout_seconds):
                 result = await self.runtime.run(request)
         except asyncio.CancelledError:
