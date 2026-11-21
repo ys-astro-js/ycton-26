@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "src/review/review.css"
+        ],
+        "createdAt": "2026-11-21T03:35:59.641Z",
+        "reason": "agent: measured-height disclosure transition in Collapse, sanctioned by better-motion (user-mandated skill)"
+      }
+    ]
+  }
+}
