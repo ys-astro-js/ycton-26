@@ -1,4 +1,4 @@
-import { ListTodo } from 'lucide-react'
+import { Bot, GitCommitHorizontal, ListTodo } from 'lucide-react'
 import { useId, useState } from 'react'
 
 import type { Agent, RoomState, Task } from '@/api/client'
@@ -45,7 +45,7 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
 
         if (entry.type === 'system') {
           return (
-            <li key={entry.message.id} {...focusProps} className={cn(ROW, 'py-1.5 data-focused:bg-muted')}>
+            <li key={entry.message.id} {...focusProps} className={cn(ROW, 'py-1.5 data-focused:bg-muted/50')}>
               <time className={TIME}>{at}</time>
               <p className="flex items-start gap-1.5 text-[0.8125rem] text-muted-foreground">
                 <Glyph icon={ListTodo} className="mt-0.5 size-3.5" />
@@ -132,7 +132,7 @@ function ResultRow({
   return (
     <li
       {...focusProps}
-      className={cn('my-2 border-y bg-card transition-colors duration-700 ease-out data-focused:bg-muted', open && 'bg-muted/50')}
+      className={cn('my-2 border-y bg-card transition-colors duration-700 ease-out motion-reduce:transition-none data-focused:bg-muted/50', open && 'bg-muted/50')}
     >
       <div className={cn(ROW, 'items-start py-2.5 pe-1', hasMore && ROW_HEAD)}>
         <time className={cn(TIME, 'leading-9')}>{at}</time>
@@ -155,33 +155,31 @@ function ResultRow({
               </span>
             </p>
             {headline ? <p className="mt-0.5 max-w-[65ch] text-[0.9375rem] text-muted-foreground text-pretty">{headline}</p> : null}
-            <dl className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1 text-[0.8125rem]">
-              {task ? (
-                <div className="flex gap-1.5">
-                  <dt className="text-muted-foreground">검증</dt>
-                  <dd className="font-mono">{task.verify}</dd>
-                </div>
-              ) : null}
-              {agent ? (
-                <div className="flex gap-1.5">
-                  <dt className="text-muted-foreground">담당 에이전트</dt>
-                  <dd>{agent.name}</dd>
-                </div>
-              ) : null}
-              {session?.commit_hash ? (
-                <div className="flex gap-1.5">
-                  <dt className="text-muted-foreground">커밋</dt>
-                  <dd className="font-mono tabular-nums">{session.commit_hash.slice(0, 7)}</dd>
-                </div>
-              ) : null}
-            </dl>
+            {agent || session?.commit_hash ? (
+              <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem] text-muted-foreground">
+                {agent ? (
+                  <span className="flex items-center gap-1.5">
+                    <Glyph icon={Bot} className="size-3.5" />
+                    <span className="sr-only">담당 에이전트</span>
+                    {agent.name}
+                  </span>
+                ) : null}
+                {session?.commit_hash ? (
+                  <span className="flex items-center gap-1.5 font-mono tabular-nums">
+                    <Glyph icon={GitCommitHorizontal} className="size-3.5" />
+                    <span className="sr-only">커밋</span>
+                    {session.commit_hash.slice(0, 7)}
+                  </span>
+                ) : null}
+              </p>
+            ) : null}
           </div>
           {hasMore ? <RowChevron open={open} /> : null}
         </div>
       </div>
       {hasMore ? (
         <DisclosurePanel open={open} id={panelId}>
-          <div className="grid gap-6 ps-[4.75rem] pe-4 pt-1 pb-4 @min-[44rem]:grid-cols-2">
+          <div className="grid gap-6 ps-4 @min-[28rem]:ps-[4.75rem] pe-4 pt-1 pb-4 @min-[44rem]:grid-cols-2">
             {rest.length > 0 ? <Handoff lines={rest} /> : null}
             {session?.verification_output ? (
               <div className="min-w-0">

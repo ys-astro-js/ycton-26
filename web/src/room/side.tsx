@@ -1,5 +1,5 @@
 import { Arc } from 'loading-dev'
-import { Ban, Bot, GitCommitHorizontal, History, RotateCcw, Square } from 'lucide-react'
+import { Ban, Bot, FolderCode, GitCommitHorizontal, History, RotateCcw, Square, Plus } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 
 import { api, ApiError, type RoomState, type Task } from '@/api/client'
@@ -15,11 +15,49 @@ import { DisclosurePanel, Glyph, Handoff, STATUS, countFormat } from '../review/
 import { clock, lines, taskPhase, useRoomMutation, useTaskEvents, type TaskPhase } from './data.ts'
 import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
 
+/**
+ * 서버의 이벤트 이름(created, claimed …)과 내부 값(agent:3, 세션 id)을 사람이 읽는 한 문장으로 바꿉니다.
+ * 모르는 이벤트는 서버가 준 이름을 그대로 둡니다.
+ */
+function describeEvent(event: string, detail: string, state: RoomState): { what: string; detail?: string } {
+  switch (event) {
+    case 'created':
+      return { what: '추가됨' }
+    case 'claimed': {
+      const id = Number(detail.replace('agent:', ''))
+      const agent = state.agents.find((candidate) => candidate.id === id)
+      return { what: `${agent?.name ?? '에이전트'} 배정` }
+    }
+    case 'delegated':
+      return { what: '작업 시작' }
+    case 'released':
+      return { what: '담당 해제', detail }
+    case 'succeeded':
+      return { what: '완료', detail }
+    case 'failed':
+      return { what: '실패', detail }
+    case 'cancelled':
+      return { what: '중단됨', detail }
+    case 'timeout':
+      return { what: '시간 초과', detail }
+    case 'retry':
+      return { what: '다시 실행' }
+    case 'drop':
+      return { what: '제외됨' }
+    case 'chat_failed_release':
+      return { what: '대화가 실패해 담당 해제', detail }
+    case 'recovered':
+      return { what: '서버 재시작 뒤 다시 열림' }
+    default:
+      return { what: event, detail }
+  }
+}
+
 const PHASE_ORDER: Record<TaskPhase, number> = { running: 0, failed: 1, waiting: 2, done: 3, dropped: 4 }
 
 function CountBadge({ count, unit }: { count: number; unit: string }) {
   return (
-    <Badge className="min-w-6 bg-muted px-1.5 py-0.5 font-mono text-xs tracking-normal text-muted-foreground tabular-nums">
+    <Badge className="min-w-6 px-1.5 py-0.5 font-mono text-xs tracking-normal text-muted-foreground tabular-nums">
       {countFormat.format(count)}
       <span className="sr-only">{unit}</span>
     </Badge>
@@ -64,6 +102,54 @@ export function TaskList({ state, focus }: { state: RoomState; focus?: number })
   )
 }
 
+/** 되돌릴 수 없는 동작을 그 자리에서 한 번 더 묻습니다. 열리면 취소에 초점을 두고, Escape로 닫습니다. */
+function InlineConfirm({
+  question,
+  confirmLabel,
+  disabled,
+  onConfirm,
+  onCancel,
+}: {
+  question: string
+  confirmLabel: string
+  disabled: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const questionId = useId()
+  const cancelRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    cancelRef.current?.focus()
+  }, [])
+
+  return (
+    <div
+      role="group"
+      aria-labelledby={questionId}
+      className="flex flex-wrap items-center gap-x-3 gap-y-2"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation()
+          onCancel()
+        }
+      }}
+    >
+      <p id={questionId} className="text-[0.9375rem]">
+        {question}
+      </p>
+      <div className="flex gap-2">
+        <Button size="sm" variant="destructive" className="tracking-normal normal-case" disabled={disabled} onClick={onConfirm}>
+          {confirmLabel}
+        </Button>
+        <Button ref={cancelRef} size="sm" variant="outline" className="tracking-normal normal-case" onClick={onCancel}>
+          취소
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function TaskRow({
   state,
   task,
@@ -90,13 +176,20 @@ function TaskRow({
   const cancel = useRoomMutation(roomId, () => api.cancel(task.active_session_id ?? ''))
   const error = [retry, drop, cancel].find((m) => m.error)?.error
   const busy = retry.isPending || drop.isPending || cancel.isPending
+  const [confirming, setConfirming] = useState<'drop' | 'cancel' | null>(null)
+  const actionsRef = useRef<HTMLDivElement>(null)
+  const closeConfirm = () => {
+    setConfirming(null)
+    // 확인을 닫으면 초점을 동작 버튼 줄로 되돌립니다
+    requestAnimationFrame(() => actionsRef.current?.querySelector('button')?.focus())
+  }
 
   return (
     <li
       data-focus-key={task.id}
       data-focused={focused || undefined}
       className={cn(
-        'group/row relative transition-colors duration-700 ease-out motion-reduce:transition-none data-focused:bg-muted',
+        'group/row relative transition-colors duration-700 ease-out motion-reduce:transition-none data-focused:bg-muted/50',
         open && 'bg-muted/50',
       )}
     >
@@ -139,27 +232,25 @@ function TaskRow({
         <div className="grid gap-5 ps-12 pe-4 pt-1 pb-4">
           {task.detail ? <p className="max-w-[60ch] text-[0.9375rem] whitespace-pre-line text-pretty">{task.detail}</p> : null}
 
-          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-[0.8125rem]">
-            <dt className="text-muted-foreground">검증</dt>
-            <dd className="font-mono">{task.verify}</dd>
-            {task.scope ? (
-              <>
-                <dt className="text-muted-foreground">범위</dt>
-                <dd className="break-words">{task.scope}</dd>
-              </>
-            ) : null}
-            <dt className="text-muted-foreground">시도</dt>
-            <dd className="font-mono tabular-nums">{countFormat.format(task.attempts)}회</dd>
-            {task.commit_hash ? (
-              <>
-                <dt className="text-muted-foreground">커밋</dt>
-                <dd className="flex items-center gap-1.5 font-mono tabular-nums">
-                  <Glyph icon={GitCommitHorizontal} className="size-3.5 text-muted-foreground" />
+          {task.scope || task.commit_hash || task.attempts > 1 ? (
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem] text-muted-foreground">
+              {task.scope ? (
+                <span className="flex min-w-0 items-center gap-1.5 break-words">
+                  <Glyph icon={FolderCode} className="size-3.5" />
+                  <span className="sr-only">범위</span>
+                  {task.scope}
+                </span>
+              ) : null}
+              {task.commit_hash ? (
+                <span className="flex items-center gap-1.5 font-mono tabular-nums">
+                  <Glyph icon={GitCommitHorizontal} className="size-3.5" />
+                  <span className="sr-only">커밋</span>
                   {task.commit_hash.slice(0, 7)}
-                </dd>
-              </>
-            ) : null}
-          </dl>
+                </span>
+              ) : null}
+              {task.attempts > 1 ? <span>{countFormat.format(task.attempts)}번째 시도</span> : null}
+            </p>
+          ) : null}
 
           {task.handoff ? <Handoff lines={lines(task.handoff).filter((line) => !line.startsWith('worktree='))} /> : null}
 
@@ -170,13 +261,18 @@ function TaskRow({
             </h3>
             {events.data?.length ? (
               <ol className="grid gap-1 text-[0.8125rem]">
-                {events.data.map((event) => (
-                  <li key={event.id} className="grid grid-cols-[3rem_4.5rem_minmax(0,1fr)] gap-x-3">
-                    <time className="font-mono text-muted-foreground tabular-nums">{clock(event.created_at)}</time>
-                    <span className="font-mono text-muted-foreground">{event.event}</span>
-                    <span className="min-w-0 truncate">{event.detail.split('\n')[0]}</span>
-                  </li>
-                ))}
+                {events.data.map((event) => {
+                  const { what, detail } = describeEvent(event.event, event.detail, state)
+                  return (
+                    <li key={event.id} className="grid grid-cols-[3rem_minmax(0,1fr)] gap-x-3">
+                      <time className="font-mono text-muted-foreground tabular-nums">{clock(event.created_at)}</time>
+                      <p className="min-w-0 break-words whitespace-pre-line">
+                        {what}
+                        {detail ? <span className="text-muted-foreground">: {detail}</span> : null}
+                      </p>
+                    </li>
+                  )
+                })}
               </ol>
             ) : (
               <p className="text-[0.8125rem] text-muted-foreground">{events.isPending ? '불러오는 중…' : '이력이 없습니다.'}</p>
@@ -185,20 +281,33 @@ function TaskRow({
 
           {finished ? null : (
             <div className="grid gap-2">
-              <div className="flex gap-2">
-                {phase === 'running' && task.active_session_id ? (
-                  <IconButton variant="outline" icon={Square} label="실행 중단하기" disabled={busy} onClick={() => cancel.mutate(undefined)} />
-                ) : null}
-                {phase === 'failed' ? (
-                  <IconButton icon={RotateCcw} label="다시 실행" disabled={busy} onClick={() => retry.mutate(undefined)} />
-                ) : null}
-                {phase === 'running' ? null : (
-                  <IconButton variant="ghost" icon={Ban} label="제외하기" disabled={busy} onClick={() => drop.mutate(undefined)} />
-                )}
-              </div>
+              {confirming ? (
+                <InlineConfirm
+                  question={confirming === 'drop' ? '이 할 일을 제외할까요?' : '실행을 중단할까요?'}
+                  confirmLabel={confirming === 'drop' ? '제외' : '중단'}
+                  disabled={busy}
+                  onConfirm={() => {
+                    const mutation = confirming === 'drop' ? drop : cancel
+                    mutation.mutate(undefined, { onSettled: () => setConfirming(null) })
+                  }}
+                  onCancel={closeConfirm}
+                />
+              ) : (
+                <div ref={actionsRef} className="flex gap-2">
+                  {phase === 'running' && task.active_session_id ? (
+                    <IconButton variant="outline" icon={Square} label="실행 중단하기" disabled={busy} onClick={() => setConfirming('cancel')} />
+                  ) : null}
+                  {phase === 'failed' ? (
+                    <IconButton icon={RotateCcw} label="다시 실행" disabled={busy} onClick={() => retry.mutate(undefined)} />
+                  ) : null}
+                  {phase === 'running' ? null : (
+                    <IconButton variant="outline" icon={Ban} label="제외하기" disabled={busy} onClick={() => setConfirming('drop')} />
+                  )}
+                </div>
+              )}
               {error ? (
                 <p role="alert" className="text-[0.8125rem] text-destructive">
-                  {error instanceof ApiError ? error.message : '처리하지 못했습니다'}
+                  {error instanceof ApiError ? error.message : '처리하지 못했습니다.'} 잠시 후 다시 시도하세요.
                 </p>
               ) : null}
             </div>
@@ -211,52 +320,85 @@ function TaskRow({
 
 export function AgentList({ state }: { state: RoomState }) {
   const headingId = useId()
+  const formId = useId()
+  const empty = state.agents.length === 0
+  const [adding, setAdding] = useState(empty)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const busy = new Set(
     state.sessions.filter((s) => s.status === 'queued' || s.status === 'running').map((s) => s.agent_id),
   )
 
+  useEffect(() => {
+    if (empty) setAdding(true)
+  }, [empty])
+
+  const close = () => {
+    setAdding(false)
+    requestAnimationFrame(() => triggerRef.current?.focus())
+  }
+
   return (
     <section aria-labelledby={headingId} className="grid gap-3">
-      <h2 id={headingId} className="flex items-center gap-2 text-lg font-semibold">
-        에이전트
-        <CountBadge count={state.agents.length} unit="명" />
-      </h2>
-      <div className="border bg-card">
-        {state.agents.length > 0 ? (
-          <ul className="divide-y">
-            {state.agents.map((agent) => (
-              <li key={agent.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-4 py-3">
-                <div className="min-w-0">
-                  <p className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="text-[0.9375rem] font-semibold break-words">{agent.name}</span>
-                    <span className="font-mono text-xs text-muted-foreground">{agent.kind}</span>
-                  </p>
-                  {agent.good_at.length > 0 ? (
-                    <p className="mt-0.5 text-[0.8125rem] text-muted-foreground text-pretty">
-                      <span className="sr-only">잘하는 작업: </span>
-                      {agent.good_at.join(', ')}
-                    </p>
-                  ) : null}
-                </div>
-                {busy.has(agent.id) ? (
-                  <span className="flex h-6 items-center">
-                    <Arc size={12} color="var(--live)" />
-                    <span className="sr-only">실행 중</span>
-                  </span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        <AddAgent state={state} />
+      <div className="flex items-center justify-between gap-3">
+        <h2 id={headingId} className="flex items-center gap-2 text-lg font-semibold">
+          에이전트
+          <CountBadge count={state.agents.length} unit="명" />
+        </h2>
+        {empty ? null : (
+          <IconButton
+            ref={triggerRef}
+            variant="outline"
+            icon={Plus}
+            label="에이전트 추가"
+            aria-expanded={adding}
+            aria-controls={adding ? formId : undefined}
+            onClick={() => (adding ? close() : setAdding(true))}
+          />
+        )}
       </div>
+      {empty ? null : (
+        <ul className="border bg-card py-1.5">
+          {state.agents.map((agent) => (
+            <li key={agent.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 px-4 py-2">
+              <div className="min-w-0">
+                <p className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="text-[0.9375rem] font-semibold break-words">{agent.name}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{agent.kind}</span>
+                </p>
+                {agent.good_at.length > 0 ? (
+                  <p className="mt-0.5 text-[0.8125rem] text-pretty text-muted-foreground">
+                    <span className="sr-only">잘하는 작업: </span>
+                    {agent.good_at.join(', ')}
+                  </p>
+                ) : null}
+              </div>
+              {busy.has(agent.id) ? (
+                <span className="flex h-6 items-center">
+                  <Arc size={12} color="var(--live)" />
+                  <span className="sr-only">실행 중</span>
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+      {adding ? <AddAgent id={formId} state={state} autoFocus={!empty} onClose={empty ? undefined : close} /> : null}
     </section>
   )
 }
 
-function AddAgent({ state }: { state: RoomState }) {
-  const empty = state.agents.length === 0
-  const [open, setOpen] = useState(empty)
+function AddAgent({
+  id,
+  state,
+  autoFocus,
+  onClose,
+}: {
+  id: string
+  state: RoomState
+  autoFocus: boolean
+  /** 없으면 취소할 수 없습니다(에이전트가 하나도 없을 때). */
+  onClose?: () => void
+}) {
   const [name, setName] = useState('')
   const [kind, setKind] = useState('')
   const [goodAt, setGoodAt] = useState('')
@@ -269,8 +411,8 @@ function AddAgent({ state }: { state: RoomState }) {
   )
 
   useEffect(() => {
-    if (empty) setOpen(true)
-  }, [empty])
+    if (autoFocus) nameRef.current?.focus()
+  }, [autoFocus])
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -292,33 +434,27 @@ function AddAgent({ state }: { state: RoomState }) {
           setName('')
           setKind('')
           setGoodAt('')
-          setOpen(false)
+          onClose?.()
         },
       },
     )
   }
 
-  if (!open) {
-    return (
-      <Button
-        variant="ghost"
-        className={cn(
-          'h-10 w-full justify-start px-4 text-[0.8125rem] font-medium tracking-normal text-muted-foreground normal-case',
-          !empty && 'border-t',
-        )}
-        onClick={() => {
-          setOpen(true)
-          requestAnimationFrame(() => nameRef.current?.focus())
-        }}
-      >
-        에이전트 추가
-      </Button>
-    )
-  }
-
-  const label = 'text-xs font-normal text-muted-foreground'
+  const label = 'text-[0.8125rem] font-medium'
   return (
-    <form noValidate onSubmit={submit} className={cn('grid gap-3 px-4 py-4', !empty && 'border-t')}>
+    <form
+      id={id}
+      noValidate
+      aria-label="에이전트 추가"
+      onSubmit={submit}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && onClose) {
+          event.stopPropagation()
+          onClose()
+        }
+      }}
+      className="grid gap-3 border bg-card px-4 py-4"
+    >
       <Field data-invalid={invalid.name || undefined} className="gap-0">
         <FieldLabel htmlFor={ids.name} className={label}>
           이름
@@ -363,18 +499,18 @@ function AddAgent({ state }: { state: RoomState }) {
       </Field>
       {add.error ? (
         <p id={ids.serverError} role="alert" className="text-[0.8125rem] text-destructive">
-          {add.error instanceof ApiError ? add.error.message : '에이전트를 추가하지 못했습니다'}
+          {add.error instanceof ApiError ? add.error.message : '에이전트를 추가하지 못했습니다.'} 잠시 후 다시 시도하세요.
         </p>
       ) : null}
-      <div className="flex gap-2">
+      <div className="mt-1 flex gap-2">
         <Button type="submit" size="sm" disabled={add.isPending} className="tracking-normal normal-case">
           추가
         </Button>
-        {empty ? null : (
-          <Button type="button" size="sm" variant="ghost" className="tracking-normal normal-case" onClick={() => setOpen(false)}>
+        {onClose ? (
+          <Button type="button" size="sm" variant="outline" className="tracking-normal normal-case" onClick={onClose}>
             취소
           </Button>
-        )}
+        ) : null}
       </div>
     </form>
   )
