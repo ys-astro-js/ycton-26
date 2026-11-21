@@ -17,7 +17,7 @@ export interface ReviewSearch {
 }
 
 export interface RoomSearch {
-  /** 리뷰나 맡기기에서 넘어올 때 강조할 할 일 ID */
+  /** 리뷰나 할 일 추가에서 넘어올 때 강조할 할 일 ID */
   focus?: number
 }
 

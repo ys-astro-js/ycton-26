@@ -144,7 +144,7 @@ export function toTimeline(state: RoomState): TimelineEntry[] {
   })
 }
 
-/** 맡기기에서는 첫 줄이 제목, 나머지가 상세입니다 */
+/** 할 일은 첫 줄이 제목, 나머지가 상세입니다 */
 export function splitRequest(text: string) {
   const [first = '', ...rest] = text.trim().split('\n')
   return { title: first.trim().slice(0, 200), detail: rest.join('\n').trim() }

@@ -22,9 +22,9 @@ type Intent = 'say' | 'assign'
 const VERIFY_PROFILE = 'unit'
 
 /**
- * 새 일을 맡기는 입력. 아침 리뷰(어느 방에 맡길지 고름)와 채팅방(그 방의 입력창)이 같이 씁니다.
- * - 말하기: POST /api/rooms/{id}/messages. 에이전트가 대화로 답합니다.
- * - 맡기기: POST /api/rooms/{id}/tasks. 에이전트는 할 일을 만들 수 없으므로 실제 작업은 이 경로로만 시작됩니다.
+ * 메시지를 보내거나 할 일을 추가하는 입력. 아침 리뷰(채팅방을 고름)와 채팅방(그 방의 입력창)이 같이 씁니다.
+ * - 메시지: POST /api/rooms/{id}/messages. 에이전트가 대화로 답합니다.
+ * - 할 일: POST /api/rooms/{id}/tasks. 에이전트는 할 일을 만들 수 없으므로 실제 작업은 이 경로로만 시작됩니다.
  */
 export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?: (taskId: number) => void }) {
   const global = roomId === undefined
@@ -99,10 +99,10 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
           }}
         >
           <ToggleGroupItem value="say" className="h-8 px-3! text-[0.8125rem] tracking-normal normal-case">
-            말하기
+            메시지
           </ToggleGroupItem>
           <ToggleGroupItem value="assign" className="h-8 px-3! text-[0.8125rem] tracking-normal normal-case">
-            할 일로 맡기기
+            할 일
           </ToggleGroupItem>
         </ToggleGroup>
       )}
@@ -110,14 +110,14 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
       <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
         <Field data-invalid={invalid.text || undefined} className="min-w-0 flex-1 basis-64 gap-0">
           <FieldLabel htmlFor={ids.text} className="sr-only">
-            {assigning ? '맡길 일' : '메시지'}
+            {assigning ? '할 일' : '메시지'}
           </FieldLabel>
           <Textarea
             ref={textRef}
             id={ids.text}
             rows={1}
             value={text}
-            placeholder={assigning ? '맡길 일' : '메시지'}
+            placeholder={assigning ? '할 일' : '메시지'}
             aria-invalid={invalid.text || undefined}
             aria-describedby={cn(invalid.text && ids.textError, send.error && ids.server) || undefined}
             className="max-h-64 min-h-10 py-2 text-base md:text-[0.9375rem]"
@@ -158,12 +158,12 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
           </Field>
         ) : null}
 
-        <IconButton type="submit" icon={Send} label={assigning ? '맡기기' : '보내기'} disabled={send.isPending} />
+        <IconButton type="submit" icon={Send} label={assigning ? '할 일 추가' : '보내기'} disabled={send.isPending} />
       </div>
 
-      {invalid.room ? <FieldError id={ids.roomError}>맡길 채팅방을 고르세요.</FieldError> : null}
+      {invalid.room ? <FieldError id={ids.roomError}>채팅방을 고르세요.</FieldError> : null}
       {invalid.text ? (
-        <FieldError id={ids.textError}>{assigning ? '맡길 일을 적어 주세요.' : '보낼 메시지를 적어 주세요.'}</FieldError>
+        <FieldError id={ids.textError}>{assigning ? '할 일을 적어 주세요.' : '보낼 메시지를 적어 주세요.'}</FieldError>
       ) : null}
 
 

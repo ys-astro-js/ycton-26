@@ -48,7 +48,7 @@ export function ReviewPage() {
   const act = async (item: AttentionItem, resolution: Resolution, text?: string) => {
     const { roomId, taskId } = item.target
     if (resolution === 'resumed') await api.resume(roomId)
-    if (resolution === 'reassigned' && taskId !== undefined) await api.retry(taskId, '사람이 아침 리뷰에서 다시 맡김')
+    if (resolution === 'reassigned' && taskId !== undefined) await api.retry(taskId, '사람이 아침 리뷰에서 다시 실행')
     if (resolution === 'answered' && text) await api.postMessage(roomId, text)
     await refresh()
   }
@@ -99,7 +99,7 @@ export function ReviewPage() {
         <main id="main" className="grid min-w-0 content-start gap-10">
           <section aria-labelledby="compose-heading" className="grid gap-3">
             <h2 id="compose-heading" className="text-lg font-semibold">
-              할 일 맡기기
+              새 할 일
             </h2>
             <div className="border bg-card px-4 pt-2 pb-3">
               <Composer />

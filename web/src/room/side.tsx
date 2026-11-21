@@ -33,7 +33,7 @@ export function TaskList({ state, focus }: { state: RoomState; focus?: number })
     (a, b) => PHASE_ORDER[taskPhase(a, state)] - PHASE_ORDER[taskPhase(b, state)] || b.id - a.id,
   )
 
-  // 리뷰나 맡기기에서 넘어온 할 일은 펼쳐서 보여 줍니다
+  // 리뷰나 할 일 추가에서 넘어온 할 일은 펼쳐서 보여 줍니다
   useEffect(() => {
     if (focus !== undefined) setOpenId(focus)
   }, [focus])
@@ -85,7 +85,7 @@ function TaskRow({
   const events = useTaskEvents(task.id, open)
 
   const roomId = state.room.id
-  const retry = useRoomMutation(roomId, () => api.retry(task.id, '사람이 채팅방에서 다시 맡김'))
+  const retry = useRoomMutation(roomId, () => api.retry(task.id, '사람이 채팅방에서 다시 실행'))
   const drop = useRoomMutation(roomId, () => api.drop(task.id, '사람이 채팅방에서 제외함'))
   const cancel = useRoomMutation(roomId, () => api.cancel(task.active_session_id ?? ''))
   const error = [retry, drop, cancel].find((m) => m.error)?.error
@@ -190,7 +190,7 @@ function TaskRow({
                   <IconButton variant="outline" icon={Square} label="실행 중단하기" disabled={busy} onClick={() => cancel.mutate(undefined)} />
                 ) : null}
                 {phase === 'failed' ? (
-                  <IconButton icon={RotateCcw} label="다시 맡기기" disabled={busy} onClick={() => retry.mutate(undefined)} />
+                  <IconButton icon={RotateCcw} label="다시 실행" disabled={busy} onClick={() => retry.mutate(undefined)} />
                 ) : null}
                 {phase === 'running' ? null : (
                   <IconButton variant="ghost" icon={Ban} label="제외하기" disabled={busy} onClick={() => drop.mutate(undefined)} />

@@ -56,7 +56,7 @@ export function StatusNode({ status }: { status: LedgerStatus }) {
     )
   }
   const Icon = NODE_ICON[status]
-  // 실패는 사람이 다시 맡겨야 하는 일이라 빨강(attention)으로, 나머지는 흐린 회색으로 둡니다
+  // 실패는 사람이 다시 실행해야 하는 일이라 빨강(attention)으로, 나머지는 흐린 회색으로 둡니다
   return (
     <Icon
       aria-hidden="true"

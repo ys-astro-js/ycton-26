@@ -31,7 +31,7 @@ export type Resolution = 'resumed' | 'reassigned' | 'answered'
 
 const RESOLUTION_LABEL: Record<Resolution, string> = {
   resumed: '재개함',
-  reassigned: '다시 맡김',
+  reassigned: '다시 실행함',
   answered: '답함',
 }
 
@@ -315,7 +315,7 @@ function AttentionRow({
               {item.kind === 'timeout' || item.kind === 'failed' ? (
                 <IconButton
                   icon={RotateCcw}
-                  label="다시 맡기기"
+                  label="다시 실행"
                   disabled={busy}
                   onClick={() => handleResolve('reassigned')}
                 />
