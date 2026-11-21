@@ -83,3 +83,7 @@ logs/
 
 # ===== Claude Code (local only) =====
 .claude/settings.local.json
+
+# Orchestration local state
+data/
+runtime.toml

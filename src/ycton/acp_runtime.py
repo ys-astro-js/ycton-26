@@ -59,7 +59,7 @@ class _SessionClient(Client):
                 and update.field_meta.get("is_mcp_tool_call") is True
                 and isinstance(tool, dict)
                 and tool.get("server") == ROOM_MCP_NAME
-                and tool.get("tool") == "send"
+                and tool.get("tool") in {"send", "list_tasks", "claim", "delegate"}
             ):
                 self._pending_room_sends.add((session_id, update.tool_call_id))
         elif isinstance(update, ToolCallProgress) and update.status in ("completed", "failed"):
@@ -113,7 +113,7 @@ async def _run_session(
     workdir = cwd.resolve()
     room_servers = [server for server in mcp_servers or () if server.name == ROOM_MCP_NAME]
     client = _SessionClient(on_update, allow_room_send=len(room_servers) == 1 and is_room_mcp_server(room_servers[0]))
-    env = {**os.environ, "INITIAL_AGENT_MODE": "workspace-write"} if work else os.environ
+    env = {**os.environ, "INITIAL_AGENT_MODE": "workspace-write"} if work else {**os.environ, "INITIAL_AGENT_MODE": "read-only"}
     async with spawn_owned_agent(executable, *args, cwd=workdir, env=env) as process:
         assert process.stdin is not None and process.stdout is not None
         connection = connect_to_agent(client, process.stdin, process.stdout)

@@ -1,0 +1,242 @@
+"""상태 변경의 단일 진입점. 모든 변경·이력·메시지를 같은 트랜잭션에 저장한다."""
+import json
+import sqlite3
+from uuid import uuid4
+
+from ycton.orchestration.runtime_port import RuntimeResult
+
+
+class DomainError(Exception):
+    def __init__(self, message, status=409):
+        self.message, self.status = message, status
+
+
+def require(conn, table, identifier):
+    # table은 아래 코드의 상수만 사용한다. 외부 입력을 전달하면 안 된다.
+    row = conn.execute(f"SELECT * FROM {table} WHERE id=?", (identifier,)).fetchone()
+    if row is None:
+        raise DomainError(f"{table}: 항목을 찾을 수 없습니다", 404)
+    return dict(row)
+
+
+class TaskService:
+    def __init__(self, db, settings):
+        self.db, self.settings = db, settings
+
+    @staticmethod
+    def message(conn, room, author, content):
+        conn.execute("INSERT INTO messages(room_id,author,content) VALUES(?,?,?)", (room, author, content))
+
+    @staticmethod
+    def event(conn, task, event, detail):
+        conn.execute("INSERT INTO task_events(task_id,event,detail) VALUES(?,?,?)", (task, event, detail))
+
+    def wake(self, conn, room_id, agent_id=None, reset=False):
+        """같은 에이전트의 대기 턴은 하나로 합친다. 실행 중에도 다음 턴 하나 예약 가능."""
+        if reset:
+            conn.execute("UPDATE rooms SET chat_rounds=0 WHERE id=?", (room_id,))
+        room = require(conn, "rooms", room_id)
+        if room["paused"] or room["chat_rounds"] >= self.settings.max_chat_rounds:
+            return
+        agents = conn.execute("SELECT id FROM agents WHERE room_id=?", (room_id,)).fetchall()
+        for agent in agents:
+            if agent_id is not None and agent["id"] != agent_id:
+                continue
+            conn.execute("""INSERT OR IGNORE INTO sessions(id,room_id,agent_id,kind,status)
+                            VALUES(?,?,?,'chat','queued')""", (str(uuid4()), room_id, agent["id"]))
+
+    def create_room(self, name):
+        with self.db.connect(write=True) as c:
+            rid = c.execute("INSERT INTO rooms(name) VALUES(?)", (name,)).lastrowid
+            return require(c, "rooms", rid)
+
+    def create_agent(self, room_id, name, kind, good_at):
+        if self.settings.mode == "acp" and kind not in self.runtime_config.kinds:
+            raise DomainError("서버 설정에 없는 에이전트 종류입니다", 422)
+        with self.db.connect(write=True) as c:
+            require(c, "rooms", room_id)
+            try:
+                aid = c.execute("INSERT INTO agents(room_id,name,kind,good_at) VALUES(?,?,?,?)",
+                                (room_id, name, kind, json.dumps(good_at, ensure_ascii=False))).lastrowid
+            except sqlite3.IntegrityError as exc:
+                raise DomainError("방 안에서 에이전트 이름이 중복됩니다") from exc
+            self.wake(c, room_id, reset=True)
+            return require(c, "agents", aid)
+
+    def post_message(self, room_id, content, agent_id=None):
+        with self.db.connect(write=True) as c:
+            require(c, "rooms", room_id)
+            author = "human"
+            if agent_id is not None:
+                agent = require(c, "agents", agent_id)
+                if agent["room_id"] != room_id:
+                    raise DomainError("다른 방의 에이전트입니다", 403)
+                author = f"agent:{agent_id}"
+            self.message(c, room_id, author, content)
+            self.wake(c, room_id, reset=agent_id is None)
+
+    def create_task(self, room_id, title, detail, scope, verify):
+        if self.settings.mode == "acp" and verify not in self.runtime_config.verifiers:
+            raise DomainError("verify에는 서버에 등록된 검증 프로필 이름을 사용하세요", 422)
+        with self.db.connect(write=True) as c:
+            require(c, "rooms", room_id)
+            tid = c.execute("INSERT INTO tasks(room_id,title,detail,scope,verify) VALUES(?,?,?,?,?)",
+                            (room_id, title, detail, scope, verify)).lastrowid
+            self.event(c, tid, "created", title)
+            self.message(c, room_id, "system", f"할 일 #{tid} 등록: {title}")
+            self.wake(c, room_id, reset=True)
+            return require(c, "tasks", tid)
+
+    def claim(self, task_id, agent_id):
+        with self.db.connect(write=True) as c:
+            task = require(c, "tasks", task_id)
+            agent = require(c, "agents", agent_id)
+            room = require(c, "rooms", task["room_id"])
+            if agent["room_id"] != task["room_id"]:
+                raise DomainError("다른 방의 작업입니다", 403)
+            if room["paused"]:
+                raise DomainError("자동 진행이 중지된 방입니다")
+            if task["attempts"] >= self.settings.max_attempts:
+                raise DomainError("재시도 한도 도달: 사람이 retry로 재개해야 합니다")
+            changed = c.execute("UPDATE tasks SET status='claimed',owner_id=? WHERE id=? AND status='open'",
+                                (agent_id, task_id)).rowcount
+            if not changed:
+                raise DomainError("이미 담당자가 있거나 종료된 작업입니다")
+            self.event(c, task_id, "claimed", f"agent:{agent_id}")
+            self.message(c, task["room_id"], "system", f"{agent['name']}이 할 일 #{task_id}을 맡았습니다")
+            return require(c, "tasks", task_id)
+
+    def release(self, task_id, agent_id, note):
+        with self.db.connect(write=True) as c:
+            task = require(c, "tasks", task_id)
+            if task["status"] != "claimed" or task["owner_id"] != agent_id:
+                raise DomainError("현재 담당자만 반납할 수 있습니다", 403)
+            if task["active_session_id"]:
+                raise DomainError("실행 중/대기 중 세션을 먼저 취소해야 합니다")
+            c.execute("UPDATE tasks SET status='open',owner_id=NULL,handoff=? WHERE id=?", (note, task_id))
+            self.event(c, task_id, "released", note)
+            self.wake(c, task["room_id"])
+            return require(c, "tasks", task_id)
+
+    def delegate(self, task_id, agent_id, request_id, instruction):
+        with self.db.connect(write=True) as c:
+            task = require(c, "tasks", task_id)
+            agent = require(c, "agents", agent_id)
+            if agent["room_id"] != task["room_id"]:
+                raise DomainError("다른 방의 작업입니다", 403)
+            key = f"{agent_id}:{request_id}"
+            old = c.execute("SELECT * FROM sessions WHERE request_key=?", (key,)).fetchone()
+            if old:
+                if old["task_id"] != task_id or old["instruction"] != instruction:
+                    raise DomainError("같은 request_id를 다른 요청에 사용할 수 없습니다")
+                return dict(old)
+            if task["status"] != "claimed" or task["owner_id"] != agent_id:
+                raise DomainError("claim한 담당자만 위임할 수 있습니다", 403)
+            if require(c, "rooms", task["room_id"])["paused"]:
+                raise DomainError("자동 진행이 중지된 방입니다")
+            if task["active_session_id"]:
+                raise DomainError("이미 대기/실행 중인 작업 세션이 있습니다")
+            if task["attempts"] >= self.settings.max_attempts:
+                raise DomainError("재시도 한도에 도달했습니다")
+            sid = str(uuid4())
+            c.execute("""INSERT INTO sessions(id,room_id,agent_id,task_id,kind,status,instruction,request_key)
+                         VALUES(?,?,?,?,'work','queued',?,?)""",
+                      (sid, task["room_id"], agent_id, task_id, instruction, key))
+            c.execute("UPDATE tasks SET active_session_id=?,attempts=attempts+1 WHERE id=?", (sid, task_id))
+            self.event(c, task_id, "delegated", sid)
+            return require(c, "sessions", sid)
+
+    def finish(self, session_id, result: RuntimeResult, cancelled=False):
+        """중복 종료는 무시. 활성 실행 ID를 확인하여 오래된 결과의 덮어쓰기를 차단한다."""
+        with self.db.connect(write=True) as c:
+            s = require(c, "sessions", session_id)
+            if s["status"] not in ("queued", "running"):
+                return False
+            summary = result.summary
+            if s.get("worktree") and s["worktree"] not in summary:
+                summary += f"\nworktree={s['worktree']}"
+            success = result.succeeded and (s["kind"] == "chat" or result.verification == "passed")
+            status = "cancelled" if cancelled else ("succeeded" if success else "failed")
+            c.execute("""UPDATE sessions SET status=?,summary=?,verification=?,commit_hash=?,log_path=COALESCE(?,log_path),
+                         finished_at=CURRENT_TIMESTAMP WHERE id=?""",
+                      (status, summary, result.verification, result.commit_hash, result.log_path, session_id))
+            if s["kind"] == "work":
+                task = require(c, "tasks", s["task_id"])
+                if task["active_session_id"] != session_id:
+                    return False
+                done = status == "succeeded"
+                c.execute("""UPDATE tasks SET status=?,owner_id=?,active_session_id=NULL,handoff=?,commit_hash=?
+                             WHERE id=?""", ("done" if done else "open", s["agent_id"] if done else None,
+                                             summary, result.commit_hash, task["id"]))
+                self.event(c, task["id"], status, summary)
+                self.message(c, s["room_id"], "system", f"할 일 #{task['id']} {status}: {summary}")
+                self.wake(c, s["room_id"], agent_id=s["agent_id"], reset=True)
+            else:
+                # claim 이후 위임 전에 채팅이 실패하면 작업을 영구 점유하지 않게 반환한다.
+                pending = c.execute("SELECT id FROM tasks WHERE owner_id=? AND status='claimed' AND active_session_id IS NULL", (s["agent_id"],)).fetchall()
+                for row in pending:
+                    if status != "succeeded":
+                        c.execute("UPDATE tasks SET status='open',owner_id=NULL,handoff=? WHERE id=?", (summary, row["id"]))
+                        self.event(c, row["id"], "chat_failed_release", summary)
+                    self.wake(c, s["room_id"], agent_id=s["agent_id"] if status == "succeeded" else None)
+                if status == "failed":
+                    self.message(c, s["room_id"], "system", f"채팅 실행 실패: {summary}")
+            return True
+
+    def pause(self, room_id, paused):
+        with self.db.connect(write=True) as c:
+            require(c, "rooms", room_id)
+            c.execute("UPDATE rooms SET paused=? WHERE id=?", (int(paused), room_id))
+            if not paused:
+                self.wake(c, room_id, reset=True)
+            return require(c, "rooms", room_id)
+
+    def manual_task_action(self, task_id, action, note):
+        with self.db.connect(write=True) as c:
+            task = require(c, "tasks", task_id)
+            if task["active_session_id"] or task["status"] not in ("open", "claimed"):
+                raise DomainError("활성 실행이 없고 종료되지 않은 작업에만 가능합니다")
+            if action == "retry":
+                c.execute("UPDATE tasks SET status='open',owner_id=NULL,attempts=0,handoff=? WHERE id=?", (note, task_id))
+            else:
+                c.execute("UPDATE tasks SET status='dropped',owner_id=NULL,handoff=? WHERE id=?", (note, task_id))
+            self.event(c, task_id, action, note)
+            self.wake(c, task["room_id"], reset=True)
+            return require(c, "tasks", task_id)
+
+    def snapshot(self, room_id):
+        with self.db.connect() as c:
+            result = {"room": require(c, "rooms", room_id)}
+            for table in ("agents", "tasks", "sessions"):
+                result[table] = [dict(r) for r in c.execute(f"SELECT * FROM {table} WHERE room_id=? ORDER BY rowid", (room_id,))]
+            for agent in result["agents"]:
+                agent["good_at"] = json.loads(agent["good_at"])
+            result["messages"] = [dict(r) for r in c.execute(
+                "SELECT * FROM (SELECT * FROM messages WHERE room_id=? ORDER BY id DESC LIMIT 100) ORDER BY id", (room_id,))]
+            return result
+
+    def recover(self):
+        """단일 서버 재시작 복구. 실제 프로세스 정리는 런타임 담당자가 먼저 보장해야 한다."""
+        with self.db.connect() as c:
+            active = [r["id"] for r in c.execute("SELECT id FROM sessions WHERE status IN ('queued','running')")]
+        for sid in active:
+            self.finish(sid, RuntimeResult(False, "서버 재시작으로 실행 중단. 재개 전 이전 프로세스 확인 필요"))
+        with self.db.connect(write=True) as c:
+            c.execute("UPDATE sessions SET status='cancelled',summary='재시작 복구' WHERE status='queued'")
+            # 위임 전 중단된 claim도 사람이 다시 선택할 수 있게 반환한다.
+            stranded = c.execute("SELECT id FROM tasks WHERE status='claimed' AND active_session_id IS NULL").fetchall()
+            for row in stranded:
+                c.execute("UPDATE tasks SET status='open',owner_id=NULL,handoff='서버 재시작으로 claim 반환' WHERE id=?", (row["id"],))
+                self.event(c, row["id"], "recovered", "서버 재시작")
+            # 부팅만으로 실작업이 재시작되지 않도록 기존 방은 일시 중지한다.
+            c.execute("UPDATE rooms SET paused=1")
+
+    def execution_metadata(self, session_id, **fields):
+        """런타임 기록 전용. 컬럼 이름은 코드 상수 허용 목록으로 제한한다."""
+        allowed = {"worktree", "log_path", "acp_session_id", "stop_reason", "verification_output", "latest_event"}
+        if not fields or not fields.keys() <= allowed:
+            raise ValueError("지원하지 않는 실행 메타데이터")
+        with self.db.connect(write=True) as c:
+            require(c, "sessions", session_id)
+            setters = ",".join(f"{key}=?" for key in fields)
+            c.execute(f"UPDATE sessions SET {setters} WHERE id=?", (*fields.values(), session_id))
