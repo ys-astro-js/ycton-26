@@ -18,6 +18,9 @@ import { PageHeader } from '../shell/PageHeader.tsx'
 
 const route = getRouteApi('/rooms/$roomId')
 
+const JEV_STATUS = { wait: '작업 대기 중', spawn_suggested: '에이전트 필요' }
+const JEV_RECOMMENDATION = { wait: '대기', spawn_suggested: '에이전트 추가' }
+
 /** 사이드가 대화 옆에 설 만큼 넓은지(80rem). 좁으면 사이드를 대화 위의 접힌 구역으로 둡니다. */
 function useWide() {
   const query = '(min-width: 80rem)'
@@ -139,6 +142,8 @@ export function RoomPage() {
   const repositoryLabel = runtimeOptions?.mode === 'mock' ? null
     : (runtimeOptions?.repositories.find(({ id }) => id === room.repository_id)?.label ?? room.repository_id)
   const stopped = Boolean(room.paused)
+  const { action, reason, recommendation } = state.jev
+  const needsJevNotice = !stopped && (action === 'wait' || action === 'spawn_suggested')
   const toggleError = pause.error ?? resume.error
   const chatSessions = state.sessions.filter((session) => session.kind === 'chat')
 
@@ -181,6 +186,15 @@ export function RoomPage() {
           </p>
         ) : null}
       </div>
+
+      {needsJevNotice ? (
+        <div role="status" className="mt-3 grid gap-1 border bg-card px-4 py-3 text-label text-muted-foreground">
+          <p><strong className="text-foreground">{JEV_STATUS[action]}</strong> — {reason}</p>
+          {recommendation ? (
+            <p><strong className="text-foreground">Jev 추천: {JEV_RECOMMENDATION[recommendation.action]}</strong> — {recommendation.reason}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-8 pt-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:grid-rows-1">
         {wide ? null : (

@@ -34,9 +34,7 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
   const agents = new Map(state.agents.map((agent) => [agent.id, agent]))
   const tasks = new Map(state.tasks.map((task) => [task.id, task]))
   const entries = toTimeline(state)
-  // 에이전트가 다른 에이전트를 부른 것(@Claude)은 사람이 처리할 일이 아니라 attention 색을 쓰지 않습니다
-  const agentNames = new Set(state.agents.map((agent) => agent.name))
-  const callsPerson = (name: string) => !agentNames.has(name)
+  const questions = new Set(state.unanswered_questions.map((message) => message.id))
 
   return (
     <ol aria-label="대화" className="grid pb-2">
@@ -103,7 +101,7 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
                           : `메시지 #${replyTo}에 답장`}
                       </p>
                     ) : null}
-                    <MessageBody text={entry.message.content} attention={human ? never : callsPerson} />
+                    <MessageBody text={entry.message.content} attention={questions.has(entry.message.id) ? callsPerson : never} />
                   </BubbleContent>
                 </Bubble>
                 <MessageFooter className={cn(!last && 'sr-only')}>
@@ -118,6 +116,7 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
   )
 }
 
+const callsPerson = (name: string) => name.toLowerCase() === 'human'
 const never = () => false
 
 const OUTCOME = {

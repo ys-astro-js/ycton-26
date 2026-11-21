@@ -35,3 +35,36 @@ def test_reply_migration_keeps_unanswered_questions_beyond_timeline_window(tmp_p
         state = client.get("/api/rooms/1/state").json()
         assert [question["id"] for question in state["unanswered_questions"]] == [1]
         assert state["messages"][-1]["reply_to_message_id"] == 2
+
+
+def test_only_explicit_human_mentions_are_questions_and_reply_targets(tmp_path):
+    app = main.create_app(Settings(db_path=tmp_path / "mentions.db"), start_scheduler=False)
+    with TestClient(app, base_url="http://localhost", headers=HEADERS) as client:
+        svc = app.state.service
+        room = svc.create_room("collaboration")["id"]
+        author = svc.create_agent(room, "Frontend", "demo", [])["id"]
+        svc.create_agent(room, "Backend", "demo", [])
+        agent_messages = [
+            "@Backend, could you do this?",
+            "@all Check the build",
+            "Email ops@human.example",
+            "Install @human/tools",
+            "An example: `@human`",
+            "```text\n@human example\n```",
+            r"Escaped \@human",
+            "@humanized",
+        ]
+        human_question = "@Backend 보고 부탁해요. **@Human**, 기준을 알려주세요."
+        for text in [*agent_messages, human_question]:
+            svc.post_message(room, text, author)
+        path = f"/api/rooms/{room}"
+        assert client.post(f"{path}/messages", json={"content": "@human written by a person"}).status_code == 201
+        state = client.get(f"{path}/state").json()
+        assert [message["content"] for message in state["unanswered_questions"]] == [human_question]
+        for message in state["messages"]:
+            if message["content"] in agent_messages or message["author"] == "human":
+                response = client.post(f"{path}/messages", json={"content": "Reply", "reply_to_message_id": message["id"]})
+                assert response.status_code == 422, response.json()
+        (question,) = state["unanswered_questions"]
+        assert client.post(f"{path}/messages", json={"content": "Answer", "reply_to_message_id": question["id"]}).status_code == 201
+        assert client.get(f"{path}/state").json()["unanswered_questions"] == []

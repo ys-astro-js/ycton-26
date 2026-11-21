@@ -76,7 +76,7 @@ def test_agent_mention_wakes_named_agent_and_plain_agent_message_wakes_nobody(ro
 
 def test_human_reply_wakes_the_agent_who_asked(room):
     svc, rid, ids = room
-    svc.post_message(rid, "@사람 어느 브랜치에 올릴까요?", ids["Bob"])
+    svc.post_message(rid, "@human 어느 브랜치에 올릴까요?", ids["Bob"])
     question = svc.snapshot(rid)["messages"][-1]["id"]
     posted = svc.post_message(rid, "main에 올려 주세요", reply_to_message_id=question)
     assert posted["needs_routing"] is False
@@ -86,9 +86,9 @@ def test_human_reply_wakes_the_agent_who_asked(room):
 def test_unanswered_questions_skip_agent_to_agent_mentions(room):
     svc, rid, ids = room
     svc.post_message(rid, "@Al 스키마 확인해 줘", ids["Bob"])
-    svc.post_message(rid, "@사람 배포해도 될까요?", ids["Bob"])
+    svc.post_message(rid, "@human 배포해도 될까요?", ids["Bob"])
     questions = svc.snapshot(rid, dashboard=True)["unanswered_questions"]
-    assert [q["content"] for q in questions] == ["@사람 배포해도 될까요?"]
+    assert [q["content"] for q in questions] == ["@human 배포해도 될까요?"]
 
 
 def test_unmentioned_human_message_wakes_one_agent_by_fallback(room):
