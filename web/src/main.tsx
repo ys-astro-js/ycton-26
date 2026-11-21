@@ -1,11 +1,11 @@
-import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css'
-import '@fontsource-variable/geist-mono'
-import './styles/tokens.css'
+import './index.css'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 import { ReviewPage } from './review/ReviewPage.tsx'
 import type { ProjectId } from './review/sampleData.ts'
@@ -41,7 +41,9 @@ const queryClient = new QueryClient()
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <TooltipProvider>
+        <RouterProvider router={router} />
+      </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>,
 )
