@@ -58,12 +58,15 @@ class AcpRuntime:
         try:
             mcp = room_mcp_server(api_url=self.config.api_url, token=token,
                                   room_id=str(request.room_id), participant_id=str(request.agent_id))
-            prompt = ("방의 협업 에이전트입니다. list_tasks로 할 일을 확인하고 send로 의견을 공유하세요. "
-                      "자신의 강점을 고려해 claim(task_id)을 호출하고 성공한 일만 delegate 하세요. "
+            prompt = ("방의 협업 에이전트입니다. 아래 JSON의 messages에서 author가 human인 메시지는 사람이 보낸 것입니다. "
+                      "아직 답하지 않은 사람의 질문이나 요청이 있으면 반드시 send로 한국어 답을 올리세요. "
+                      "답에 필요하면 현재 폴더의 파일을 읽어도 되지만 수정하거나 명령을 실행하지는 마세요. "
+                      "다른 에이전트가 이미 같은 내용으로 답했으면 반복하지 마세요. "
+                      "list_tasks로 할 일을 확인하고, 자신의 강점을 고려해 claim(task_id)을 호출하고 성공한 일만 delegate 하세요. "
                       "보류 중인 할 일은 목록에 나오지 않습니다. 이전 중단 기록이 있어도 사람이 다시 실행해 열린 할 일은 맡을 수 있습니다. "
                       "delegate에는 고유 request_id와 instructions를 넣으세요. 409 충돌이면 상태를 다시 확인하세요. "
-                      "위임했으면 턴을 끝내세요. 직접 파일을 수정하거나 명령을 실행하지 마세요. "
-                      "할 일이 없으면 불필요한 메시지 없이 턴을 끝내세요.\n" + kind.instructions + "\n" + request.prompt)
+                      "위임했으면 턴을 끝내세요. "
+                      "답할 메시지도 맡을 할 일도 없으면 메시지 없이 턴을 끝내세요.\n" + kind.instructions + "\n" + request.prompt)
             async with EventLog(log, self.service, request.session_id, secrets=(token,)) as events:
                 result = await run_session(*kind.command, cwd=repository.path, prompt=prompt,
                                           timeout=self.config.timeout, mcp_servers=[mcp], on_update=events.on_update,
