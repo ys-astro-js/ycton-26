@@ -2,8 +2,11 @@
 import asyncio
 import shutil
 import subprocess
+import re
 import sys
+import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 PROMPT = "프로젝트 폴더 선택"
 
@@ -74,3 +77,42 @@ def git_root(folder):
         raise FolderError("Git 저장소가 아닌 폴더입니다. git init을 한 폴더를 고르세요")
     return str(Path(result.stdout.strip()).resolve())
 
+
+def _git(repo, *args):
+    try:
+        result = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def remote_name(url):
+    """원격 주소를 host/경로로 줄인다. 주소에 섞인 계정이나 토큰은 버린다."""
+    scp = re.match(r"^[^@/]+@([^:/]+):(.+)$", url)
+    if scp:
+        host, path = scp.groups()
+    else:
+        parts = urlsplit(url)
+        host, path = parts.hostname or "", parts.path
+    path = path.strip("/").removesuffix(".git")
+    return f"{host}/{path}" if host else path
+
+
+_cache = {}
+
+
+def git_info(repo, ttl=5.0):
+    """프로젝트 화면에 보일 현재 브랜치와 origin 원격. 상태 조회가 잦아 잠깐 캐시한다."""
+    now = time.monotonic()
+    hit = _cache.get(repo)
+    if hit and now - hit[0] < ttl:
+        return hit[1]
+    branch = _git(repo, "branch", "--show-current") or None
+    remotes = (_git(repo, "remote") or "").split()
+    remote = None
+    if remotes:
+        url = _git(repo, "remote", "get-url", "origin" if "origin" in remotes else remotes[0])
+        remote = remote_name(url) if url else None
+    info = {"branch": branch, "remote": remote}
+    _cache[repo] = (now, info)
+    return info

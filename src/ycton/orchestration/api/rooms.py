@@ -6,7 +6,7 @@ from ycton.orchestration.api.dependencies import human, service
 from ycton.orchestration.schemas import RoomCreate, AgentCreate, MessageCreate
 from ycton.orchestration.services.task_service import require
 from ycton.orchestration.jev import advise
-from ycton.orchestration.folders import FolderError
+from ycton.orchestration.folders import FolderError, git_info
 
 router = APIRouter(prefix="/api", tags=["프론트: 방"], dependencies=[Depends(human)])
 
@@ -55,6 +55,8 @@ def state(room_id: int, svc=Depends(service)):
     result = svc.snapshot(room_id)
     result["jev"] = advise(result, svc.settings)
     result["mode"] = svc.settings.mode
+    path = svc.room_path(result["room"])
+    result["git"] = git_info(path) if path else None
     return result
 
 

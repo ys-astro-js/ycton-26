@@ -82,6 +82,14 @@ class TaskService:
             return self.folder_repository(room["repo"])
         return self._require_repository(room["repository_id"])
 
+    def room_path(self, room):
+        """화면에 Git 정보를 보일 저장소 경로. mock 모드의 기본 저장소처럼 실제 폴더가 없으면 None."""
+        if room.get("repo"):
+            return room["repo"]
+        config = getattr(self, "runtime_config", None)
+        repository = config.repositories.get(room["repository_id"]) if config else None
+        return str(repository.path) if repository else None
+
     def project_folder(self, folder):
         """프로젝트로 연결할 Git 저장소 최상위 경로. 커밋이 없거나 작업 폴더와 겹치면 거절한다."""
         try:

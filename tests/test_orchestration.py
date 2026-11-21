@@ -409,3 +409,23 @@ def test_project_folder_comes_from_picker_and_must_be_committed_git(tmp_path, re
         assert client.post("/api/rooms", json={"name": "old"}).json()["repository_id"] == "default"
         assert client.post(f"/api/rooms/{room['id']}/tasks", json={"title": "t", "verify": "unit"}).status_code == 201
 
+
+def test_remote_name_drops_credentials():
+    from ycton.orchestration.folders import remote_name
+    assert remote_name("git@github.com:owner/app.git") == "github.com/owner/app"
+    assert remote_name("https://user:token@github.com/owner/app.git") == "github.com/owner/app"
+    assert remote_name("ssh://git@example.com:2222/team/app") == "example.com/team/app"
+
+
+def test_state_reports_branch_and_remote(tmp_path, repo):
+    import subprocess
+    subprocess.run(["git", "-C", repo, "checkout", "-q", "-b", "feature"], check=True)
+    subprocess.run(["git", "-C", repo, "remote", "add", "origin", "https://x:secret@github.com/owner/app.git"], check=True)
+    app = create_app(Settings(db_path=tmp_path / "git.db"), start_scheduler=False)
+    with TestClient(app, base_url="http://localhost", headers={"X-Orch-Client": "web"}) as client:
+        room = client.post("/api/rooms", json={"name": "x", "repo": repo}).json()["id"]
+        response = client.get(f"/api/rooms/{room}/state")
+        assert response.json()["git"] == {"branch": "feature", "remote": "github.com/owner/app"}
+        assert "secret" not in response.text
+        mock_default = client.post("/api/rooms", json={"name": "y"}).json()["id"]
+        assert client.get(f"/api/rooms/{mock_default}/state").json()["git"] is None
