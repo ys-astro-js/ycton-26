@@ -99,9 +99,9 @@ uv run --locked python -m ycton.acp_runtime --prompt 'Reply with exactly ACP_CON
 - name: frontend
   cli: claude                 # claude(Claude Code) | codex
   command: null               # 비우면 CLI별 기본 ACP 실행 명령
-  chat: claude-sonnet-5:medium     # 채팅 턴 모델:effort
-  work: claude-opus-5:medium       # 서브세션 모델:effort
-  think: claude-opus-5:high        # think 턴 모델:effort
+  chat: sonnet:medium              # 채팅 턴 모델:effort
+  work: opus:medium                # 서브세션 모델:effort
+  think: opus:high                 # think 턴 모델:effort
   good_at: [프론트엔드, UI 구현]
   agents_md: types/frontend.md     # 이 종류에만 붙는 AGENTS.md
 ```
@@ -112,7 +112,7 @@ uv run --locked python -m ycton.acp_runtime --prompt 'Reply with exactly ACP_CON
 
 | 에이전트 CLI | 채팅 턴 | 서브세션 | think 턴 |
 | --- | --- | --- | --- |
-| claude | `claude-sonnet-5`, medium | `claude-opus-5`, medium | `claude-opus-5`, high |
+| claude | `sonnet`, medium | `opus`, medium | `opus`, high |
 | codex | `gpt-6.2-sol`, medium | `gpt-6.2-sol`, high | `gpt-6.2-sol`, high |
 
 ### 서브세션
