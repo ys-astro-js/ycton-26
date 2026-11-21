@@ -13,7 +13,7 @@ from .identity import Identity
 from .services.task_service import require
 from .event_log import EventLog
 from .runtime_config import Repository
-from .services.task_service import UNKNOWN_REPOSITORY, UNAVAILABLE_VERIFICATION
+from .services.task_service import DomainError, UNKNOWN_REPOSITORY, UNAVAILABLE_VERIFICATION
 
 
 async def verify_worktree(profile, worktree):
@@ -43,7 +43,13 @@ class AcpRuntime:
         return {category: value for category, value in (("model", request.model), ("thought_level", request.effort)) if value}
 
     async def run(self, request):
-        repository = self.config.repositories.get(request.repository_id)
+        if request.repo:
+            try:
+                repository = self.service.folder_repository(request.repo)
+            except DomainError as exc:
+                return RuntimeResult(False, exc.message)
+        else:
+            repository = self.config.repositories.get(request.repository_id)
         if repository is None:
             return RuntimeResult(False, UNKNOWN_REPOSITORY)
         kind = self.config.kinds[request.agent_kind]

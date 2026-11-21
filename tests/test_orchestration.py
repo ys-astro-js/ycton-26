@@ -255,7 +255,8 @@ def test_additive_migration_preserves_old_rooms_tasks_and_history(tmp_path):
     db.initialize()
     db.initialize()
     state = TaskService(db, Settings(db_path=db.path)).snapshot(7)
-    assert state["room"] == {"id": 7, "name": "old project", "paused": 1, "chat_rounds": 3, "repository_id": "default"}
+    assert state["room"] == {"id": 7, "name": "old project", "paused": 1, "chat_rounds": 3, "repository_id": "default",
+                             "repo": None}
     task = state["tasks"][0]
     assert (task["id"], task["status"], task["attempts"], task["retry_required"], task["commit_hash"]) == (9, "done", 1, 0, "abc")
     with db.connect() as conn:
@@ -376,3 +377,35 @@ def test_queued_manual_cancel_survives_resume_and_recovery_until_retry(service):
         await scheduler.stop()
 
     asyncio.run(exercise())
+
+
+def test_project_folder_comes_from_picker_and_must_be_committed_git(tmp_path, repo):
+    import subprocess
+    from pathlib import Path
+    picks = []
+
+    class Picker:
+        async def pick(self):
+            return picks.pop(0)
+
+    app = create_app(Settings(db_path=tmp_path / "folders.db"), start_scheduler=False, folder_picker=Picker())
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    empty = tmp_path / "empty"
+    subprocess.run(["git", "init", "-q", str(empty)], check=True)
+    (Path(repo) / "src").mkdir()
+    with TestClient(app, base_url="http://localhost", headers={"X-Orch-Client": "web"}) as client:
+        picks.append(None)
+        assert client.post("/api/folders/pick").json() == {"path": None, "name": None}
+        picks.append(str(Path(repo) / "src"))
+        assert client.post("/api/folders/pick").json() == {"path": repo, "name": "project"}
+        picks.append(str(plain))
+        assert client.post("/api/folders/pick").status_code == 422
+        for bad in (str(plain), str(empty), "relative/path"):
+            assert client.post("/api/rooms", json={"name": "x", "repo": bad}).status_code == 422
+        room = client.post("/api/rooms", json={"name": "x", "repo": repo}).json()
+        assert (room["repo"], room["repository_id"]) == (repo, "")
+        # 폴더를 고르지 않은 기존 호출은 설정 저장소를 그대로 쓴다
+        assert client.post("/api/rooms", json={"name": "old"}).json()["repository_id"] == "default"
+        assert client.post(f"/api/rooms/{room['id']}/tasks", json={"title": "t", "verify": "unit"}).status_code == 201
+

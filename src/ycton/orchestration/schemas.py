@@ -9,6 +9,8 @@ class Input(BaseModel):
 class RoomCreate(Input):
     name: str = Field(min_length=1, max_length=100)
     repository_id: str = Field(default="default", min_length=1, max_length=64)
+    # POST /api/folders/pick가 돌려준 경로. 주면 repository_id 대신 이 폴더를 쓴다. 서버가 Git 저장소인지 다시 확인한다.
+    repo: str | None = Field(default=None, min_length=1, max_length=4096)
 
 
 class AgentCreate(Input):

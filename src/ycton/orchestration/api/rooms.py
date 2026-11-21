@@ -1,16 +1,32 @@
 """프론트가 방·참여자·메시지와 전체 상태를 조회/변경하는 API."""
-from fastapi import APIRouter, Depends, Request
+import asyncio
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from ycton.orchestration.api.dependencies import human, service
 from ycton.orchestration.schemas import RoomCreate, AgentCreate, MessageCreate
 from ycton.orchestration.services.task_service import require
 from ycton.orchestration.jev import advise
+from ycton.orchestration.folders import FolderError
 
 router = APIRouter(prefix="/api", tags=["프론트: 방"], dependencies=[Depends(human)])
 
 
+@router.post("/folders/pick")
+async def pick_folder(request: Request, svc=Depends(service)):
+    """서버 컴퓨터에 OS 폴더 선택 창을 띄운다. 취소하면 path가 null이다."""
+    try:
+        folder = await request.app.state.folder_picker.pick()
+    except FolderError as exc:
+        raise HTTPException(exc.status, exc.message)
+    if folder is None:
+        return {"path": None, "name": None}
+    repo = await asyncio.to_thread(svc.project_folder, folder)
+    return {"path": repo, "name": repo.rstrip("/").rsplit("/", 1)[-1]}
+
+
 @router.post("/rooms", status_code=201)
 def create_room(body: RoomCreate, svc=Depends(service)):
-    return svc.create_room(body.name, body.repository_id)
+    return svc.create_room(body.name, body.repository_id, body.repo)
 
 
 @router.get("/runtime/options")

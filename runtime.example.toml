@@ -1,5 +1,7 @@
 # 이 파일을 runtime.toml로 복사하고 실제 경로·명령을 입력하세요.
 # 상대 경로는 이 설정 파일의 위치 기준입니다.
+# 기본 저장소는 선택입니다. 비우면 웹에서 프로젝트를 만들 때 폴더 선택 창으로 저장소를 연결합니다.
+# 폴더로 연결한 프로젝트는 아래 [verify.*]를 모두 쓸 수 있습니다.
 repo = "/absolute/path/to/committed-demo-repo"
 # 기본 저장소의 허용 목록을 생략하면 모든 [verify.*]를 허용합니다.
 # verification_profiles = ["unit"]

@@ -1,5 +1,6 @@
 """실제 모델 호출 없이 런타임 계약·HTTP·MCP·검증 프로세스를 연결해 검증한다."""
 import asyncio
+from dataclasses import replace
 import json
 import subprocess
 import sys
@@ -100,6 +101,23 @@ def setup_work(bridge):
     request=RuntimeRequest(session['id'],int(actor['room_id']),int(actor['participant_id']),'work',prompt,'demo',
                            repository_id='default',task_id=tid)
     return svc, config, request
+
+
+def test_work_runs_in_the_picked_folder(bridge,monkeypatch,repo):
+    import ycton.orchestration.acp_bridge as module
+    svc,config,request=setup_work(bridge)
+    svc.runtime_config=config
+    monkeypatch.setattr(svc.settings,'mode','acp')
+    request=replace(request,repository_id='',repo=repo)
+    seen={}
+    async def work(*args,**kwargs):
+        seen['repo']=kwargs['repo']
+        return SimpleNamespace(session=SimpleNamespace(session_id='acp-1',stop_reason='cancelled',text=''))
+    monkeypatch.setattr(module,'run_work_session',work)
+    result=asyncio.run(AcpRuntime(svc,config,Tokens()).run(request))
+    assert seen['repo']==Path(repo) and not result.succeeded
+    missing=replace(request,repo=str(Path(repo)/'gone'))
+    assert asyncio.run(AcpRuntime(svc,config,Tokens()).run(missing)).summary=='연결한 폴더를 찾을 수 없습니다'
 
 
 def test_work_adapter_persists_path_and_checks_verification(bridge,monkeypatch):
@@ -445,6 +463,11 @@ def test_runtime_catalog_and_persistent_project_binding(project_config):
              "default_verification_profile": "unit"},
         ]
         assert client.post("/api/rooms", json={"name": "old caller"}).json()["repository_id"] == "default"
+        secondary = settings.runtime_config.parent / "secondary"
+        picked = client.post("/api/rooms", json={"name": "picked", "repo": str(secondary)}).json()
+        assert picked["repo"] == str(secondary.resolve())
+        # 고른 폴더에는 서버에 등록된 검증 프로필을 모두 쓸 수 있다
+        assert client.post(f"/api/rooms/{picked['id']}/tasks", json={"title": "t", "verify": "custom"}).status_code == 201
         assert client.post(f"{path}/pause").status_code == 200
         assert client.post(f"{path}/resume").status_code == 422
         assert client.post(f"{path}/agents", json={"name": "new", "kind": "backend"}).status_code == 422

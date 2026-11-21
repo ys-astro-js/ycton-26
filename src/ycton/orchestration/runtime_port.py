@@ -12,6 +12,7 @@ class RuntimeRequest:
     prompt: str
     agent_kind: str
     repository_id: str
+    repo: str | None = None  # 폴더 선택으로 연결한 저장소 경로. 있으면 repository_id보다 우선한다
     task_id: int | None = None
     model: str = ""
     effort: str = ""

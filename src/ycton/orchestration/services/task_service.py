@@ -1,9 +1,11 @@
 """상태 변경의 단일 진입점. 모든 변경·이력·메시지를 같은 트랜잭션에 저장한다."""
 import json
 import sqlite3
+import subprocess
 from pathlib import Path
 from uuid import uuid4
 
+from ycton.orchestration.folders import FolderError, git_root
 from ycton.orchestration.git_commit import CommitError, commit_paths
 from ycton.orchestration.runtime_config import Repository, read_catalog
 from ycton.orchestration.runtime_port import RuntimeResult
@@ -12,6 +14,7 @@ from ycton.orchestration.runtime_port import RuntimeResult
 EXAMPLE_RUNTIME_CONFIG = Path(__file__).resolve().parents[4] / "runtime.example.toml"
 
 UNKNOWN_REPOSITORY = "서버 설정에 없는 저장소입니다"
+MISSING_FOLDER = "연결한 폴더를 찾을 수 없습니다"
 UNAVAILABLE_VERIFICATION = "이 프로젝트에서 사용할 수 없는 검증 프로필입니다"
 RETRY_REQUIRED = "사용자가 중단한 작업입니다. 다시 실행이 필요합니다"
 
@@ -64,6 +67,37 @@ class TaskService:
             return None
         raise DomainError(UNKNOWN_REPOSITORY, 422)
 
+    def folder_repository(self, path):
+        """폴더 선택으로 연결한 저장소. 검증 프로필은 서버에 등록된 것을 모두 허용한다. mock 모드는 None."""
+        if not Path(path).is_dir():
+            raise DomainError(MISSING_FOLDER, 422)
+        if self.settings.mode != "acp":
+            return None
+        profiles = tuple(sorted(self.runtime_config.verifiers))
+        return Repository(Path(path), Path(path).name, profiles, "unit" if "unit" in profiles else profiles[0])
+
+    def room_repository(self, room):
+        """방이 쓰는 저장소. 고른 폴더가 있으면 그것을, 없으면 설정의 repository_id를 쓴다."""
+        if room.get("repo"):
+            return self.folder_repository(room["repo"])
+        return self._require_repository(room["repository_id"])
+
+    def project_folder(self, folder):
+        """프로젝트로 연결할 Git 저장소 최상위 경로. 커밋이 없거나 작업 폴더와 겹치면 거절한다."""
+        try:
+            repo = git_root(folder)
+        except FolderError as exc:
+            raise DomainError(exc.message, exc.status)
+        head = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "HEAD"], capture_output=True, timeout=10)
+        if head.returncode != 0:
+            raise DomainError("커밋이 하나도 없는 저장소입니다. 첫 커밋을 만든 뒤 다시 고르세요", 422)
+        config = getattr(self, "runtime_config", None)
+        if config is not None:
+            root = Path(repo)
+            if any(p.is_relative_to(root) or root.is_relative_to(p) for p in (config.worktrees, config.logs)):
+                raise DomainError("작업 worktree나 로그 폴더와 겹치는 폴더는 연결할 수 없습니다", 422)
+        return repo
+
     def runtime_options(self):
         if self.settings.mode == "mock":
             return {
@@ -80,7 +114,7 @@ class TaskService:
             "mode": self.settings.mode,
             "agent_kinds": kinds,
             "default_agent_kind": "backend" if "backend" in kinds else kinds[0],
-            "default_repository_id": "default",
+            "default_repository_id": "default" if "default" in repos else next(iter(sorted(repos)), None),
             "repositories": [
                 {"id": key, "label": repos[key].label,
                  "verification_profiles": list(repos[key].verification_profiles),
@@ -89,10 +123,15 @@ class TaskService:
             ],
         }
 
-    def create_room(self, name, repository_id="default"):
-        self._require_repository(repository_id)
+    def create_room(self, name, repository_id="default", repo=None):
+        if repo is not None:
+            # 고른 폴더를 쓰는 방은 설정 저장소 ID를 비워 둔다. 설정 ID는 빈 문자열이 될 수 없어 겹치지 않는다.
+            repo, repository_id = self.project_folder(repo), ""
+        else:
+            self._require_repository(repository_id)
         with self.db.connect(write=True) as c:
-            rid = c.execute("INSERT INTO rooms(name,repository_id) VALUES(?,?)", (name, repository_id)).lastrowid
+            rid = c.execute("INSERT INTO rooms(name,repository_id,repo) VALUES(?,?,?)",
+                            (name, repository_id, repo)).lastrowid
             return require(c, "rooms", rid)
 
     def agent_models(self):
@@ -116,7 +155,7 @@ class TaskService:
                 raise DomainError("이 모델에 없는 추론 수준입니다", 422)
         with self.db.connect(write=True) as c:
             room = require(c, "rooms", room_id)
-            self._require_repository(room["repository_id"])
+            self.room_repository(room)
             try:
                 aid = c.execute("INSERT INTO agents(room_id,name,kind,model,effort,good_at) VALUES(?,?,?,?,?,?)",
                                 (room_id, name, kind, model, effort, json.dumps(good_at, ensure_ascii=False))).lastrowid
@@ -140,7 +179,7 @@ class TaskService:
     def create_task(self, room_id, title, detail, scope, verify):
         with self.db.connect(write=True) as c:
             room = require(c, "rooms", room_id)
-            repo = self._require_repository(room["repository_id"])
+            repo = self.room_repository(room)
             if repo is not None and verify not in repo.verification_profiles:
                 raise DomainError(UNAVAILABLE_VERIFICATION, 422)
             tid = c.execute("INSERT INTO tasks(room_id,title,detail,scope,verify) VALUES(?,?,?,?,?)",
@@ -288,7 +327,7 @@ class TaskService:
         with self.db.connect(write=True) as c:
             room = require(c, "rooms", room_id)
             if not paused:
-                self._require_repository(room["repository_id"])
+                self.room_repository(room)
             c.execute("UPDATE rooms SET paused=? WHERE id=?", (int(paused), room_id))
             if not paused:
                 self.wake(c, room_id, reset=True)

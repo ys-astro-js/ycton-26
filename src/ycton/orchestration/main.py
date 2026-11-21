@@ -12,9 +12,10 @@ from ycton.orchestration.scheduler import Scheduler
 from ycton.orchestration.api import rooms, tasks, sessions, agent_bridge
 from ycton.orchestration.identity import Tokens
 from ycton.orchestration.runtime_config import RuntimeConfig
+from ycton.orchestration.folders import FolderPicker
 
 
-def create_app(settings=None, runtime_factory=None, start_scheduler=True):
+def create_app(settings=None, runtime_factory=None, start_scheduler=True, folder_picker=None):
     config = settings or Settings.from_env()
 
     @asynccontextmanager
@@ -25,6 +26,7 @@ def create_app(settings=None, runtime_factory=None, start_scheduler=True):
         svc = TaskService(db, config)
         svc.recover()
         app.state.tokens = Tokens()
+        app.state.folder_picker = folder_picker or FolderPicker()
         if runtime_config is not None:
             from ycton.orchestration.acp_bridge import AcpRuntime
             svc.runtime_config = runtime_config

@@ -70,7 +70,7 @@ class Scheduler:
             request = RuntimeRequest(
                 session_id=session_id, room_id=session["room_id"], agent_id=session["agent_id"],
                 kind=session["kind"], prompt=build_prompt(self.service, session), agent_kind=agent["kind"],
-                repository_id=room["repository_id"], task_id=session["task_id"],
+                repository_id=room["repository_id"], repo=room["repo"], task_id=session["task_id"],
                 model=agent["model"], effort=agent["effort"],
             )
             async with asyncio.timeout(self.settings.timeout_seconds):

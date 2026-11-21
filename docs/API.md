@@ -9,7 +9,8 @@
 | 메서드·경로 | 입력 | 응답/기능 |
 |---|---|---|
 | GET `/health` | 없음 | ok와 mock/acp 모드 |
-| POST `/api/rooms` | name | 생성한 방 |
+| POST `/api/folders/pick` | 없음 | 서버 컴퓨터에 OS 폴더 선택 창을 띄워 고른 Git 저장소의 최상위 path와 name. 취소하면 둘 다 null. Git 저장소가 아니거나 커밋이 없으면 422 |
+| POST `/api/rooms` | name, repository_id(설정 저장소 ID, 기본 default) 또는 repo(폴더 선택 창이 돌려준 path) | 생성한 방. repo를 주면 repository_id 대신 그 폴더를 쓰고, 서버가 커밋 있는 Git 저장소인지 다시 확인한다 |
 | GET `/api/rooms` | 없음 | 방 목록 |
 | GET `/api/agent-models` | - | 고를 수 있는 모델 `[{id, label, models, efforts}]`. acp는 runtime.toml, mock은 runtime.toml이 없으면 runtime.example.toml의 `[kinds.*]` |
 | POST `/api/rooms/{id}/agents` | name, kind(제공자 id), model, effort, good_at 배열(담당 업무) | 참여자. acp에서는 등록된 제공자만, 목록이 있는 제공자는 그 안의 model·effort만 허용 |

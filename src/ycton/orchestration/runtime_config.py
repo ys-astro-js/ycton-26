@@ -120,11 +120,13 @@ class RuntimeConfig:
                 raise ValueError(f"Git 저장소 루트를 지정해야 합니다: {repo}")
             return Repository(repo, label, profiles, default)
 
-        try:
-            default_repo = repository(data, "repo", "기본 저장소", list(verifiers))
-        except (ValueError, OSError, RuntimeError) as exc:
-            raise ValueError(f"저장소 default: {exc}") from exc
-        repositories = {"default": default_repo}
+        # 기본 저장소는 선택이다. 없으면 프로젝트마다 폴더 선택 창으로 저장소를 연결한다.
+        repositories = {}
+        if "repo" in data:
+            try:
+                repositories["default"] = repository(data, "repo", "기본 저장소", list(verifiers))
+            except (ValueError, OSError, RuntimeError) as exc:
+                raise ValueError(f"저장소 default: {exc}") from exc
         additional = data.get("repositories", {})
         if not isinstance(additional, dict):
             raise ValueError("repositories는 저장소 ID별 테이블이어야 합니다")
