@@ -1,10 +1,12 @@
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { ChevronDown, OctagonPause, Pause, Play, Unplug } from 'lucide-react'
+import { ChevronDown, Folder, GitBranch, OctagonPause, Pause, Play, Unplug } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 
-import { api, ApiError } from '@/api/client'
+import { api, ApiError, type RoomState } from '@/api/client'
 import { IconButton } from '@/components/icon-button'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 import { Composer } from '../compose/Composer.tsx'
 import { DisclosurePanel, Glyph, countFormat } from '../review/shared.tsx'
@@ -28,12 +30,35 @@ function useWide() {
   return wide
 }
 
+/**
+ * 위에 붙는 상태 줄의 실제 높이를 --status-bar-height로 알립니다. 옆 패널의 고정 위치와 스크롤 여백이 이 값을 씁니다.
+ * 폴더 경로가 길거나 자동 진행이 멈춰 줄이 높아져도 옆 패널과 초점이 그 밑에 가리지 않게 합니다.
+ */
+function useStatusBarHeight(ready: boolean) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const bar = ref.current
+    if (!bar) return
+    const root = document.documentElement
+    const observer = new ResizeObserver(([entry]) => {
+      root.style.setProperty('--status-bar-height', `${entry.borderBoxSize[0].blockSize}px`)
+    })
+    observer.observe(bar)
+    return () => {
+      observer.disconnect()
+      root.style.removeProperty('--status-bar-height')
+    }
+  }, [ready])
+  return ref
+}
+
 export function RoomPage() {
   const params = route.useParams()
   const roomId = Number(params.roomId)
   const { focus } = route.useSearch()
   const { data: state, error, isPending, refetch, isRefetching } = useRoomState(roomId)
   const { data: runtimeOptions } = useRuntimeOptions(state !== undefined)
+  const barRef = useStatusBarHeight(state !== undefined)
   const navigate = useNavigate()
   const wide = useWide()
   const [sideOpen, setSideOpen] = useState(false)
@@ -124,27 +149,31 @@ export function RoomPage() {
     <main id="main" className="flex min-h-dvh flex-col">
       <PageHeader title={room.name} />
 
-      {/* 자동 진행 상태와 그 조작을 한 줄에 둡니다. 넓은 화면에서는 위에 붙어 있고, 레일의 워드마크 줄과 같은 높이에 섭니다. */}
-      <div className="z-10 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 bg-background pt-4 pb-3 lg:sticky lg:top-0 lg:border-b lg:pt-6">
-        <div role="status" className="flex min-w-0 items-start gap-2">
-          {stopped ? (
-            <>
-              <Glyph icon={OctagonPause} className="mt-0.5 text-attention" />
-              <p className="min-w-0 text-body text-pretty">
-                <span className="block font-semibold">자동 진행 멈춤</span>
-                {state.jev.reason ? <span className="block text-muted-foreground">{state.jev.reason}</span> : null}
-              </p>
-            </>
-          ) : (
-            <p className="text-body text-muted-foreground">자동 진행 중</p>
-          )}
-        </div>
+      {/*
+        프로젝트의 폴더와 Git 저장소, 자동 진행 조작을 한 줄에 둡니다. 넓은 화면에서는 위에 붙어 있고, 레일의 워드마크 줄과 같은 높이에 섭니다.
+        자동 진행이 멈췄을 때만 그 사실과 이유를 아래에 붙입니다. 진행 중은 따로 적지 않습니다.
+      */}
+      <div
+        ref={barRef}
+        className="z-10 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 bg-background pt-4 pb-3 lg:sticky lg:top-0 lg:border-b lg:pt-6"
+      >
+        <ProjectSource state={state} repositoryLabel={repositoryLabel} />
         {stopped ? (
           <IconButton icon={Play} label="자동 진행 재개하기" disabled={resume.isPending} onClick={() => resume.mutate(undefined)} />
         ) : (
           <IconButton variant="outline" icon={Pause} label="자동 진행 멈추기" disabled={pause.isPending} onClick={() => pause.mutate(undefined)} />
         )}
-        <p className="col-span-2 text-label text-muted-foreground">Git 저장소: {repositoryLabel}</p>
+        <div role="status" className="col-span-2 empty:hidden">
+          {stopped ? (
+            <div className="mt-3 flex min-w-0 items-start gap-2">
+              <Glyph icon={OctagonPause} className="mt-0.5 text-attention" />
+              <p className="min-w-0 text-body text-pretty">
+                <span className="block font-semibold">자동 진행 멈춤</span>
+                {state.jev.reason ? <span className="block text-muted-foreground">{state.jev.reason}</span> : null}
+              </p>
+            </div>
+          ) : null}
+        </div>
         {toggleError ? (
           <p role="alert" className="col-span-2 mt-2 text-label text-destructive">
             {toggleError.message}. 잠시 후 다시 시도하세요.
@@ -194,5 +223,43 @@ export function RoomPage() {
         ) : null}
       </div>
     </main>
+  )
+}
+
+/**
+ * 이 프로젝트가 연결된 폴더와 그 Git 저장소. 폴더 한 줄, 저장소 한 줄이고, 브랜치는 저장소에 딸린 값이라 같은 줄의 배지로 붙입니다.
+ * 고른 폴더는 경로를, 설정 저장소는 설정의 이름을 씁니다. 경로와 원격은 기계가 만든 값이라 고정폭입니다.
+ */
+function ProjectSource({ state, repositoryLabel }: { state: RoomState; repositoryLabel: string }) {
+  const { repo } = state.room
+  const { branch, remote } = state.git ?? { branch: null, remote: null }
+
+  return (
+    <dl className="grid min-w-0 gap-1 text-label text-muted-foreground">
+      <div className="flex min-w-0 items-start gap-1.5">
+        <dt className="contents">
+          <Glyph icon={Folder} className="mt-0.5 size-3.5" />
+          <span className="sr-only">폴더</span>
+        </dt>
+        <dd className={cn('min-w-0 break-all', repo && 'font-mono')}>{repo ?? repositoryLabel}</dd>
+      </div>
+      {remote || branch ? (
+        <div className="flex min-w-0 items-start gap-1.5">
+          <dt className="contents">
+            <Glyph icon={GitBranch} className="mt-0.5 size-3.5" />
+            <span className="sr-only">Git 저장소</span>
+          </dt>
+          <dd className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            {remote ? <span className="min-w-0 font-mono break-all">{remote}</span> : null}
+            {branch ? (
+              <Badge className="border px-1.5 py-0 font-mono text-xs leading-[1.125rem] font-normal tracking-normal text-muted-foreground normal-case">
+                <span className="sr-only">브랜치 </span>
+                {branch}
+              </Badge>
+            ) : null}
+          </dd>
+        </div>
+      ) : null}
+    </dl>
   )
 }

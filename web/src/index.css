@@ -50,8 +50,8 @@
 :root {
     /* 아침 리뷰와 프로젝트가 같이 쓰는 화면 머리 높이. 레일의 워드마크 칸도 이 높이에 맞춥니다. */
     --page-header-height: 5.25rem;
-    /* 넓은 화면에서 프로젝트 화면 위에 붙는 자동 진행 상태 줄 높이(위 여백 24px 포함) */
-    --status-bar-height: 4.625rem;
+    /* 넓은 화면에서 프로젝트 화면 위에 붙는 상태 줄 높이의 기본값(폴더와 저장소 두 줄, 위 여백 24px 포함). 프로젝트 화면이 실제 높이로 덮어씁니다 */
+    --status-bar-height: 5rem;
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);

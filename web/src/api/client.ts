@@ -137,8 +137,15 @@ export interface Jev {
   reason: string
 }
 
+/** 프로젝트 저장소의 현재 브랜치와 origin 원격(host/경로). 실제 폴더가 없는 mock 기본 저장소는 null입니다 */
+export interface GitInfo {
+  branch: string | null
+  remote: string | null
+}
+
 export interface RoomState {
   room: Room
+  git: GitInfo | null
   agents: Agent[]
   tasks: Task[]
   sessions: Session[]
