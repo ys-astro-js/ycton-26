@@ -14,7 +14,8 @@ import { toReport } from './adapter.ts'
 import { AttentionSection, type Resolution } from './attention.tsx'
 import { LedgerSection } from './ledger.tsx'
 import type { AttentionItem, OvernightReport, ProjectId } from './model.ts'
-import { Glyph, countFormat } from './shared.tsx'
+import { Glyph } from './shared.tsx'
+import { PageHeader } from '../shell/PageHeader.tsx'
 
 const route = getRouteApi('/')
 
@@ -114,6 +115,7 @@ export function ReviewPage() {
           <LedgerSection
             projects={report.projects.filter((p) => !project || p.id === project)}
             entries={inScope(report.ledger)}
+            period={report.from && report.to ? `${report.from} – ${report.to}` : undefined}
           />
         </main>
       </div>
@@ -135,29 +137,11 @@ function ReviewHeader({ report, project }: { report?: OvernightReport; project?:
   const selectId = useId()
 
   return (
-    <header className="grid items-end gap-x-8 gap-y-4 border-b py-6 sm:grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,1fr)_auto]">
-      <div>
-        <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight text-balance">아침 리뷰</h1>
-      </div>
-
-      {report ? (
-      <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
-        <dl className="flex gap-x-8">
-          <div>
-            <dt className="text-xs text-muted-foreground">기간</dt>
-            <dd className="font-mono text-[0.8125rem] whitespace-nowrap tabular-nums">
-              {report.from && report.to ? `${report.from} – ${report.to}` : '—'}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">프로젝트</dt>
-            <dd className="text-[0.9375rem]">{countFormat.format(report.projects.length)}개</dd>
-          </div>
-        </dl>
-
-        {/* 왼쪽 레일은 아침 리뷰와 채팅방 사이를 오가므로, 프로젝트는 이 선택으로 좁힙니다 */}
-        <div className="grid w-full gap-1 sm:w-56">
-          <Label htmlFor={selectId} className="text-xs text-muted-foreground">
+    <PageHeader title="아침 리뷰">
+      {/* 왼쪽 레일은 아침 리뷰와 채팅방 사이를 오가므로, 프로젝트는 이 선택으로 좁힙니다 */}
+      {report && report.projects.length > 1 ? (
+        <div className="w-full sm:w-56">
+          <Label htmlFor={selectId} className="sr-only">
             프로젝트
           </Label>
           <NativeSelect
@@ -177,8 +161,7 @@ function ReviewHeader({ report, project }: { report?: OvernightReport; project?:
             ))}
           </NativeSelect>
         </div>
-      </div>
       ) : null}
-    </header>
+    </PageHeader>
   )
 }

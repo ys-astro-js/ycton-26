@@ -66,7 +66,7 @@ export function StatusNode({ status }: { status: LedgerStatus }) {
   )
 }
 
-export function LedgerSection({ projects, entries }: { projects: Project[]; entries: LedgerEntry[] }) {
+export function LedgerSection({ projects, entries, period }: { projects: Project[]; entries: LedgerEntry[]; period?: string }) {
   const [openId, setOpenId] = useState<string | null>(null)
   const headingId = useId()
 
@@ -80,9 +80,12 @@ export function LedgerSection({ projects, entries }: { projects: Project[]; entr
 
   return (
     <section aria-labelledby={headingId} className="@container">
-      <h2 id={headingId} className="text-lg font-semibold">
-        기록
-      </h2>
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <h2 id={headingId} className="text-lg font-semibold">
+          기록
+        </h2>
+        {period ? <p className="font-mono text-[0.8125rem] text-muted-foreground tabular-nums">{period}</p> : null}
+      </div>
 
       {groups.length === 0 ? (
         <p className={cn('mt-3', META_TEXT, 'text-[0.9375rem]')}>이 프로젝트에는 기록이 없습니다.</p>

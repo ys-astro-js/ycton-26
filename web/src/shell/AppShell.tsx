@@ -34,10 +34,11 @@ function useRoomSignals() {
 
 export function AppShell() {
   return (
-    <div className="mx-auto max-w-7xl px-4 pb-16 sm:px-8 lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:gap-8">
+    <div className="mx-auto max-w-7xl px-4 sm:px-8 lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:gap-8">
       <Rail />
       <MobileBar />
-      <div className="min-w-0">
+      {/* 아래 여백을 본문 열에 두어야 짧은 화면에서도 레일이 끝까지 위에 붙어 있습니다 */}
+      <div className="min-w-0 pb-16">
         <Outlet />
       </div>
     </div>
@@ -72,8 +73,9 @@ function Rail() {
   const headingId = useId()
 
   return (
-    <aside className="sticky top-0 hidden h-dvh self-start overflow-y-auto pt-6 pb-8 lg:block">
-      <div className="flex min-h-[5.25rem] items-start px-3">
+    <aside className="sticky top-0 hidden h-dvh self-start overflow-y-auto pb-8 lg:block">
+      {/* 워드마크를 화면 머리와 같은 높이의 칸 가운데에 두어 제목과 한 줄에 섭니다 */}
+      <div className="mb-6 flex h-(--page-header-height) items-center px-3">
         <Wordmark />
       </div>
 

@@ -11,6 +11,7 @@ import { DisclosurePanel, Glyph, countFormat } from '../review/shared.tsx'
 import { useRoomMutation, useRoomState } from './data.ts'
 import { AgentList, TaskList } from './side.tsx'
 import { Timeline } from './timeline.tsx'
+import { PageHeader } from '../shell/PageHeader.tsx'
 
 const route = getRouteApi('/rooms/$roomId')
 
@@ -110,24 +111,21 @@ export function RoomPage() {
 
   return (
     <main id="main">
-      <header className="grid items-end gap-x-8 gap-y-4 border-b py-6 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <h1 className="min-w-0 text-[1.75rem] leading-tight font-bold tracking-tight break-words text-balance">{room.name}</h1>
-        <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
-          <dl className="flex flex-wrap gap-x-8 gap-y-3">
-            <div>
-              <dt className="text-xs text-muted-foreground">실행</dt>
-              <dd className="font-mono text-[0.8125rem]">{state.mode}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">에이전트</dt>
-              <dd className="text-[0.9375rem]">{countFormat.format(state.agents.length)}명</dd>
-            </div>
-          </dl>
-          {stopped ? null : (
-            <IconButton variant="outline" icon={Pause} label="자동 진행 멈추기" disabled={pause.isPending} onClick={() => pause.mutate(undefined)} />
-          )}
-        </div>
-      </header>
+      <PageHeader title={room.name}>
+        <dl className="flex flex-wrap gap-x-8 gap-y-3">
+          <div>
+            <dt className="text-xs text-muted-foreground">실행</dt>
+            <dd className="font-mono text-[0.8125rem]">{state.mode}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">에이전트</dt>
+            <dd className="text-[0.9375rem]">{countFormat.format(state.agents.length)}명</dd>
+          </div>
+        </dl>
+        {stopped ? null : (
+          <IconButton variant="outline" icon={Pause} label="자동 진행 멈추기" disabled={pause.isPending} onClick={() => pause.mutate(undefined)} />
+        )}
+      </PageHeader>
 
       {stopped ? (
         <div role="status" className="mt-6 grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-start gap-x-3 border bg-card px-4 py-4">
@@ -186,7 +184,7 @@ export function RoomPage() {
         </section>
 
         {wide ? (
-          <aside aria-label="할 일과 에이전트" className="sticky top-6 max-h-[calc(100dvh-3rem)] self-start overflow-y-auto">
+          <aside aria-label="할 일과 에이전트" className="sticky top-[calc(var(--page-header-height)+1.5rem)] max-h-[calc(100dvh-var(--page-header-height)-3rem)] self-start overflow-y-auto">
             {side}
           </aside>
         ) : null}
