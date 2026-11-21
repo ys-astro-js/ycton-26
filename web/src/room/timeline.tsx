@@ -17,7 +17,7 @@ import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
  */
 
 const ROW = 'grid grid-cols-[3rem_minmax(0,1fr)] gap-x-3 px-4 transition-colors duration-700 ease-out motion-reduce:transition-none'
-const TIME = 'font-mono text-[0.8125rem] text-muted-foreground tabular-nums'
+const TIME = 'font-mono text-label text-muted-foreground tabular-nums'
 
 function authorKey(entry: TimelineEntry) {
   if (entry.type === 'human') return 'human'
@@ -47,7 +47,7 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
           return (
             <li key={entry.message.id} {...focusProps} className={cn(ROW, 'py-1.5 data-focused:bg-muted/50')}>
               <time className={TIME}>{at}</time>
-              <p className="flex items-start gap-1.5 text-[0.8125rem] text-muted-foreground">
+              <p className="flex items-start gap-1.5 text-label text-muted-foreground">
                 <Glyph icon={ListTodo} className="mt-0.5 size-3.5" />
                 <span className="text-pretty break-words">{entry.message.content}</span>
               </p>
@@ -75,11 +75,11 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
             <div className="min-w-0">
               {continued ? null : (
                 <p className="flex flex-wrap items-baseline gap-x-2 leading-6">
-                  <span className="text-[0.9375rem] font-semibold">{entry.type === 'human' ? '나' : (agent?.name ?? '에이전트')}</span>
+                  <span className="text-body font-semibold">{entry.type === 'human' ? '나' : (agent?.name ?? '에이전트')}</span>
                   {agent ? <span className="text-xs text-muted-foreground">{agent.kind}</span> : null}
                 </p>
               )}
-              <p className="max-w-[65ch] text-[0.9375rem] whitespace-pre-line text-pretty break-words">
+              <p className="max-w-[65ch] text-body whitespace-pre-line text-pretty break-words">
                 <MessageText text={entry.message.content} />
               </p>
             </div>
@@ -143,8 +143,8 @@ function ResultRow({
           </span>
           <div className="min-w-0 py-1.5">
             <p className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-mono text-[0.8125rem] text-muted-foreground tabular-nums">#{entry.taskId}</span>
-              <span className="text-[0.9375rem] font-semibold text-pretty">
+              <span className="font-mono text-label text-muted-foreground tabular-nums">#{entry.taskId}</span>
+              <span className="text-body font-semibold text-pretty">
                 {hasMore ? (
                   <RowToggle open={open} panelId={panelId} onToggle={() => setOpen((current) => !current)}>
                     {task?.title ?? '작업 결과'}
@@ -154,9 +154,9 @@ function ResultRow({
                 )}
               </span>
             </p>
-            {headline ? <p className="mt-0.5 max-w-[65ch] text-[0.9375rem] text-muted-foreground text-pretty">{headline}</p> : null}
+            {headline ? <p className="mt-0.5 max-w-[65ch] text-body text-muted-foreground text-pretty">{headline}</p> : null}
             {agent || session?.commit_hash ? (
-              <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem] text-muted-foreground">
+              <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-muted-foreground">
                 {agent ? (
                   <span className="flex items-center gap-1.5">
                     <Glyph icon={Bot} className="size-3.5" />
@@ -183,10 +183,10 @@ function ResultRow({
             {rest.length > 0 ? <Handoff lines={rest} /> : null}
             {session?.verification_output ? (
               <div className="min-w-0">
-                <h3 className="mb-2 text-[0.8125rem] font-semibold text-muted-foreground">검증 출력</h3>
+                <h3 className="mb-2 text-label font-semibold text-muted-foreground">검증 출력</h3>
                 <pre
                   className={cn(
-                    'max-h-64 overflow-auto font-mono text-[0.8125rem] whitespace-pre-wrap break-all',
+                    'max-h-64 overflow-auto font-mono text-label whitespace-pre-wrap break-all',
                     outcome.alarming && 'text-attention-foreground',
                   )}
                 >

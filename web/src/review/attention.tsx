@@ -126,7 +126,7 @@ export function AttentionSection({ items, projects, onAction, onUndo }: Attentio
   }
 
   return (
-    <section aria-labelledby={headingId} className="grid gap-3 text-[0.9375rem]">
+    <section aria-labelledby={headingId} className="grid gap-3 text-body">
       {allClear ? (
         // 처리할 일이 없으면 제목과 개수 대신 이 사실 하나를 구역의 제목으로 세웁니다
         <div className="flex items-center gap-4 border bg-card px-5 py-7">
@@ -166,7 +166,7 @@ export function AttentionSection({ items, projects, onAction, onUndo }: Attentio
       )}
 
       {/* 처리 결과와 실패를 알립니다. 실패는 화면에도 보입니다. */}
-      <p role="status" aria-live="polite" className="text-[0.8125rem] text-attention-foreground empty:hidden">
+      <p role="status" aria-live="polite" className="text-label text-attention-foreground empty:hidden">
         {announcement.includes('다시 시도하세요') ? announcement : null}
       </p>
       <p className="sr-only" role="status" aria-live="polite">
@@ -239,7 +239,7 @@ function AttentionRow({
         </span>
 
         <div className="grid min-w-0 gap-1">
-          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.8125rem] text-muted-foreground">
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-label text-muted-foreground">
             {item.at ? <time className="font-mono tabular-nums">{item.at}</time> : null}
             {/* 행 펼침 영역(::after) 위로 올려 따로 누를 수 있게 합니다 */}
             <Link
@@ -270,7 +270,7 @@ function AttentionRow({
           </p>
           {item.detail ? <p className="max-w-[65ch] text-muted-foreground text-pretty">{item.detail}</p> : null}
           {item.agent || item.task ? (
-            <dl className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-[0.8125rem]">
+            <dl className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-label">
               {item.agent ? (
                 <div className="flex items-center gap-1.5">
                   <dt className="text-muted-foreground">
@@ -302,7 +302,7 @@ function AttentionRow({
         >
           {resolution ? (
             <>
-              <span className="text-[0.8125rem] text-muted-foreground">{RESOLUTION_LABEL[resolution]}</span>
+              <span className="text-label text-muted-foreground">{RESOLUTION_LABEL[resolution]}</span>
               {UNDOABLE.includes(resolution) ? (
                 <IconButton variant="ghost" icon={Undo2} label="되돌리기" disabled={busy} onClick={handleUndo} />
               ) : null}
@@ -392,7 +392,7 @@ function ReplyForm({
   return (
     <form noValidate onSubmit={submit} className={className}>
       <Field data-invalid={error || undefined} className="max-w-[65ch] gap-1">
-        <FieldLabel htmlFor={fieldId} className="text-[0.8125rem] font-semibold">
+        <FieldLabel htmlFor={fieldId} className="text-label font-semibold">
           답장
         </FieldLabel>
         <div className="flex items-end gap-3">

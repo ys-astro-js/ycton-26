@@ -52,7 +52,7 @@ function Wordmark() {
 }
 
 const RAIL_LINK =
-  'flex min-h-9 items-center gap-2.5 px-3 text-[0.9375rem] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+  'flex min-h-9 items-center gap-2.5 px-3 text-body text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
 const RAIL_LINK_CURRENT = 'bg-muted font-semibold text-foreground'
 
 /** 그 방에서 사람이 처리할 일의 수. 0이면 숫자를 쓰지 않습니다(아침 리뷰 레일과 같은 표기). */
@@ -89,7 +89,7 @@ function Rail() {
         </Link>
 
         <div>
-          <h2 id={headingId} className="px-3 pb-1 text-[0.8125rem] font-semibold text-muted-foreground">
+          <h2 id={headingId} className="px-3 pb-1 text-label font-semibold text-muted-foreground">
             채팅방
           </h2>
           <ul aria-labelledby={headingId} className="grid gap-0.5">
@@ -161,7 +161,7 @@ function NewRoom() {
     return (
       <Button
         variant="ghost"
-        className="mt-1 h-9 w-full justify-start px-3 text-[0.8125rem] font-medium tracking-normal text-muted-foreground normal-case"
+        className="mt-1 h-9 w-full justify-start px-3 text-label font-medium tracking-normal text-muted-foreground normal-case"
         onClick={() => {
           setOpen(true)
           requestAnimationFrame(() => inputRef.current?.focus())
@@ -196,7 +196,7 @@ function NewRoom() {
         {error ? <FieldError id={errorId}>이름을 입력하세요.</FieldError> : null}
       </Field>
       {create.error ? (
-        <p role="alert" className="text-[0.8125rem] text-destructive">
+        <p role="alert" className="text-label text-destructive">
           {create.error instanceof ApiError ? create.error.message : '채팅방을 만들지 못했습니다'}. 잠시 후 다시 시도하세요.
         </p>
       ) : null}

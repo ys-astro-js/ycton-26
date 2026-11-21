@@ -8,7 +8,7 @@ import type { ReactNode } from 'react'
 export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <header className="sticky top-0 z-20 flex min-h-(--page-header-height) flex-wrap items-center justify-between gap-x-8 gap-y-3 border-b bg-background py-3 lg:-ms-8 lg:flex-nowrap lg:ps-8">
-      <h1 title={title} className="min-w-0 text-[1.75rem] leading-tight font-bold tracking-tight break-words text-balance lg:truncate">
+      <h1 title={title} className="min-w-0 text-title leading-tight font-bold tracking-tight break-words text-balance lg:truncate">
         {title}
       </h1>
       {children ? <div className="flex shrink-0 flex-wrap items-center gap-x-8 gap-y-3">{children}</div> : null}

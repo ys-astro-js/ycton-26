@@ -35,7 +35,7 @@ const CELL = {
 /** 넓을 때는 모든 칸을 펼치기 버튼 높이(2.25rem)에 맞춰 세로 가운데에 둡니다 */
 const WIDE_LINE = '@min-[52rem]:min-h-9'
 
-const META_TEXT = 'text-[0.8125rem] text-muted-foreground'
+const META_TEXT = 'text-label text-muted-foreground'
 
 /**
  * 상태 표식. 네 상태 모두 같은 16px 원 하나로 그립니다.
@@ -84,11 +84,11 @@ export function LedgerSection({ projects, entries, period }: { projects: Project
         <h2 id={headingId} className="text-lg font-semibold">
           기록
         </h2>
-        {period ? <p className="font-mono text-[0.8125rem] text-muted-foreground tabular-nums">{period}</p> : null}
+        {period ? <p className="font-mono text-label text-muted-foreground tabular-nums">{period}</p> : null}
       </div>
 
       {groups.length === 0 ? (
-        <p className={cn('mt-3', META_TEXT, 'text-[0.9375rem]')}>아직 기록이 없습니다.</p>
+        <p className={cn('mt-3', META_TEXT, 'text-body')}>아직 기록이 없습니다.</p>
       ) : (
         <div className="mt-3 grid gap-3">
           {groups.map((group) => (
@@ -123,7 +123,7 @@ function ProjectGroup({
     <section aria-labelledby={headingId} className="border bg-card">
       <h3
         id={headingId}
-        className="flex items-center gap-1.5 px-4 pt-3 pb-1 text-[0.8125rem] font-semibold text-muted-foreground"
+        className="flex items-center gap-1.5 px-4 pt-3 pb-1 text-label font-semibold text-muted-foreground"
       >
         <Link
           to="/rooms/$roomId"
@@ -197,7 +197,7 @@ function LedgerRow({ entry, open, onToggle }: { entry: LedgerEntry; open: boolea
 
         <span
           className={cn(
-            'flex min-h-9 min-w-0 items-center text-[0.9375rem] text-pretty break-words',
+            'flex min-h-9 min-w-0 items-center text-body text-pretty break-words',
             dropped && 'text-muted-foreground',
             CELL.title,
           )}

@@ -7,6 +7,13 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+    /* DESIGN.md의 글자 크기 역할. 값을 직접 쓰지 말고 이 이름으로 씁니다 */
+    --text-title: 1.75rem;
+    --text-title--line-height: 1.25;
+    --text-body: 0.9375rem;
+    --text-body--line-height: 1.5;
+    --text-label: 0.8125rem;
+    --text-label--line-height: 1.5;
     --font-heading: var(--font-sans);
     --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', sans-serif;
     --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;

@@ -133,7 +133,7 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
             placeholder={assigning ? '할 일' : '메시지'}
             aria-invalid={invalid.text || undefined}
             aria-describedby={cn(invalid.text && ids.textError, send.error && ids.server) || undefined}
-            className="max-h-64 min-h-10 py-2 text-base md:text-[0.9375rem]"
+            className="max-h-64 min-h-10 py-2 text-base md:text-body"
             onKeyDown={onKeyDown}
             onChange={(event) => {
               setText(event.target.value)
@@ -181,7 +181,7 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
 
 
       {send.error ? (
-        <p id={ids.server} role="alert" className="text-[0.8125rem] text-destructive">
+        <p id={ids.server} role="alert" className="text-label text-destructive">
           {send.error instanceof ApiError ? send.error.message : '보내지 못했습니다'}. 잠시 후 다시 시도하세요.
         </p>
       ) : null}

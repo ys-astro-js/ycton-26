@@ -129,14 +129,14 @@ export function RoomPage() {
         <div role="status" className="mt-6 grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-start gap-x-3 border bg-card px-4 py-4">
           <Glyph icon={OctagonPause} className="mt-0.5 size-5 text-attention" />
           <div className="min-w-0">
-            <p className="text-[0.9375rem] font-semibold">자동 진행 멈춤</p>
-            {state.jev.reason ? <p className="text-[0.9375rem] text-muted-foreground text-pretty">{state.jev.reason}</p> : null}
+            <p className="text-body font-semibold">자동 진행 멈춤</p>
+            {state.jev.reason ? <p className="text-body text-muted-foreground text-pretty">{state.jev.reason}</p> : null}
           </div>
           <IconButton icon={Play} label="자동 진행 재개하기" disabled={resume.isPending} onClick={() => resume.mutate(undefined)} />
         </div>
       ) : null}
       {toggleError ? (
-        <p role="alert" className="mt-3 text-[0.8125rem] text-destructive">
+        <p role="alert" className="mt-3 text-label text-destructive">
           {toggleError.message}. 잠시 후 다시 시도하세요.
         </p>
       ) : null}
@@ -145,7 +145,7 @@ export function RoomPage() {
         {wide ? null : (
           <section className="border bg-card">
             <div className="flex items-center justify-between gap-3 py-1 ps-4 pe-1">
-              <h2 className="text-[0.9375rem] font-semibold">
+              <h2 className="text-body font-semibold">
                 할 일 {countFormat.format(state.tasks.length)}개
                 <span className="font-normal text-muted-foreground">, 에이전트 {countFormat.format(state.agents.length)}명</span>
               </h2>
@@ -167,7 +167,7 @@ export function RoomPage() {
 
         <section aria-label="대화와 입력" className="@container flex min-w-0 flex-col">
           {state.messages.length === 0 ? (
-            <p className="px-4 py-6 text-[0.9375rem] text-muted-foreground">아직 대화가 없습니다.</p>
+            <p className="px-4 py-6 text-body text-muted-foreground">아직 대화가 없습니다.</p>
           ) : (
             <Timeline state={state} focus={focus} />
           )}

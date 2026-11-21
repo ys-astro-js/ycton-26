@@ -83,7 +83,7 @@ export function TaskList({ state, focus }: { state: RoomState; focus?: number })
         <CountBadge count={state.tasks.length} unit="개" />
       </h2>
       {tasks.length === 0 ? (
-        <p className="border bg-card px-4 py-4 text-[0.9375rem] text-muted-foreground">아직 할 일이 없습니다.</p>
+        <p className="border bg-card px-4 py-4 text-body text-muted-foreground">아직 할 일이 없습니다.</p>
       ) : (
         <ol className="border bg-card py-1.5">
           {tasks.map((task) => (
@@ -135,7 +135,7 @@ function InlineConfirm({
         }
       }}
     >
-      <p id={questionId} className="text-[0.9375rem]">
+      <p id={questionId} className="text-body">
         {question}
       </p>
       <div className="flex gap-2">
@@ -210,15 +210,15 @@ function TaskRow({
         </span>
         <div className="min-w-0 py-1.5">
           <p className="flex items-baseline gap-2">
-            <span className="font-mono text-[0.8125rem] whitespace-nowrap text-muted-foreground tabular-nums">#{task.id}</span>
-            <span className={cn('min-w-0 text-[0.9375rem] text-pretty break-words', finished && 'text-muted-foreground')}>
+            <span className="font-mono text-label whitespace-nowrap text-muted-foreground tabular-nums">#{task.id}</span>
+            <span className={cn('min-w-0 text-body text-pretty break-words', finished && 'text-muted-foreground')}>
               <RowToggle open={open} panelId={panelId} onToggle={onToggle} className={cn(dropped && 'line-through decoration-from-font')}>
                 {task.title}
               </RowToggle>
             </span>
           </p>
           {owner ? (
-            <p className="mt-0.5 flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground">
+            <p className="mt-0.5 flex items-center gap-1.5 text-label text-muted-foreground">
               <Glyph icon={Bot} className="size-3.5" />
               <span className="sr-only">담당 에이전트</span>
               {owner.name}
@@ -230,10 +230,10 @@ function TaskRow({
 
       <DisclosurePanel open={open} id={panelId}>
         <div className="grid gap-5 ps-12 pe-4 pt-1 pb-4">
-          {task.detail ? <p className="max-w-[60ch] text-[0.9375rem] whitespace-pre-line text-pretty">{task.detail}</p> : null}
+          {task.detail ? <p className="max-w-[60ch] text-body whitespace-pre-line text-pretty">{task.detail}</p> : null}
 
           {task.scope || task.commit_hash || task.attempts > 1 ? (
-            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem] text-muted-foreground">
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-muted-foreground">
               {task.scope ? (
                 <span className="flex min-w-0 items-center gap-1.5 break-words">
                   <Glyph icon={FolderCode} className="size-3.5" />
@@ -255,12 +255,12 @@ function TaskRow({
           {task.handoff ? <Handoff lines={lines(task.handoff).filter((line) => !line.startsWith('worktree='))} /> : null}
 
           <div>
-            <h3 className="mb-2 flex items-center gap-1.5 text-[0.8125rem] font-semibold text-muted-foreground">
+            <h3 className="mb-2 flex items-center gap-1.5 text-label font-semibold text-muted-foreground">
               <Glyph icon={History} className="size-3.5" />
               변경 이력
             </h3>
             {events.data?.length ? (
-              <ol className="grid gap-1 text-[0.8125rem]">
+              <ol className="grid gap-1 text-label">
                 {events.data.map((event) => {
                   const { what, detail } = describeEvent(event.event, event.detail, state)
                   return (
@@ -275,7 +275,7 @@ function TaskRow({
                 })}
               </ol>
             ) : (
-              <p className="text-[0.8125rem] text-muted-foreground">{events.isPending ? '불러오는 중…' : '이력이 없습니다.'}</p>
+              <p className="text-label text-muted-foreground">{events.isPending ? '불러오는 중…' : '이력이 없습니다.'}</p>
             )}
           </div>
 
@@ -306,7 +306,7 @@ function TaskRow({
                 </div>
               )}
               {error ? (
-                <p role="alert" className="text-[0.8125rem] text-destructive">
+                <p role="alert" className="text-label text-destructive">
                   {error instanceof ApiError ? error.message : '처리하지 못했습니다.'} 잠시 후 다시 시도하세요.
                 </p>
               ) : null}
@@ -362,11 +362,11 @@ export function AgentList({ state }: { state: RoomState }) {
             <li key={agent.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 px-4 py-2">
               <div className="min-w-0">
                 <p className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="text-[0.9375rem] font-semibold break-words">{agent.name}</span>
+                  <span className="text-body font-semibold break-words">{agent.name}</span>
                   <span className="font-mono text-xs text-muted-foreground">{agent.kind}</span>
                 </p>
                 {agent.good_at.length > 0 ? (
-                  <p className="mt-0.5 text-[0.8125rem] text-pretty text-muted-foreground">
+                  <p className="mt-0.5 text-label text-pretty text-muted-foreground">
                     <span className="sr-only">잘하는 작업: </span>
                     {agent.good_at.join(', ')}
                   </p>
@@ -440,7 +440,7 @@ function AddAgent({
     )
   }
 
-  const label = 'text-[0.8125rem] font-medium'
+  const label = 'text-label font-medium'
   return (
     <form
       id={id}
@@ -498,7 +498,7 @@ function AddAgent({
         <Input id={ids.goodAt} value={goodAt} onChange={(event) => setGoodAt(event.target.value)} />
       </Field>
       {add.error ? (
-        <p id={ids.serverError} role="alert" className="text-[0.8125rem] text-destructive">
+        <p id={ids.serverError} role="alert" className="text-label text-destructive">
           {add.error instanceof ApiError ? add.error.message : '에이전트를 추가하지 못했습니다.'} 잠시 후 다시 시도하세요.
         </p>
       ) : null}

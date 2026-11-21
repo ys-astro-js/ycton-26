@@ -39,11 +39,11 @@ export function DisclosurePanel({ open, id, children }: { open: boolean; id: str
 export function Handoff({ lines }: { lines: string[] }) {
   return (
     <div>
-      <h3 className="mb-2 flex items-center gap-1.5 text-[0.8125rem] font-semibold text-muted-foreground">
+      <h3 className="mb-2 flex items-center gap-1.5 text-label font-semibold text-muted-foreground">
         <Glyph icon={NotebookText} className="size-3.5" />
         인계 노트
       </h3>
-      <ul className="grid max-w-[60ch] gap-1 text-[0.9375rem] text-pretty">
+      <ul className="grid max-w-[60ch] gap-1 text-body text-pretty">
         {lines.map((line) => (
           <li key={line}>{line}</li>
         ))}
@@ -55,11 +55,11 @@ export function Handoff({ lines }: { lines: string[] }) {
 export function SessionLog({ lines }: { lines: LogLine[] }) {
   return (
     <div>
-      <h3 className="mb-2 flex items-center gap-1.5 text-[0.8125rem] font-semibold text-muted-foreground">
+      <h3 className="mb-2 flex items-center gap-1.5 text-label font-semibold text-muted-foreground">
         <Glyph icon={Terminal} className="size-3.5" />
         세션 로그
       </h3>
-      <ol className="grid gap-1 font-mono text-[0.8125rem] tabular-nums">
+      <ol className="grid gap-1 font-mono text-label tabular-nums">
         {lines.map((line) => {
           const alarming = line.alarming ?? (line.kind === 'timeout' || line.kind === 'error')
           return (
