@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Send,
   TimerOff,
+  TriangleAlert,
   Undo2,
   type LucideIcon,
 } from 'lucide-react'
@@ -23,9 +24,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 import { DisclosurePanel, Glyph, Handoff, SessionLog, countFormat } from './shared.tsx'
-import { sampleReport, type AttentionItem, type AttentionKind } from './sampleData.ts'
+import type { AttentionItem, AttentionKind, Project } from './model.ts'
 
-type Resolution = 'resumed' | 'reassigned' | 'answered'
+export type Resolution = 'resumed' | 'reassigned' | 'answered'
 
 const RESOLUTION_LABEL: Record<Resolution, string> = {
   resumed: '재개함',
@@ -36,21 +37,33 @@ const RESOLUTION_LABEL: Record<Resolution, string> = {
 const KIND: Record<AttentionKind, { icon: LucideIcon; label: string }> = {
   'jev-stop': { icon: OctagonPause, label: 'Jev 정지' },
   timeout: { icon: TimerOff, label: '시간 초과' },
+  failed: { icon: TriangleAlert, label: '실패' },
   question: { icon: MessageCircleQuestionMark, label: '질문' },
 }
 
-const DEFAULT_EXPANDED = 'a2'
+interface AttentionSectionProps {
+  items: AttentionItem[]
+  projects: Project[]
+  /** 백엔드에 처리를 보냅니다. 실패하면 오류를 던집니다. */
+  onAction: (item: AttentionItem, resolution: Resolution, text?: string) => Promise<void>
+  /** 되돌릴 수 있는 처리(재개)만 되돌립니다. */
+  onUndo: (item: AttentionItem, resolution: Resolution) => Promise<void>
+}
 
-export function AttentionSection({ items }: { items: AttentionItem[] }) {
+const UNDOABLE: Resolution[] = ['resumed']
+
+export function AttentionSection({ items, projects, onAction, onUndo }: AttentionSectionProps) {
   const headingId = useId()
-  const [expanded, setExpanded] = useState<string | null>(() =>
-    items.some((item) => item.id === DEFAULT_EXPANDED) ? DEFAULT_EXPANDED : null,
-  )
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [pending, setPending] = useState<string | null>(null)
+  // 처리한 항목은 서버 목록에서 빠져도 이 화면에서는 남겨 두어 결과와 되돌리기를 보여 줍니다
+  const [kept, setKept] = useState<Record<string, AttentionItem>>({})
   const [replying, setReplying] = useState<string | null>(null)
   const [resolved, setResolved] = useState<Record<string, Resolution>>({})
   const [announcement, setAnnouncement] = useState('')
 
-  const openCount = items.filter((item) => !resolved[item.id]).length
+  const shown = [...items, ...Object.values(kept).filter((item) => !items.some((current) => current.id === item.id))]
+  const openCount = shown.filter((item) => !resolved[item.id]).length
 
   const toggle = (id: string) => {
     setExpanded((current) => (current === id ? null : id))
@@ -67,20 +80,39 @@ export function AttentionSection({ items }: { items: AttentionItem[] }) {
     setReplying(id)
   }
 
-  const resolve = (item: AttentionItem, resolution: Resolution) => {
-    setResolved((current) => ({ ...current, [item.id]: resolution }))
-    setExpanded((current) => (current === item.id ? null : current))
-    setReplying(null)
-    setAnnouncement(`${item.at} ${item.title}: ${RESOLUTION_LABEL[resolution]}`)
+  const resolve = async (item: AttentionItem, resolution: Resolution, text?: string) => {
+    setPending(item.id)
+    try {
+      await onAction(item, resolution, text)
+      setKept((current) => ({ ...current, [item.id]: item }))
+      setResolved((current) => ({ ...current, [item.id]: resolution }))
+      setExpanded((current) => (current === item.id ? null : current))
+      setReplying(null)
+      setAnnouncement(`${item.title}: ${RESOLUTION_LABEL[resolution]}`)
+    } catch (error) {
+      setAnnouncement(`${item.title}: ${error instanceof Error ? error.message : '처리하지 못했습니다'}. 다시 시도하세요.`)
+    } finally {
+      setPending(null)
+    }
   }
 
-  const undo = (item: AttentionItem) => {
-    setResolved((current) => {
-      const next = { ...current }
-      delete next[item.id]
-      return next
-    })
-    setAnnouncement(`${item.at} ${item.title}: 되돌림`)
+  const undo = async (item: AttentionItem) => {
+    const resolution = resolved[item.id]
+    if (!resolution) return
+    setPending(item.id)
+    try {
+      await onUndo(item, resolution)
+      setResolved((current) => {
+        const next = { ...current }
+        delete next[item.id]
+        return next
+      })
+      setAnnouncement(`${item.title}: 되돌림`)
+    } catch (error) {
+      setAnnouncement(`${item.title}: ${error instanceof Error ? error.message : '되돌리지 못했습니다'}. 다시 시도하세요.`)
+    } finally {
+      setPending(null)
+    }
   }
 
   return (
@@ -98,28 +130,34 @@ export function AttentionSection({ items }: { items: AttentionItem[] }) {
         </Badge>
       </h2>
 
-      {items.length === 0 ? (
+      {shown.length === 0 ? (
         <EmptyAttention />
       ) : (
         <ul className="divide-y border bg-card">
-          {items.map((item) => (
+          {shown.map((item) => (
             <AttentionRow
               key={item.id}
               item={item}
+              projectName={projects.find((project) => project.id === item.projectId)?.name}
+              busy={pending === item.id}
               open={expanded === item.id}
               replying={replying === item.id}
               resolution={resolved[item.id]}
               onToggle={() => toggle(item.id)}
               onReply={() => reply(item.id)}
-              onResolve={(resolution) => resolve(item, resolution)}
+              onResolve={(resolution, text) => resolve(item, resolution, text)}
               onUndo={() => undo(item)}
             />
           ))}
         </ul>
       )}
 
+      {/* 처리 결과와 실패를 알립니다. 실패는 화면에도 보입니다. */}
+      <p role="status" aria-live="polite" className="text-[0.8125rem] text-attention-foreground empty:hidden">
+        {announcement.includes('다시 시도하세요') ? announcement : null}
+      </p>
       <p className="sr-only" role="status" aria-live="polite">
-        {announcement}
+        {announcement.includes('다시 시도하세요') ? null : announcement}
       </p>
     </section>
   )
@@ -127,20 +165,32 @@ export function AttentionSection({ items }: { items: AttentionItem[] }) {
 
 interface AttentionRowProps {
   item: AttentionItem
+  projectName?: string
+  busy: boolean
   open: boolean
   replying: boolean
   resolution?: Resolution
   onToggle: () => void
   onReply: () => void
-  onResolve: (resolution: Resolution) => void
+  onResolve: (resolution: Resolution, text?: string) => void
   onUndo: () => void
 }
 
-function AttentionRow({ item, open, replying, resolution, onToggle, onReply, onResolve, onUndo }: AttentionRowProps) {
+function AttentionRow({
+  item,
+  projectName,
+  busy,
+  open,
+  replying,
+  resolution,
+  onToggle,
+  onReply,
+  onResolve,
+  onUndo,
+}: AttentionRowProps) {
   const panelId = useId()
   const actionsRef = useRef<HTMLDivElement>(null)
   const focusAfterSwap = useRef(false)
-  const project = sampleReport.projects.find((p) => p.id === item.projectId)
   const kind = KIND[item.kind]
   const isResolved = resolution !== undefined
 
@@ -151,9 +201,9 @@ function AttentionRow({ item, open, replying, resolution, onToggle, onReply, onR
     actionsRef.current?.querySelector('button')?.focus()
   }, [isResolved])
 
-  const handleResolve = (next: Resolution) => {
+  const handleResolve = (next: Resolution, text?: string) => {
     focusAfterSwap.current = true
-    onResolve(next)
+    onResolve(next, text)
   }
 
   const handleUndo = () => {
@@ -177,11 +227,11 @@ function AttentionRow({ item, open, replying, resolution, onToggle, onReply, onR
 
         <div className="grid min-w-0 gap-1">
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.8125rem] text-muted-foreground">
-            <time className="font-mono tabular-nums">{item.at}</time>
+            {item.at ? <time className="font-mono tabular-nums">{item.at}</time> : null}
             <span className="flex items-center gap-1.5">
               <Glyph icon={FolderGit2} className="size-3.5" />
               <span className="sr-only">프로젝트</span>
-              {project?.name}
+              {projectName}
             </span>
           </p>
           <p className={cn('font-semibold text-pretty', isResolved && 'text-muted-foreground line-through')}>
@@ -231,15 +281,22 @@ function AttentionRow({ item, open, replying, resolution, onToggle, onReply, onR
           {resolution ? (
             <>
               <span className="text-[0.8125rem] text-muted-foreground">{RESOLUTION_LABEL[resolution]}</span>
-              <IconButton variant="ghost" icon={Undo2} label="되돌리기" onClick={handleUndo} />
+              {UNDOABLE.includes(resolution) ? (
+                <IconButton variant="ghost" icon={Undo2} label="되돌리기" disabled={busy} onClick={handleUndo} />
+              ) : null}
             </>
           ) : (
             <>
               {item.kind === 'jev-stop' ? (
-                <IconButton icon={Play} label="재개하기" onClick={() => handleResolve('resumed')} />
+                <IconButton icon={Play} label="재개하기" disabled={busy} onClick={() => handleResolve('resumed')} />
               ) : null}
-              {item.kind === 'timeout' ? (
-                <IconButton icon={RotateCcw} label="다시 맡기기" onClick={() => handleResolve('reassigned')} />
+              {item.kind === 'timeout' || item.kind === 'failed' ? (
+                <IconButton
+                  icon={RotateCcw}
+                  label="다시 맡기기"
+                  disabled={busy}
+                  onClick={() => handleResolve('reassigned')}
+                />
               ) : null}
               {item.kind === 'question' ? (
                 <IconButton
@@ -267,17 +324,28 @@ function AttentionRow({ item, open, replying, resolution, onToggle, onReply, onR
       <DisclosurePanel open={open} id={panelId}>
         <div className="grid gap-6 pr-4 pb-5 pl-12 md:grid-cols-2">
           {replying ? (
-            <ReplyForm className="md:col-span-2" onSend={() => handleResolve('answered')} />
+            <ReplyForm className="md:col-span-2" busy={busy} onSend={(text) => handleResolve('answered', text)} />
           ) : null}
-          <Handoff lines={item.handoff} />
-          <SessionLog lines={item.log} />
+          {item.handoff.length ? <Handoff lines={item.handoff} /> : null}
+          {item.log.length ? <SessionLog lines={item.log} /> : null}
+          {!replying && !item.handoff.length && !item.log.length ? (
+            <p className="text-muted-foreground">인계 노트와 로그가 없습니다.</p>
+          ) : null}
         </div>
       </DisclosurePanel>
     </li>
   )
 }
 
-function ReplyForm({ onSend, className }: { onSend: () => void; className?: string }) {
+function ReplyForm({
+  onSend,
+  busy,
+  className,
+}: {
+  onSend: (text: string) => void
+  busy: boolean
+  className?: string
+}) {
   const fieldId = useId()
   const errorId = useId()
   const fieldRef = useRef<HTMLTextAreaElement>(null)
@@ -296,7 +364,7 @@ function ReplyForm({ onSend, className }: { onSend: () => void; className?: stri
       fieldRef.current?.focus()
       return
     }
-    onSend()
+    onSend(value.trim())
   }
 
   return (
@@ -320,7 +388,7 @@ function ReplyForm({ onSend, className }: { onSend: () => void; className?: stri
               if (error) setError(false)
             }}
           />
-          <IconButton type="submit" icon={Send} label="답장 보내기" />
+          <IconButton type="submit" icon={Send} label="답장 보내기" disabled={busy} />
         </div>
         {error ? <FieldError id={errorId}>보낼 답장을 입력하세요.</FieldError> : null}
       </Field>

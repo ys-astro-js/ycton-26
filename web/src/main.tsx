@@ -8,9 +8,7 @@ import { createRoot } from 'react-dom/client'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 import { ReviewPage } from './review/ReviewPage.tsx'
-import type { ProjectId } from './review/sampleData.ts'
-
-const PROJECT_IDS: ProjectId[] = ['afk-web', 'payments-api', 'docs-site']
+import type { ProjectId } from './review/model.ts'
 
 export interface ReviewSearch {
   project?: ProjectId
@@ -23,7 +21,7 @@ export const reviewRoute = createRoute({
   path: '/',
   validateSearch: (search: Record<string, unknown>): ReviewSearch => {
     const project = search.project
-    return PROJECT_IDS.includes(project as ProjectId) ? { project: project as ProjectId } : {}
+    return typeof project === 'string' || typeof project === 'number' ? { project: String(project) } : {}
   },
   component: ReviewPage,
 })

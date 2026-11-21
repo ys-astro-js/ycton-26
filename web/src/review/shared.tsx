@@ -1,15 +1,16 @@
-import { CircleCheck, CircleDot, CircleSlash, NotebookText, Terminal, type LucideIcon } from 'lucide-react'
+import { Circle, CircleCheck, CircleDot, CircleSlash, NotebookText, Terminal, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
 
-import type { LedgerStatus, LogLine } from './sampleData.ts'
+import type { LedgerStatus, LogLine } from './model.ts'
 
 /** 할 일 상태는 화면 어디서나 이 이름과 아이콘 하나로만 부릅니다 */
 export const STATUS: Record<LedgerStatus, { label: string; icon: LucideIcon }> = {
   done: { label: '완료', icon: CircleCheck },
   running: { label: '진행 중', icon: CircleDot },
+  waiting: { label: '대기', icon: Circle },
   dropped: { label: '제외', icon: CircleSlash },
 }
 
@@ -59,7 +60,7 @@ export function SessionLog({ lines }: { lines: LogLine[] }) {
       </h3>
       <ol className="grid gap-1 font-mono text-[0.8125rem] tabular-nums">
         {lines.map((line) => {
-          const alarming = line.kind === 'timeout' || line.kind === 'error'
+          const alarming = line.alarming ?? (line.kind === 'timeout' || line.kind === 'error')
           return (
             <li
               key={`${line.at}-${line.kind}`}

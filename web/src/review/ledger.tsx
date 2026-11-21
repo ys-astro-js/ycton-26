@@ -4,7 +4,7 @@ import { useId, useMemo, useState } from 'react'
 
 import { cn } from '@/lib/utils'
 
-import type { LedgerEntry, LedgerStatus, Project } from './sampleData.ts'
+import type { LedgerEntry, LedgerStatus, Project } from './model.ts'
 import { DisclosurePanel, Glyph, Handoff, SessionLog, STATUS } from './shared.tsx'
 
 /*
@@ -36,10 +36,11 @@ const WIDE_LINE = '@min-[52rem]:min-h-9'
 
 const META_TEXT = 'text-[0.8125rem] text-muted-foreground'
 
-/** 상태 표식: 완료는 체크, 진행 중은 돌아가는 표시, 제외는 X. 뜻은 sr-only 글자가 전합니다. */
+/** 상태 표식: 완료는 체크, 진행 중은 돌아가는 표시, 대기는 빈 고리, 제외는 X. 뜻은 sr-only 글자가 전합니다. */
 function StatusNode({ status }: { status: LedgerStatus }) {
   if (status === 'done') return <Check aria-hidden="true" strokeWidth={2.25} className="size-3.5 text-muted-foreground" />
   if (status === 'running') return <Arc size={14} color="var(--live)" />
+  if (status === 'waiting') return <span aria-hidden="true" className="size-2.5 rounded-full ring-[1.5px] ring-muted-foreground ring-inset" />
   return <X aria-hidden="true" strokeWidth={2.25} className="size-3.5 text-muted-foreground" />
 }
 
@@ -117,6 +118,7 @@ function ProjectGroup({
 }
 
 function timeRange(entry: LedgerEntry) {
+  if (!entry.start) return '—'
   if (entry.end) return `${entry.start}–${entry.end}`
   if (entry.status === 'running') return `${entry.start}–`
   return entry.start
@@ -150,7 +152,6 @@ function LedgerRow({ entry, open, onToggle }: { entry: LedgerEntry; open: boolea
           <StatusNode status={entry.status} />
           <span className="sr-only">
             {STATUS[entry.status].label}
-            {entry.note ? ` (${entry.note})` : null}
           </span>
         </span>
 
