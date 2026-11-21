@@ -19,6 +19,8 @@ class Settings:
     tick_seconds: float = 0.1
     chat_delay_seconds: float = 0.2
     fake_work_seconds: float = 0.3
+    openrouter_api_key: str = field(default="", repr=False)
+    jev_model: str = "typesafe/jev-1.14"
 
     @classmethod
     def from_env(cls):
@@ -27,6 +29,8 @@ class Settings:
         if settings.mode not in ("mock", "acp"):
             raise ValueError("ORCH_MODE는 mock 또는 acp여야 합니다")
         settings.runtime_config = os.getenv("ORCH_RUNTIME_CONFIG", "runtime.toml")
+        settings.openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+        settings.jev_model = os.getenv("ORCH_JEV_MODEL", "").strip() or settings.jev_model
         settings.origins = tuple(os.getenv("ORCH_ORIGINS", ",".join(settings.origins)).split(","))
         for name in ("max_work", "max_chat", "max_attempts", "max_chat_rounds"):
             value = int(os.getenv(f"ORCH_{name.upper()}", str(getattr(settings, name))))

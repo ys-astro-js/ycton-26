@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from ycton.subprocess_env import child_environment
+
 PROMPT = "프로젝트 폴더 선택"
 
 
@@ -49,7 +51,7 @@ class FolderPicker:
             raise FolderError("이 컴퓨터에서 폴더 선택 창을 열 수 없습니다", 501)
         async with self.lock:
             process = await asyncio.create_subprocess_exec(
-                *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+                *command, env=child_environment(), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
             try:
                 stdout, _ = await process.communicate()
             except asyncio.CancelledError:
@@ -70,7 +72,7 @@ def git_root(folder):
         raise FolderError("폴더를 찾을 수 없습니다")
     try:
         result = subprocess.run(["git", "-C", str(path), "rev-parse", "--show-toplevel"],
-                                capture_output=True, text=True, timeout=10)
+                                env=child_environment(), capture_output=True, text=True, timeout=10)
     except (OSError, subprocess.TimeoutExpired):
         raise FolderError("Git을 실행할 수 없습니다", 500)
     if result.returncode != 0:
@@ -80,7 +82,8 @@ def git_root(folder):
 
 def _git(repo, *args):
     try:
-        result = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(["git", "-C", str(repo), *args], env=child_environment(),
+                                capture_output=True, text=True, timeout=5)
     except (OSError, subprocess.TimeoutExpired):
         return None
     return result.stdout.strip() if result.returncode == 0 else None

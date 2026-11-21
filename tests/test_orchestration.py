@@ -99,7 +99,7 @@ def test_recovery_releases_work_and_pauses_room(service):
     svc.recover()
     state = svc.snapshot(room)
     assert state["room"]["paused"] == PAUSED_BY_RESTART
-    assert advise(state, svc.settings)["reason"] == "서버 재시작으로 일시 정지"
+    assert advise(state["room"]["paused"], {})["reason"] == "서버 재시작으로 일시 정지"
 
 
 def test_recovery_keeps_a_room_the_person_paused(service):
@@ -108,7 +108,7 @@ def test_recovery_keeps_a_room_the_person_paused(service):
     svc.recover()
     state = svc.snapshot(room)
     assert state["room"]["paused"] == 1
-    assert advise(state, svc.settings)["reason"] == "일시 정지"
+    assert advise(state["room"]["paused"], {})["reason"] == "일시 정지"
     assert state["tasks"][0]["status"] == "open"
     assert all(s["status"] not in ("queued", "running") for s in state["sessions"])
 

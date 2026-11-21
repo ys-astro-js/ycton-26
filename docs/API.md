@@ -15,34 +15,35 @@
 | GET `/api/agent-models` | - | 고를 수 있는 모델 `[{id, label, models, efforts}]`. acp는 runtime.toml, mock은 runtime.toml이 없으면 runtime.example.toml의 `[kinds.*]` |
 | POST `/api/rooms/{id}/agents` | name, kind(제공자 id), model, effort, good_at 배열(담당 업무) | 참여자. acp에서는 등록된 제공자만, 목록이 있는 제공자는 그 안의 model·effort만 허용 |
 | POST `/api/rooms/{id}/tasks` | title, detail, scope, verify | 할 일. acp의 verify는 검증 프로필 이름 |
-| POST `/api/rooms/{id}/messages` | content | 사람 메시지 저장 |
-| GET `/api/rooms/{id}/state` | 없음 | room, agents, tasks, sessions, messages, jev, mode |
+| POST `/api/rooms/{id}/messages` | content, reply_to_message_id(선택) | 사람 메시지 저장. 답장 대상은 같은 프로젝트의 에이전트 질문이어야 함 |
+| GET `/api/rooms/{id}/state` | 없음 | room, agents, tasks, sessions, messages, unanswered_questions, jev, mode |
 | POST `/api/rooms/{id}/pause` | 없음 | 새 실행 중지, 현재 실행은 유지 |
 | POST `/api/rooms/{id}/resume` | 없음 | 자동 진행 재개 |
 | POST `/api/tasks/{id}/retry` | note | 시도 횟수 초기화와 open 전환 |
 | POST `/api/tasks/{id}/drop` | note | 실행 없는 작업 종료 |
 | GET `/api/tasks/{id}/events` | 없음 | 작업 변경 이력 |
 | GET `/api/sessions/{id}` | 없음 | 실행 상세 |
+| GET `/api/sessions/{id}/events` | cursor (기본 0) | 공개 ACP 이벤트 페이지 |
 | POST `/api/sessions/{id}/cancel` | 없음 | 대기/실행 세션 취소 |
 
 토큰 발급 API는 없습니다. 일반 API의 ID는 정수, session ID는 UUID 문자열입니다.
 
 state는 1초 정도 간격의 폴링으로 시작할 수 있습니다. 방 paused는 SQLite의 0/1입니다. messages는 최근 100개입니다. 세션은 전체 이력이므로 장기 운영 시 페이지 조회를 추가해야 합니다.
 
+`unanswered_questions`는 해당 방에서 답장되지 않은 에이전트의 `@` 멘션입니다. 일반 메시지로 닫히지 않으며, 최근 메시지 100개에서 밀려나도 남습니다. `jev.action`은 `stop`, `wait`, `spawn_suggested`, `go` 중 하나이고 `reason`을 함께 반환합니다. OpenRouter가 판단을 반환한 경우에만 `jev.recommendation`에 `{action, reason}`이 추가됩니다. 추천은 실행 상태를 변경하지 않습니다.
+
 세션의 추가 필드:
 
 | 필드 | 의미 |
 |---|---|
 | worktree | 해당 실행 시도 경로, 실패해도 남음 |
-| log_path | 전체 진행 이벤트 JSONL 파일 위치 |
 | acp_session_id | 실제 ACP 세션 ID |
 | stop_reason | 실제 턴 종료 이유 |
 | verification | passed / failed / not_run |
 | verification_output | 서버 검증의 종료 코드·stdout |
-| latest_event | 마지막 진행 이벤트 일부, 최대 2000자 |
 | summary | 결과/실패 요약 |
 
-위 경로 필드는 표시용입니다. 서버는 임의 파일 다운로드 API를 제공하지 않습니다. 원본 stdout/stderr 전체가 브라우저에 스트리밍되는 구조는 아닙니다.
+`/events`는 `{events: [{id, kind, text}], next_cursor, has_more}`를 반환합니다. 한 페이지는 최대 40개입니다. 다음 페이지는 `has_more`가 참일 때 반환된 `next_cursor`로 요청하세요. `kind`는 `message`, `tool`, `plan`, `log_gap` 중 하나입니다. 원본 JSONL 경로, ACP 추론, 도구 인자·출력은 사람용 응답에 포함하지 않습니다. 임의 파일 다운로드와 실시간 스트리밍은 제공하지 않습니다.
 
 ## 내부 MCP 요청 — 담당 1 계약
 

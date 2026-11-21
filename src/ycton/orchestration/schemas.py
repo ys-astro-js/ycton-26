@@ -23,6 +23,7 @@ class AgentCreate(Input):
 
 class MessageCreate(Input):
     content: str = Field(min_length=1, max_length=10000)
+    reply_to_message_id: int | None = Field(default=None, gt=0, le=2**63 - 1)
 
 
 class TaskCreate(Input):

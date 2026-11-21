@@ -10,6 +10,7 @@ from ycton.orchestration.git_commit import CommitError, commit_paths
 from ycton.orchestration.jev import PAUSED_BY_RESTART
 from ycton.orchestration.runtime_config import Repository, read_catalog
 from ycton.orchestration.runtime_port import RuntimeResult
+from ycton.subprocess_env import child_environment
 
 # mock 모드에 runtime.toml이 없을 때 고를 모델을 저장소의 예시 설정에서 가져온다.
 EXAMPLE_RUNTIME_CONFIG = Path(__file__).resolve().parents[4] / "runtime.example.toml"
@@ -33,6 +34,12 @@ def require(conn, table, identifier):
     return dict(row)
 
 
+def public_session(session):
+    session.pop("log_path", None)
+    session.pop("latest_event", None)
+    return session
+
+
 class TaskService:
     def __init__(self, db, settings):
         self.db, self.settings = db, settings
@@ -40,8 +47,9 @@ class TaskService:
         self.model_names = {}
 
     @staticmethod
-    def message(conn, room, author, content):
-        conn.execute("INSERT INTO messages(room_id,author,content) VALUES(?,?,?)", (room, author, content))
+    def message(conn, room, author, content, *, reply_to_message_id=None):
+        conn.execute("INSERT INTO messages(room_id,author,content,reply_to_message_id) VALUES(?,?,?,?)",
+                     (room, author, content, reply_to_message_id))
 
     @staticmethod
     def event(conn, task, event, detail):
@@ -103,7 +111,8 @@ class TaskService:
             repo = git_root(folder)
         except FolderError as exc:
             raise DomainError(exc.message, exc.status)
-        head = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "HEAD"], capture_output=True, timeout=10)
+        head = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "HEAD"],
+                              env=child_environment(), capture_output=True, timeout=10)
         if head.returncode != 0:
             raise DomainError("커밋이 하나도 없는 저장소입니다. 첫 커밋을 만든 뒤 다시 고르세요", 422)
         config = getattr(self, "runtime_config", None)
@@ -184,7 +193,7 @@ class TaskService:
             self.wake(c, room_id, reset=True)
             return require(c, "agents", aid)
 
-    def post_message(self, room_id, content, agent_id=None):
+    def post_message(self, room_id, content, agent_id=None, *, reply_to_message_id=None):
         with self.db.connect(write=True) as c:
             require(c, "rooms", room_id)
             author = "human"
@@ -193,7 +202,13 @@ class TaskService:
                 if agent["room_id"] != room_id:
                     raise DomainError("다른 방의 에이전트입니다", 403)
                 author = f"agent:{agent_id}"
-            self.message(c, room_id, author, content)
+            if reply_to_message_id is not None:
+                question = c.execute("""SELECT 1 FROM messages WHERE id=? AND room_id=?
+                                        AND author GLOB 'agent:*' AND instr(content,'@')>0""",
+                                     (reply_to_message_id, room_id)).fetchone()
+                if agent_id is not None or question is None:
+                    raise DomainError("이 프로젝트의 에이전트 질문에만 답장할 수 있습니다", 422)
+            self.message(c, room_id, author, content, reply_to_message_id=reply_to_message_id)
             self.wake(c, room_id, reset=agent_id is None)
 
     def create_task(self, room_id, title, detail, scope, verify):
@@ -370,7 +385,7 @@ class TaskService:
             self.wake(c, task["room_id"], reset=True)
             return require(c, "tasks", task_id)
 
-    def snapshot(self, room_id):
+    def snapshot(self, room_id, *, dashboard=False):
         with self.db.connect() as c:
             result = {"room": require(c, "rooms", room_id)}
             for table in ("agents", "tasks", "sessions"):
@@ -379,6 +394,17 @@ class TaskService:
                 agent["good_at"] = json.loads(agent["good_at"])
             result["messages"] = [dict(r) for r in c.execute(
                 "SELECT * FROM (SELECT * FROM messages WHERE room_id=? ORDER BY id DESC LIMIT 100) ORDER BY id", (room_id,))]
+            if dashboard:
+                for session in result["sessions"]:
+                    public_session(session)
+                result["running_work"] = c.execute(
+                    "SELECT count(*) FROM sessions WHERE kind='work' AND status='running'").fetchone()[0]
+                result["unanswered_questions"] = [dict(row) for row in c.execute("""
+                    SELECT question.* FROM messages question
+                    WHERE question.room_id=? AND question.author GLOB 'agent:*' AND instr(question.content,'@')>0
+                    AND NOT EXISTS (SELECT 1 FROM messages reply WHERE reply.reply_to_message_id=question.id)
+                    ORDER BY question.id
+                """, (room_id,))]
             return result
 
     def recover(self):
