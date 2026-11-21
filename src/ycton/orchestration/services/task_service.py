@@ -530,7 +530,7 @@ class TaskService:
 
     def merge_room_branch(self, room_id, agent_id):
         """방 통합 브랜치(ycton/room-<id>)를 프로젝트 저장소에 체크아웃된 브랜치로 병합한다.
-        사람이 반영을 요청했을 때 채팅 에이전트가 부른다. 충돌하면 되돌리고 충돌 파일을 알려 준다."""
+        방에 끝나지 않은 작업이나 사람의 답을 기다리는 질문이 있으면 원본을 바꾸지 않는다."""
         with self.db.connect() as c:
             room = require(c, "rooms", room_id)
             agent = require(c, "agents", agent_id)
@@ -546,7 +546,8 @@ class TaskService:
                 raise DomainError((done.stderr or done.stdout).strip()[-500:] or "git 실행 실패", 409)
             return done
 
-        if git("rev-parse", "--verify", "--quiet", f"refs/heads/{branch}", check=False).returncode != 0:
+        tip = git("rev-parse", "--verify", "--quiet", f"refs/heads/{branch}^{{commit}}", check=False)
+        if tip.returncode != 0:
             raise DomainError(f"{branch}가 아직 없습니다. 완료된 할 일이 없습니다", 409)
         target = git("branch", "--show-current").stdout.strip()
         if not target:
@@ -557,8 +558,17 @@ class TaskService:
 
         if merging() or git("status", "--porcelain").stdout:
             raise DomainError("프로젝트에 변경 사항 또는 진행 중인 병합이 있습니다. 먼저 정리해 주세요", 409)
+        # 검사 뒤에 방 브랜치가 움직여도 검사 시점의 커밋만 반영한다.
+        with self.db.connect() as c:
+            if require(c, "rooms", room_id)["paused"]:
+                raise DomainError("일시 정지된 프로젝트에는 결과를 반영할 수 없습니다", 409)
+            if c.execute("SELECT 1 FROM tasks WHERE room_id=? AND status IN ('open','claimed') LIMIT 1",
+                         (room_id,)).fetchone():
+                raise DomainError("끝나지 않은 할 일이 있어 결과를 반영할 수 없습니다", 409)
+            if next(_unanswered_questions(c, room_id), None) is not None:
+                raise DomainError("사람의 답변을 기다리는 질문이 있어 결과를 반영할 수 없습니다", 409)
         before = git("rev-parse", "HEAD").stdout.strip()
-        merged = git("merge", "--no-edit", "--no-autostash", branch, check=False)
+        merged = git("merge", "--no-edit", "--no-autostash", tip.stdout.strip(), check=False)
         if merged.returncode != 0:
             conflicts = git("diff", "--name-only", "--diff-filter=U", check=False).stdout.split()
             if merging():

@@ -126,8 +126,9 @@ def build_room_server(client: httpx.AsyncClient, *, room_id: str, participant_id
     async def merge_to_project() -> dict:
         """Merge this room's results branch (ycton/room-<id>) into the project's checked-out branch, such as main.
 
-        Call it when the person asks to apply or merge finished work. On conflict nothing is changed and the
-        conflicting files are reported; then create a task to resolve them on the room branch and try again.
+        Apply finished work only when the room is not paused, all tasks are done or dropped, and no question
+        still needs a human answer. If the server refuses because the room is not ready, wait for its state
+        to change. On a Git conflict, the server reports the conflicting files.
         """
         return (await post("/api/agent/merge")).json()
 

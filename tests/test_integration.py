@@ -702,8 +702,11 @@ def test_conflicting_attempt_fails_without_touching_room_branch(bridge, monkeypa
     assert task['status'] == 'open' and task['commit_hash'] is None
 
 
-def test_merge_to_project_merges_room_branch_into_checked_out_branch(bridge, tmp_path):
+@pytest.mark.parametrize("blocker", ["open", "running", "held", "exhausted", "question", "paused"])
+def test_merge_to_project_respects_unfinished_room_state(bridge, tmp_path, blocker):
     app, client, actor, token, sid, tid, root = bridge
+    room = int(actor["room_id"])
+    agent = int(actor["participant_id"])
     svc = app.state.service
     repo = tmp_path / 'project'
     repo.mkdir()
@@ -715,8 +718,45 @@ def test_merge_to_project_merges_room_branch_into_checked_out_branch(bridge, tmp
     (wt / 'done.txt').write_text('done\n')
     git_out(wt, 'add', 'done.txt')
     git_out(wt, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'done')
+    before = git_out(repo, "rev-parse", "HEAD")
+    work = svc.claim(tid, agent)
+    assert work["status"] == "claimed"
+    attempt = svc.delegate(tid, agent, "verified-result", "")
+    svc.finish(attempt["id"], RuntimeResult(True, "verified", "passed", git_out(wt, "rev-parse", "HEAD").strip()))
+    blocked_task = None
+    blocked_session = None
+    if blocker in {"open", "running", "held", "exhausted"}:
+        blocked_task = svc.create_task(room, "follow-up", "", "", "unit")["id"]
+        if blocker != "open":
+            for index in range(svc.settings.max_attempts if blocker == "exhausted" else 1):
+                svc.claim(blocked_task, agent)
+                session = svc.delegate(blocked_task, agent, f"follow-up-{index}", "")
+                if blocker == "running":
+                    blocked_session = session["id"]
+                    with svc.db.connect(write=True) as c:
+                        c.execute("UPDATE sessions SET status='running' WHERE id=?", (blocked_session,))
+                else:
+                    svc.finish(session["id"], RuntimeResult(False, "not done"),
+                               cancelled=blocker == "held", hold_for_retry=blocker == "held")
+    elif blocker == "question":
+        question = svc.post_message(room, "@human 어느 결과를 반영할까요?", agent)["id"]
+    elif blocker == "paused":
+        svc.pause(room, True)
     svc.room_repository = lambda room: SimpleNamespace(path=repo)
     headers = {'Authorization': f'Bearer {token}'}
+    blocked = client.post('/api/agent/merge', headers=headers, json=actor)
+    assert blocked.status_code == 409
+    assert git_out(repo, "rev-parse", "HEAD") == before
+    assert not (repo / "done.txt").exists()
+
+    if blocked_task is not None:
+        if blocked_session is not None:
+            svc.finish(blocked_session, RuntimeResult(False, "not done"))
+        svc.manual_task_action(blocked_task, "drop", "not needed")
+    elif blocker == "question":
+        svc.resolve_question(question)
+    elif blocker == "paused":
+        svc.pause(room, False)
     merged = client.post('/api/agent/merge', headers=headers, json=actor)
     assert merged.status_code == 200 and merged.json()['branch'] == 'main' and merged.json()['changed']
     assert (repo / 'done.txt').read_text() == 'done\n'
