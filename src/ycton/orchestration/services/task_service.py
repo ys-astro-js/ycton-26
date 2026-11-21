@@ -95,7 +95,7 @@ class TaskService:
         room = require(conn, "rooms", room_id)
         if room["paused"] or room["chat_rounds"] >= self.settings.max_chat_rounds:
             return
-        agents = conn.execute("SELECT id FROM agents WHERE room_id=?", (room_id,)).fetchall()
+        agents = conn.execute("SELECT id FROM agents WHERE room_id=? AND removed=0", (room_id,)).fetchall()
         for agent in agents:
             if agent_id is not None and agent["id"] != agent_id:
                 continue
@@ -206,7 +206,7 @@ class TaskService:
                 return read_catalog(path)
         return []
 
-    def create_agent(self, room_id, name, kind, good_at, model="", effort=""):
+    def _check_agent_choice(self, kind, model, effort):
         if self.settings.mode == "acp" and kind not in self.runtime_config.kinds:
             raise DomainError("서버 설정에 없는 모델 제공자입니다", 422)
         provider = next((p for p in self.agent_models() if p["id"] == kind), None)
@@ -215,15 +215,58 @@ class TaskService:
                 raise DomainError("이 제공자에 없는 모델입니다", 422)
             if provider["efforts"] and effort not in provider["efforts"]:
                 raise DomainError("이 모델에 없는 추론 수준입니다", 422)
+
+    @staticmethod
+    def _free_name(c, room_id, name, keep_id=None):
+        """지운 에이전트가 쓰던 이름이면 그 기록의 이름에 ID를 붙여 이름을 비운다. 살아 있는 에이전트면 중복이다."""
+        holder = c.execute("SELECT id, removed FROM agents WHERE room_id=? AND name=?", (room_id, name)).fetchone()
+        if holder is None or holder["id"] == keep_id:
+            return
+        if not holder["removed"]:
+            raise DomainError("방 안에서 에이전트 이름이 중복됩니다")
+        c.execute("UPDATE agents SET name=? WHERE id=?", (f"{name}#{holder['id']}", holder["id"]))
+
+    def create_agent(self, room_id, name, kind, good_at, model="", effort=""):
+        self._check_agent_choice(kind, model, effort)
         with self.db.connect(write=True) as c:
             room = require(c, "rooms", room_id)
             self.room_repository(room)
+            self._free_name(c, room_id, name)
             try:
                 aid = c.execute("INSERT INTO agents(room_id,name,kind,model,effort,good_at) VALUES(?,?,?,?,?,?)",
                                 (room_id, name, kind, model, effort, json.dumps(good_at, ensure_ascii=False))).lastrowid
             except sqlite3.IntegrityError as exc:
                 raise DomainError("방 안에서 에이전트 이름이 중복됩니다") from exc
             return require(c, "agents", aid)
+
+    def update_agent(self, agent_id, name, kind, good_at, model="", effort=""):
+        """이름, 제공자, 모델, 추론 수준, 잘하는 일을 바꾼다. 다음 턴부터 적용된다."""
+        self._check_agent_choice(kind, model, effort)
+        with self.db.connect(write=True) as c:
+            agent = require(c, "agents", agent_id)
+            if agent["removed"]:
+                raise DomainError("지운 에이전트입니다", 404)
+            self._free_name(c, agent["room_id"], name, keep_id=agent_id)
+            c.execute("UPDATE agents SET name=?,kind=?,model=?,effort=?,good_at=? WHERE id=?",
+                      (name, kind, model, effort, json.dumps(good_at, ensure_ascii=False), agent_id))
+            return require(c, "agents", agent_id)
+
+    def remove_agent(self, agent_id):
+        """에이전트를 지운다. 작업 세션이 돌고 있으면 거절하고, 맡은 할 일은 Jev가 다시 배정하도록 되돌린다."""
+        with self.db.connect(write=True) as c:
+            agent = require(c, "agents", agent_id)
+            if agent["removed"]:
+                return {"ok": True}
+            if c.execute("""SELECT 1 FROM sessions WHERE agent_id=? AND status IN ('queued','running')
+                            AND (kind='work' OR status='running')""", (agent_id,)).fetchone():
+                raise DomainError("실행 중인 세션이 있는 에이전트입니다. 실행이 끝나거나 취소한 뒤 지우세요")
+            c.execute("UPDATE sessions SET status='cancelled',summary='에이전트 삭제',finished_at=CURRENT_TIMESTAMP "
+                      "WHERE agent_id=? AND status='queued'", (agent_id,))
+            for task in c.execute("SELECT id FROM tasks WHERE owner_id=? AND status='claimed'", (agent_id,)).fetchall():
+                c.execute("UPDATE tasks SET status='open',owner_id=NULL WHERE id=?", (task["id"],))
+                self.event(c, task["id"], "released", f"agent:{agent_id} 삭제")
+            c.execute("UPDATE agents SET removed=1 WHERE id=?", (agent_id,))
+        return {"ok": True}
 
     def post_message(self, room_id, content, agent_id=None, *, reply_to_message_id=None):
         with self.db.connect(write=True) as c:
@@ -244,7 +287,7 @@ class TaskService:
             if agent_id is None:
                 c.execute("UPDATE rooms SET auto_tasks=0 WHERE id=?", (room_id,))
             message_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
-            agents = [dict(r) for r in c.execute("SELECT id,name FROM agents WHERE room_id=?", (room_id,))]
+            agents = [dict(r) for r in c.execute("SELECT id,name FROM agents WHERE room_id=? AND removed=0", (room_id,))]
             targets = [a["id"] for a in mentioned_agents(agents, content) if a["id"] != agent_id]
             if reply_to_message_id is not None:
                 asker = c.execute("SELECT author FROM messages WHERE id=?", (reply_to_message_id,)).fetchone()["author"]
@@ -298,7 +341,7 @@ class TaskService:
         with self.db.connect() as c:
             return [r["id"] for r in c.execute("""
                 SELECT r.id FROM rooms r WHERE r.paused=0 AND r.auto_tasks<?
-                AND EXISTS (SELECT 1 FROM agents a WHERE a.room_id=r.id)
+                AND EXISTS (SELECT 1 FROM agents a WHERE a.room_id=r.id AND a.removed=0)
                 AND EXISTS (SELECT 1 FROM messages m WHERE m.room_id=r.id AND m.author='human')
                 AND (SELECT max(id) FROM messages m WHERE m.room_id=r.id) > r.idle_checked_message
                 AND (SELECT author FROM messages m WHERE m.room_id=r.id ORDER BY id DESC LIMIT 1) != 'human'
@@ -319,7 +362,7 @@ class TaskService:
     def idle_context(self, room_id):
         """Jev가 다음 단계를 판단할 때 보는 내용. 확인한 마지막 메시지 ID도 함께 돌려준다."""
         with self.db.connect() as c:
-            agents = [dict(r) for r in c.execute("SELECT * FROM agents WHERE room_id=? ORDER BY id", (room_id,))]
+            agents = [dict(r) for r in c.execute("SELECT * FROM agents WHERE room_id=? AND removed=0 ORDER BY id", (room_id,))]
             names = {f"agent:{a['id']}": a["name"] for a in agents}
             messages = [dict(r) for r in c.execute("""SELECT * FROM (SELECT * FROM messages WHERE room_id=?
                                                       ORDER BY id DESC LIMIT 20) ORDER BY id""", (room_id,))]
@@ -340,7 +383,7 @@ class TaskService:
         Jev가 판단하는 사이 방이 멈췄거나 새 메시지·실행이 생겼으면 낡은 판단이므로 아무것도 하지 않는다."""
         with self.db.connect(write=True) as c:
             room = require(c, "rooms", room_id)
-            agent = c.execute("SELECT * FROM agents WHERE id=? AND room_id=?", (agent_id, room_id)).fetchone()
+            agent = c.execute("SELECT * FROM agents WHERE id=? AND room_id=? AND removed=0", (agent_id, room_id)).fetchone()
             last = c.execute("SELECT max(id) FROM messages WHERE room_id=?", (room_id,)).fetchone()[0]
             busy = c.execute("SELECT 1 FROM sessions WHERE room_id=? AND status IN ('queued','running')",
                              (room_id,)).fetchone()
@@ -407,7 +450,7 @@ class TaskService:
             return [r["id"] for r in c.execute("""
                 SELECT t.id FROM tasks t JOIN rooms r ON r.id=t.room_id
                 WHERE t.status='open' AND t.retry_required=0 AND t.attempts<? AND r.paused=0
-                AND EXISTS (SELECT 1 FROM agents a WHERE a.room_id=t.room_id) ORDER BY t.id""",
+                AND EXISTS (SELECT 1 FROM agents a WHERE a.room_id=t.room_id AND a.removed=0) ORDER BY t.id""",
                 (self.settings.max_attempts,))]
 
     def assignment_context(self, task_id):
@@ -419,7 +462,7 @@ class TaskService:
             room = require(c, "rooms", task["room_id"])
             agents = [dict(r) for r in c.execute("""
                 SELECT a.*, (SELECT count(*) FROM tasks t WHERE t.owner_id=a.id AND t.status='claimed') AS load
-                FROM agents a WHERE a.room_id=? ORDER BY a.id""", (task["room_id"],))]
+                FROM agents a WHERE a.room_id=? AND a.removed=0 ORDER BY a.id""", (task["room_id"],))]
         if not agents:
             return None
         repo = self.room_repository(room)
@@ -437,8 +480,8 @@ class TaskService:
             task = require(c, "tasks", task_id)
             agent = require(c, "agents", agent_id)
             room = require(c, "rooms", task["room_id"])
-            if agent["room_id"] != task["room_id"]:
-                raise DomainError("다른 방의 작업입니다", 403)
+            if agent["room_id"] != task["room_id"] or agent["removed"]:
+                raise DomainError("다른 방의 작업이거나 지운 에이전트입니다", 403)
             if room["paused"]:
                 raise DomainError("자동 진행이 중지된 방입니다")
             repo = self.room_repository(room)
@@ -458,7 +501,7 @@ class TaskService:
     def routing_context(self, room_id, message_id):
         """Jev가 사람 메시지에 답할 에이전트를 고를 때 보는 내용."""
         with self.db.connect() as c:
-            agents = [dict(r) for r in c.execute("SELECT * FROM agents WHERE room_id=? ORDER BY id", (room_id,))]
+            agents = [dict(r) for r in c.execute("SELECT * FROM agents WHERE room_id=? AND removed=0 ORDER BY id", (room_id,))]
             message = dict(require(c, "messages", message_id))
             names = {f"agent:{a['id']}": a["name"] for a in agents}
             rows = c.execute("""SELECT * FROM (SELECT * FROM messages WHERE room_id=? AND id<?
@@ -670,6 +713,9 @@ class TaskService:
                 result[table] = [dict(r) for r in c.execute(f"SELECT * FROM {table} WHERE room_id=? ORDER BY rowid", (room_id,))]
             for agent in result["agents"]:
                 agent["good_at"] = json.loads(agent["good_at"])
+            # 지운 에이전트는 목록에서 빼되, 이력의 작성자 이름을 보일 수 있게 따로 돌려준다.
+            result["removed_agents"] = [a for a in result["agents"] if a["removed"]]
+            result["agents"] = [a for a in result["agents"] if not a["removed"]]
             result["messages"] = [dict(r) for r in c.execute(
                 "SELECT * FROM (SELECT * FROM messages WHERE room_id=? ORDER BY id DESC LIMIT 100) ORDER BY id", (room_id,))]
             if dashboard:

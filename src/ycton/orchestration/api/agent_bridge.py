@@ -64,7 +64,7 @@ def validate(svc, actor, body, kind="chat"):
         s = require(c, "sessions", actor.session_id)
         a = require(c, "agents", actor.agent_id)
         if (s["status"] != "running" or s["kind"] != kind or s["agent_id"] != actor.agent_id
-                or s["room_id"] != actor.room_id or a["room_id"] != actor.room_id):
+                or s["room_id"] != actor.room_id or a["room_id"] != actor.room_id or a["removed"]):
             label = "채팅" if kind == "chat" else "작업"
             raise DomainError(f"활성 {label} 세션만 이 도구를 사용할 수 있습니다", 403)
 

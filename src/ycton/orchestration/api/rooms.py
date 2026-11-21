@@ -52,6 +52,16 @@ def create_agent(room_id: int, body: AgentCreate, svc=Depends(service)):
     return svc.create_agent(room_id, **body.model_dump())
 
 
+@router.post("/agents/{agent_id}")
+def update_agent(agent_id: int, body: AgentCreate, svc=Depends(service)):
+    return svc.update_agent(agent_id, **body.model_dump())
+
+
+@router.post("/agents/{agent_id}/remove")
+def remove_agent(agent_id: int, svc=Depends(service)):
+    return svc.remove_agent(agent_id)
+
+
 @router.get("/rooms/{room_id}/state")
 async def state(room_id: int, request: Request, svc=Depends(service)):
     result = await run_in_threadpool(svc.snapshot, room_id, dashboard=True)

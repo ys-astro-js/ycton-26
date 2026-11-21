@@ -415,3 +415,38 @@ def test_upgrade_does_not_wake_old_rooms(tmp_path):
     db.initialize()
     with db.connect() as c:
         assert c.execute("SELECT idle_checked_message FROM rooms WHERE id=1").fetchone()[0] == 2
+
+
+def test_editing_an_agent_changes_its_details_and_keeps_names_unique(room):
+    svc, rid, ids = room
+    updated = svc.update_agent(ids["Bob"], "Bobby", "docs", ["문서", "검토"])
+    assert updated["name"] == "Bobby" and json.loads(updated["good_at"]) == ["문서", "검토"]
+    with pytest.raises(DomainError):
+        svc.update_agent(ids["Bob"], "Alice", "docs", [])
+
+
+def test_removed_agent_leaves_lists_and_its_tasks_go_back_to_jev(room):
+    svc, rid, ids = room
+    task = svc.create_task(rid, "문서 정리", "", "", "unit")["id"]
+    svc.assign(task, ids["Bob"], "unit")
+    svc.remove_agent(ids["Bob"])
+    state = svc.snapshot(rid)
+    assert "Bob" not in [a["name"] for a in state["agents"]]
+    assert [a["name"] for a in state["removed_agents"]] == ["Bob"]
+    assert state["tasks"][0]["status"] == "open" and state["tasks"][0]["owner_id"] is None
+    assert ids["Bob"] not in queued(svc, rid)
+    svc.post_message(rid, "@Bob 거기 있어?")
+    assert ids["Bob"] not in queued(svc, rid)
+    # 지운 에이전트의 이름은 새 에이전트가 다시 쓸 수 있다.
+    assert svc.create_agent(rid, "Bob", "docs", [])["name"] == "Bob"
+
+
+def test_agent_with_running_work_cannot_be_removed(room):
+    svc, rid, ids = room
+    task = svc.create_task(rid, "문서 정리", "", "", "unit")["id"]
+    svc.assign(task, ids["Bob"], "unit")
+    session = svc.delegate(task, ids["Bob"], "r1", "go")
+    with svc.db.connect(write=True) as c:
+        c.execute("UPDATE sessions SET status='running' WHERE id=?", (session["id"],))
+    with pytest.raises(DomainError):
+        svc.remove_agent(ids["Bob"])
