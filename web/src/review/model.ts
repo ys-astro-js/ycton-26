@@ -1,5 +1,7 @@
 // 아침 리뷰 화면이 쓰는 뷰 모델입니다. 백엔드 응답은 adapter.ts가 이 모양으로 바꿉니다.
 
+import type { Session } from '@/api/client'
+
 /** 프로젝트 = 백엔드의 방(room). 경로 검색어에는 방 id를 문자열로 씁니다. */
 export type ProjectId = string
 
@@ -45,6 +47,7 @@ export interface LedgerEntry {
   status: LedgerStatus
   handoff: string[]
   log: LogLine[]
+  sessions: Session[]
 }
 
 export interface OvernightReport {

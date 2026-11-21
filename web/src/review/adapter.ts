@@ -138,6 +138,7 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
         status,
         handoff: lines(task.handoff),
         log: eventLog(events),
+        sessions,
       })
     }
 

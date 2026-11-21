@@ -14,9 +14,10 @@ import { cn } from '@/lib/utils'
 
 import { StatusNode } from '../review/ledger.tsx'
 import { DisclosurePanel, Glyph, Handoff, STATUS, countFormat } from '../review/shared.tsx'
-import { clock, lines, splitRequest, taskPhase, useAgentModels, useRoomMutation, useTaskEvents, useVerificationProfile, type TaskPhase } from './data.ts'
+import { clock, lines, splitRequest, taskPhase, useAgentModels, useRoomMutation, useTaskEvents, useVerificationProfile, workSessions, type TaskPhase } from './data.ts'
 import { ModelPicker, type ModelChoice } from './model-picker.tsx'
 import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
+import { SessionDetails } from './session-details.tsx'
 
 /**
  * 서버의 이벤트 이름(created, claimed …)과 내부 값(agent:3, 세션 id)을 사람이 읽는 한 문장으로 바꿉니다.
@@ -366,6 +367,8 @@ function TaskRow({
               <p className="text-label text-muted-foreground">{events.isPending ? '불러오는 중…' : '이력이 없습니다.'}</p>
             )}
           </div>
+
+          {open ? <SessionDetails sessions={workSessions(state, task.id)} /> : null}
 
           {finished ? null : (
             <div className="grid gap-2">

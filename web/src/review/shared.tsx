@@ -58,7 +58,7 @@ export function SessionLog({ lines }: { lines: LogLine[] }) {
     <div>
       <h3 className="mb-2 flex items-center gap-1.5 text-label font-semibold text-muted-foreground">
         <Glyph icon={Terminal} className="size-3.5" />
-        세션 로그
+        작업 변경 이력
       </h3>
       <ol className="grid gap-1 font-mono text-label tabular-nums">
         {lines.map((line) => {

@@ -126,9 +126,15 @@ export interface Session {
   commit_hash: string | null
   stop_reason: string | null
   verification_output: string | null
-  latest_event: string | null
+  acp_session_id: string | null
   created_at: string
   finished_at: string | null
+}
+
+export interface SessionEventPage {
+  events: { id: number; kind: 'message' | 'tool' | 'plan' | 'log_gap'; text: string }[]
+  next_cursor: number
+  has_more: boolean
 }
 
 export interface Message {
@@ -200,4 +206,6 @@ export const api = {
   drop: (taskId: number, note: string) => request<Task>(`/api/tasks/${taskId}/drop`, { method: 'POST', body: { note } }),
   session: (sessionId: string) => request<Session>(`/api/sessions/${sessionId}`),
   cancel: (sessionId: string) => request<Session>(`/api/sessions/${sessionId}/cancel`, { method: 'POST' }),
+  sessionEvents: (sessionId: string, cursor: number) =>
+    request<SessionEventPage>(`/api/sessions/${sessionId}/events?cursor=${cursor}`),
 }

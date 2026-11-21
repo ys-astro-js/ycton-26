@@ -33,6 +33,12 @@ def require(conn, table, identifier):
     return dict(row)
 
 
+def public_session(session):
+    session.pop("log_path", None)
+    session.pop("latest_event", None)
+    return session
+
+
 class TaskService:
     def __init__(self, db, settings):
         self.db, self.settings = db, settings
@@ -388,6 +394,8 @@ class TaskService:
             result["messages"] = [dict(r) for r in c.execute(
                 "SELECT * FROM (SELECT * FROM messages WHERE room_id=? ORDER BY id DESC LIMIT 100) ORDER BY id", (room_id,))]
             if dashboard:
+                for session in result["sessions"]:
+                    public_session(session)
                 result["running_work"] = c.execute(
                     "SELECT count(*) FROM sessions WHERE kind='work' AND status='running'").fetchone()[0]
                 result["unanswered_questions"] = [dict(row) for row in c.execute("""
