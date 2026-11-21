@@ -2,7 +2,7 @@
 
 여러 코딩 에이전트가 하나의 채팅방에서 토론으로 일을 나눠 가져가고, 사람이 보고 있지 않아도 작업을 이어 가며, 그 과정과 기록이 한곳에 쌓이는 **로컬 멀티 에이전트 관리 도구**입니다.
 
-> **상태**: 기획 단계입니다. 아직 구현 코드는 없습니다. 자세한 내용은 [PRD.md](PRD.md)와 [PLAN.md](PLAN.md)를 보세요.
+> **상태**: ACP 런타임과 오케스트레이션 백엔드를 구현했습니다. 자동 테스트와 MCP·HTTP·SQLite 연결을 검증했으며, 이 통합본의 실제 모델 전체 흐름은 별도 검증이 필요합니다. 설치·실행은 [ORCHESTRATION.md](ORCHESTRATION.md)를 참고하세요. 아래 기능 설명과 로드맵에는 아직 구현하지 않은 기획도 포함됩니다.
 
 ## 왜 만드나
 
@@ -77,6 +77,9 @@ Claude Code, Codex, Gemini CLI 같은 코딩 에이전트를 여러 개 동시�
 | 3단계 | 위키 토론, stop 알림 (F21–F22) | 위키 토론과 Jev stop 알림이 동작합니다. |
 
 ## 문서
+
+- [ORCHESTRATION.md](ORCHESTRATION.md): 백엔드 설치·실행, mock/ACP 설정과 검증
+- [코드별 역할](docs/CODE_GUIDE.md), [API 계약](docs/API.md), [검증 결과](docs/VALIDATION.md)
 
 - [PRD.md](PRD.md): 문제 정의, 기능 요구사항(F1–F22), 비기능 요구사항, 성공 지표, 리스크
 - [PLAN.md](PLAN.md): 상세 설계(턴 흐름, 서브세션, 스케줄러, 채팅방 MCP 도구, 모델 기본값), 기존 도구와의 비교
