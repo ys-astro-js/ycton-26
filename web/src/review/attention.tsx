@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import {
   Bot,
+  Check,
   ChevronDown,
   CircleCheck,
   CirclePause,
@@ -27,12 +28,13 @@ import { cn } from '@/lib/utils'
 import { DisclosurePanel, Glyph, Handoff, SessionLog, countFormat } from './shared.tsx'
 import type { AttentionItem, AttentionKind, Project } from './model.ts'
 
-export type Resolution = 'resumed' | 'reassigned' | 'answered'
+export type Resolution = 'resumed' | 'reassigned' | 'answered' | 'done'
 
 const RESOLUTION_LABEL: Record<Resolution, string> = {
   resumed: '재개함',
   reassigned: '다시 실행함',
   answered: '답함',
+  done: '완료',
 }
 
 const KIND: Record<AttentionKind, { icon: LucideIcon; label: string }> = {
@@ -323,6 +325,16 @@ function AttentionRow({
                   aria-expanded={open && replying}
                   aria-controls={panelId}
                   onClick={onReply}
+                />
+              ) : null}
+              {/* 채팅에서 이미 정리된 질문은 답장 없이 닫습니다 */}
+              {item.kind === 'question' ? (
+                <IconButton
+                  variant="outline"
+                  icon={Check}
+                  label="완료"
+                  disabled={busy}
+                  onClick={() => handleResolve('done')}
                 />
               ) : null}
             </>

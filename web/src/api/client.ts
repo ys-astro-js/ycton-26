@@ -193,6 +193,9 @@ export const api = {
     request<{ ok: boolean }>(`/api/rooms/${roomId}/messages`, {
       method: 'POST', body: { content, reply_to_message_id: replyTo },
     }),
+  /** 답장 없이 질문을 닫습니다. 닫힌 질문은 unanswered_questions에서 빠집니다 */
+  resolveMessage: (messageId: number) =>
+    request<{ ok: boolean }>(`/api/messages/${messageId}/resolve`, { method: 'POST', body: {} }),
   agentModels: () => request<ModelProvider[]>('/api/agent-models'),
   /** 경로를 입력받지 않고, 서버가 띄운 OS 폴더 선택 창에서 고른 결과만 씁니다 */
   pickFolder: () => request<PickedFolder>('/api/folders/pick', { method: 'POST' }),
