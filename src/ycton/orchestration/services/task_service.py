@@ -36,6 +36,17 @@ def _asks_human(text: str) -> bool:
     return _HUMAN_MENTION.search(_MARKDOWN_CODE.sub(" ", text)) is not None
 
 
+def _unanswered_questions(conn, room_id):
+    rows = conn.execute("""
+        SELECT question.* FROM messages question
+        WHERE question.room_id=? AND question.author GLOB 'agent:*'
+        AND instr(lower(question.content),'@human')>0 AND question.resolved=0
+        AND NOT EXISTS (SELECT 1 FROM messages reply WHERE reply.reply_to_message_id=question.id)
+        ORDER BY question.id
+    """, (room_id,))
+    return (row for row in rows if _asks_human(row["content"]))
+
+
 def mentioned_agents(agents, content):
     """본문에서 @이름으로 부른 에이전트. 더 긴 이름의 앞부분만 맞는 경우는 세지 않는다."""
     return [agent for agent in agents
@@ -358,11 +369,11 @@ class TaskService:
 
     @staticmethod
     def _waits_for_human(c, room_id):
-        """마지막 말이 사람에게 묻는 질문이거나 채팅 실행 실패이면 사람이 볼 차례다."""
+        """미답변 질문이 있거나 마지막 메시지가 채팅 실패면 사람을 기다린다."""
         last = c.execute("SELECT author, content FROM messages WHERE room_id=? ORDER BY id DESC LIMIT 1",
                          (room_id,)).fetchone()
-        return (last["author"].startswith("agent:") and _asks_human(last["content"])) or (
-            last["author"] == "system" and last["content"].startswith(CHAT_FAILED))
+        return (last is not None and last["author"] == "system" and last["content"].startswith(CHAT_FAILED)
+                or next(_unanswered_questions(c, room_id), None) is not None)
 
     def idle_context(self, room_id):
         """Jev가 다음 단계를 판단할 때 보는 내용. 확인한 마지막 메시지 ID도 함께 돌려준다."""
@@ -395,7 +406,7 @@ class TaskService:
             last = c.execute("SELECT max(id) FROM messages WHERE room_id=?", (room_id,)).fetchone()[0]
             busy = c.execute("SELECT 1 FROM sessions WHERE room_id=? AND status IN ('queued','running')",
                              (room_id,)).fetchone()
-            if room["paused"] or agent is None or last != expected_last or busy:
+            if room["paused"] or agent is None or last != expected_last or busy or self._waits_for_human(c, room_id):
                 return False
             self._spend_auto_step(c, room_id)
             self.message(c, room_id, "system",
@@ -438,11 +449,18 @@ class TaskService:
         target = git("branch", "--show-current").stdout.strip()
         if not target:
             raise DomainError("프로젝트 저장소가 브랜치가 아닌 커밋에 체크아웃되어 있습니다", 409)
+
+        def merging():
+            return git("rev-parse", "--verify", "--quiet", "MERGE_HEAD", check=False).returncode == 0
+
+        if merging() or git("status", "--porcelain").stdout:
+            raise DomainError("프로젝트에 변경 사항 또는 진행 중인 병합이 있습니다. 먼저 정리해 주세요", 409)
         before = git("rev-parse", "HEAD").stdout.strip()
-        merged = git("merge", "--no-edit", branch, check=False)
+        merged = git("merge", "--no-edit", "--no-autostash", branch, check=False)
         if merged.returncode != 0:
             conflicts = git("diff", "--name-only", "--diff-filter=U", check=False).stdout.split()
-            git("merge", "--abort", check=False)
+            if merging():
+                git("merge", "--abort")
             detail = f"충돌 파일: {', '.join(conflicts)}" if conflicts else (merged.stderr or merged.stdout).strip()[-500:]
             raise DomainError(f"{branch}를 {target}에 병합하지 못했습니다. {detail}", 409)
         after = git("rev-parse", "HEAD").stdout.strip()
@@ -477,11 +495,8 @@ class TaskService:
             return None
         repo = self.room_repository(room)
         if repo is None:
-            return {"task": task, "agents": agents, "profiles": {}, "default_verify": "unit"}
-        verifiers = getattr(self, "runtime_config", None)
-        profiles = {name: " ".join(verifiers.verifiers[name].command) if verifiers else ""
-                    for name in repo.verification_profiles}
-        return {"task": task, "agents": agents, "profiles": profiles,
+            return {"task": task, "agents": agents, "profiles": (), "default_verify": "unit"}
+        return {"task": task, "agents": agents, "profiles": repo.verification_profiles,
                 "default_verify": repo.default_verification_profile}
 
     def assign(self, task_id, agent_id, verify):
@@ -658,13 +673,16 @@ class TaskService:
             else:
                 # claim 이후 위임 전에 채팅이 실패하면 작업을 영구 점유하지 않게 반환한다.
                 pending = c.execute("SELECT id FROM tasks WHERE owner_id=? AND status='claimed' AND active_session_id IS NULL", (s["agent_id"],)).fetchall()
-                for row in pending:
-                    if status != "succeeded":
-                        # 실패한 시도로 세어 같은 에이전트에게 끝없이 다시 배정되지 않게 한다.
-                        c.execute("""UPDATE tasks SET status='open',owner_id=NULL,handoff=?,attempts=attempts+1
-                                     WHERE id=?""", (summary, row["id"]))
-                        self.event(c, row["id"], "chat_failed_release", summary)
-                    elif row is pending[0]:
+                if pending:
+                    room = require(c, "rooms", s["room_id"])
+                    exhausted = not room["paused"] and room["chat_rounds"] >= self.settings.max_chat_rounds
+                    if status != "succeeded" or exhausted:
+                        note = "채팅 턴 한도에 닿아 실행을 시작하지 못했습니다" if status == "succeeded" else summary
+                        for row in pending:
+                            c.execute("""UPDATE tasks SET status='open',owner_id=NULL,handoff=?,attempts=attempts+1
+                                         WHERE id=?""", (note, row["id"]))
+                            self.event(c, row["id"], "chat_failed_release", note)
+                    else:
                         self.wake(c, s["room_id"], agent_id=s["agent_id"])
                 if status == "failed":
                     self.message(c, s["room_id"], "system", f"{CHAT_FAILED}: {summary}")
@@ -729,18 +747,12 @@ class TaskService:
             result["messages"] = [dict(r) for r in c.execute(
                 "SELECT * FROM (SELECT * FROM messages WHERE room_id=? ORDER BY id DESC LIMIT 100) ORDER BY id", (room_id,))]
             if dashboard:
+                result["max_attempts"] = self.settings.max_attempts
                 for session in result["sessions"]:
                     public_session(session)
                 result["running_work"] = c.execute(
                     "SELECT count(*) FROM sessions WHERE kind='work' AND status='running'").fetchone()[0]
-                result["unanswered_questions"] = [dict(row) for row in c.execute("""
-                    SELECT question.* FROM messages question
-                    WHERE question.room_id=? AND question.author GLOB 'agent:*'
-                    AND instr(lower(question.content),'@human')>0
-                    AND question.resolved=0
-                    AND NOT EXISTS (SELECT 1 FROM messages reply WHERE reply.reply_to_message_id=question.id)
-                    ORDER BY question.id
-                """, (room_id,)) if _asks_human(row["content"])]
+                result["unanswered_questions"] = [dict(row) for row in _unanswered_questions(c, room_id)]
             return result
 
     def recover(self):

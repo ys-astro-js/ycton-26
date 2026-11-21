@@ -60,7 +60,7 @@ function describeEvent(event: string, detail: string, state: RoomState): { what:
     case 'drop':
       return { what: '제외됨' }
     case 'chat_failed_release':
-      return { what: '대화가 실패해 담당 해제', detail }
+      return { what: '실행을 시작하지 못해 담당 해제', detail }
     case 'recovered':
       return { what: '서버 재시작 뒤 다시 열림' }
     default:

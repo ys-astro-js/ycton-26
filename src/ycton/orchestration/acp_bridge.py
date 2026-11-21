@@ -1,10 +1,12 @@
 """담당 1의 실제 함수와 담당 2의 실행 계약을 연결한다. 완료 판정은 직접 검증한다."""
 import asyncio
 import json
+import logging
 from pathlib import Path
 
 from ycton.acp_runtime import run_session
-from ycton.work_session import WorkTask, ensure_branch, fast_forward, run_work_session, worktree_clean
+from ycton.work_session import (WorkTask, checkout_branch_snapshot, ensure_branch, fast_forward, run_work_session,
+                                worktree_clean)
 from ycton.room_mcp import room_mcp_server
 from ycton.agent_process import spawn_owned_agent
 from ycton.subprocess_env import child_environment
@@ -14,6 +16,8 @@ from .services.task_service import require
 from .event_log import EventLog
 from .runtime_config import Repository
 from .services.task_service import DomainError, UNKNOWN_REPOSITORY, UNAVAILABLE_VERIFICATION
+
+logger = logging.getLogger(__name__)
 
 
 async def verify_worktree(profile, worktree):
@@ -59,9 +63,27 @@ class AcpRuntime:
             return await self.chat(request, kind, log, repository)
         return await self.work(request, kind, log, repository)
 
+    async def chat_folder(self, request, repository: Repository):
+        """채팅 턴이 읽을 폴더와 그 폴더가 방 브랜치를 보여 주는지를 돌려준다.
+
+        완료된 할 일의 결과는 방 브랜치에만 쌓이므로, 방 브랜치 끝을 detached로 꺼낸 서버 전용 worktree에서
+        채팅을 돌린다. 스케줄러는 에이전트마다 채팅 턴을 하나만 돌리므로 (방, 에이전트)마다 폴더를 따로 두면
+        같은 방의 두 에이전트가 동시에 채팅해도 서로의 폴더를 되돌리지 않는다. 준비에 실패하면 프로젝트 폴더를 쓴다.
+        """
+        room_branch = f"ycton/room-{request.room_id}"
+        folder = self.config.worktrees / f"room-{request.room_id}-chat-agent-{request.agent_id}"
+        try:
+            return await checkout_branch_snapshot(Path(repository.path), room_branch, folder), room_branch
+        except (OSError, RuntimeError, ValueError):
+            logger.warning("방 브랜치 채팅 폴더를 준비하지 못해 프로젝트 폴더에서 채팅합니다", exc_info=True)
+            return Path(repository.path), None
+
     async def chat(self, request, kind, log, repository: Repository):
         token = self.tokens.issue(Identity(request.session_id, request.room_id, request.agent_id))
         try:
+            cwd, room_branch = await self.chat_folder(request, repository)
+            folder_note = (f"현재 폴더는 완료된 할 일의 결과가 쌓이는 방 브랜치 {room_branch}의 최신 상태입니다.\n"
+                           if room_branch else "")
             mcp = room_mcp_server(api_url=self.config.api_url, token=token,
                                   room_id=str(request.room_id), participant_id=str(request.agent_id))
             prompt = ("방의 협업 에이전트입니다. 아래 JSON의 agent_id가 당신이고, agents에 방의 다른 에이전트와 각자의 good_at이 있습니다. "
@@ -109,9 +131,10 @@ class AcpRuntime:
                       "보류 중인 할 일은 목록에 나오지 않습니다. "
                       "delegate에는 고유 request_id와 instructions를 넣으세요. 409 충돌이면 상태를 다시 확인하세요. 429는 자동 진행 한도이니 다시 시도하지 말고 턴을 끝내세요. "
                       "위임했으면 턴을 끝내세요. "
-                      "답할 메시지도 맡을 할 일도 없으면 메시지 없이 턴을 끝내세요.\n" + kind.instructions + "\n" + request.prompt)
+                      "답할 메시지도 맡을 할 일도 없으면 메시지 없이 턴을 끝내세요.\n" + folder_note + kind.instructions
+                      + "\n" + request.prompt)
             async with EventLog(log, self.service, request.session_id, secrets=(token,)) as events:
-                result = await run_session(*kind.command, cwd=repository.path, prompt=prompt,
+                result = await run_session(*kind.command, cwd=cwd, prompt=prompt,
                                           timeout=self.config.timeout, mcp_servers=[mcp], on_update=events.on_update,
                                           config=self.session_config(request))
             self.service.execution_metadata(request.session_id, acp_session_id=result.session_id,

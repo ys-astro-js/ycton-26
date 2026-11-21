@@ -129,7 +129,7 @@ class Dispatcher:
             questions["verify"] = {
                 "type": "choice",
                 "instructions": "Pick the verification profile the server should run after the work is committed.",
-                "criteria": {name: f"검증 명령: {command}" if command else None for name, command in profiles.items()},
+                "criteria": dict.fromkeys(profiles),
             }
         if self.jev is not None and questions:
             answers = await self.jev.decide(

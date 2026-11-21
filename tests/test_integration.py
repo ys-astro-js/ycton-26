@@ -506,7 +506,9 @@ def test_scheduler_routes_chat_work_and_verification_to_selected_project(project
     calls = []
 
     async def chat(*args, cwd, config, **kwargs):
-        calls.append(("chat", cwd, config))
+        # 채팅은 고른 프로젝트의 방 브랜치를 꺼낸 worktree에서 돈다.
+        common = git_out(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir").strip()
+        calls.append(("chat", Path(common).parent, config))
         return SimpleNamespace(session_id="chat-acp", stop_reason="end_turn")
 
     async def work(*args, repo, worktree, branch, config, **kwargs):
@@ -675,6 +677,28 @@ def test_merge_to_project_merges_room_branch_into_checked_out_branch(bridge, tmp
     assert again['changed'] is False
 
 
+def test_merge_to_project_leaves_existing_manual_merge_alone(bridge, repo):
+    app, client, actor, token, *_ = bridge
+    root = Path(repo)
+    git_out(root, "config", "user.name", "Test")
+    git_out(root, "config", "user.email", "test@example.invalid")
+    target = git_out(root, "branch", "--show-current").strip()
+    git_out(root, "branch", f"ycton/room-{actor['room_id']}")
+    git_out(root, "switch", "-q", "-c", "manual")
+    (root / "manual.txt").write_text("keep this pending merge\n", encoding="utf-8")
+    git_out(root, "add", "manual.txt")
+    git_out(root, "commit", "-qm", "manual work")
+    git_out(root, "switch", "-q", target)
+    git_out(root, "merge", "--no-ff", "--no-commit", "manual")
+    merge_head = git_out(root, "rev-parse", "MERGE_HEAD")
+    app.state.service.room_repository = lambda room: SimpleNamespace(path=root)
+
+    response = client.post("/api/agent/merge", headers={"Authorization": f"Bearer {token}"}, json=actor)
+    assert response.status_code == 409
+    assert git_out(root, "rev-parse", "MERGE_HEAD") == merge_head
+    assert (root / "manual.txt").read_text(encoding="utf-8") == "keep this pending merge\n"
+
+
 def test_review_task_finishes_without_a_commit_via_no_changes(bridge, monkeypatch):
     app, client, actor, token, sid, tid, root = bridge
     svc, config, request = setup_work(bridge)
@@ -698,3 +722,67 @@ def test_no_changes_with_uncommitted_edits_is_not_done(bridge, monkeypatch):
         with svc.db.connect(write=True) as c:
             c.execute("UPDATE sessions SET no_changes=? WHERE id=?", ('바꿀 것 없음', request.session_id))
     assert not run_real_work(svc, config, request, monkeypatch, lazy).succeeded
+
+
+def run_chat(svc, config, request, monkeypatch, during):
+    """채팅 턴 대신 during(cwd, prompt)를 실행한다."""
+    import ycton.orchestration.acp_bridge as module
+    async def chat(*args, cwd, prompt, **kwargs):
+        during(Path(cwd), prompt)
+        return SimpleNamespace(session_id='acp-chat', stop_reason='end_turn', text='')
+    monkeypatch.setattr(module, 'run_session', chat)
+    return asyncio.run(AcpRuntime(svc, config, Tokens()).run(request))
+
+
+def test_chat_reads_room_branch_without_touching_user_checkout(bridge, monkeypatch):
+    app, client, actor, token, sid, tid, root = bridge
+    svc, config, work = setup_work(bridge)
+    checkout = config.repositories['default'].path
+    room_branch = f'ycton/room-{work.room_id}'
+    (Path(checkout) / 'draft.txt').write_text('uncommitted\n')
+    user = lambda: (git_out(checkout, 'branch', '--show-current'), git_out(checkout, 'rev-parse', 'HEAD'),
+                    git_out(checkout, 'status', '--porcelain'))
+    before = user()
+    assert run_real_work(svc, config, work, monkeypatch,
+                         lambda wt, prompt: record_commit(svc, work.session_id, wt, 'PLAN.md')).succeeded
+    chat = RuntimeRequest(sid, work.room_id, work.agent_id, 'chat', 'context', 'demo', repository_id='default')
+    seen = []
+    def first(cwd, prompt):
+        seen.append(cwd)
+        assert (cwd / 'PLAN.md').read_text() == 'PLAN.md\n' and not (cwd / 'draft.txt').exists()
+        assert f'방 브랜치 {room_branch}의 최신' in prompt
+        (cwd / 'scratch.txt').write_text('left over\n')
+        (cwd / 'app.txt').write_text('edited\n')
+    assert run_chat(svc, config, chat, monkeypatch, first).succeeded
+
+    # 방 브랜치가 더 나아가면 다음 턴은 같은 폴더에서 새 끝을 깨끗하게 본다.
+    side = root / 'side'
+    git_out(checkout, 'worktree', 'add', '-q', str(side), room_branch)
+    record_commit(svc, 'unused', side, 'NEXT.md')
+    def second(cwd, prompt):
+        assert cwd == seen[0] and (cwd / 'NEXT.md').exists()
+        assert not (cwd / 'scratch.txt').exists() and (cwd / 'app.txt').read_text() == 'before\n'
+        seen.append(git_out(cwd, 'rev-parse', 'HEAD').strip())
+    assert run_chat(svc, config, chat, monkeypatch, second).succeeded
+
+    assert seen[1] == git_out(checkout, 'rev-parse', room_branch).strip()
+    assert not seen[0].is_relative_to(Path(checkout).resolve())
+    assert user() == before
+    assert not (Path(checkout) / 'PLAN.md').exists()
+
+
+def test_chat_falls_back_to_project_folder_when_not_a_git_checkout(bridge, monkeypatch):
+    app, client, actor, token, sid, tid, root = bridge
+    folder = root / 'plain'
+    folder.mkdir()
+    config = RuntimeConfig({'default': Repository(folder, '기본 저장소', ('unit',), 'unit')},
+                           root / 'worktrees', root / 'logs', 'http://127.0.0.1:8000',
+                           {'demo': AgentKind(('fake',))}, {'unit': Verification(('echo', 'ok'))})
+    room = int(actor['room_id'])
+    chat = RuntimeRequest(sid, room, int(actor['participant_id']), 'chat', 'context', 'demo', repository_id='default')
+    seen = {}
+    def during(cwd, prompt):
+        seen['cwd'], seen['prompt'] = cwd, prompt
+    assert run_chat(app.state.service, config, chat, monkeypatch, during).succeeded
+    assert seen['cwd'] == folder and f'ycton/room-{room}의 최신' not in seen['prompt']
+    assert not (root / 'worktrees').exists()

@@ -169,6 +169,7 @@ export interface RoomState {
   /** 지운 에이전트. 목록에는 없지만 기록의 작성자와 담당 이름을 보일 때 씁니다 */
   removed_agents: Agent[]
   tasks: Task[]
+  max_attempts: number
   sessions: Session[]
   messages: Message[]
   unanswered_questions: Message[]

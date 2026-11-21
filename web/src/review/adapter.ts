@@ -62,11 +62,12 @@ function eventLog(events: TaskEvent[]): LogLine[] {
   })
 }
 
-function ledgerStatus(task: Task, last?: Session): LedgerStatus {
+function ledgerStatus(task: Task, maxAttempts: number, last?: Session): LedgerStatus {
   if (task.status === 'done') return 'done'
   if (task.status === 'dropped') return 'dropped'
   if (task.status === 'claimed' || task.active_session_id) return 'running'
   if (task.retry_required) return 'held'
+  if (task.attempts >= maxAttempts) return 'failed'
   if (task.attempts > 0 && (last?.status === 'failed' || last?.status === 'cancelled')) return 'failed'
   return 'waiting'
 }
@@ -106,23 +107,26 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
       const last = latest(sessions)
       const events = eventsByTask.get(task.id) ?? []
 
-      const status = ledgerStatus(task, last)
-      if (last && (status === 'held' || status === 'failed')) {
-        const finished = parse(last.finished_at) ?? parse(last.created_at)
-        const timedOut = status === 'failed' && /timeout|시간 초과/i.test(`${last.stop_reason ?? ''} ${last.summary}`)
+      const status = ledgerStatus(task, state.max_attempts, last)
+      const lastEvent = events.at(-1)
+      const chatFailure = lastEvent?.event === 'chat_failed_release' ? lastEvent : undefined
+      if (status === 'held' || status === 'failed') {
+        const finished = parse(chatFailure?.created_at ?? last?.finished_at ?? last?.created_at)
+        const summary = chatFailure?.detail ?? last?.summary ?? task.handoff
+        const timedOut = status === 'failed' && /timeout|시간 초과/i.test(`${chatFailure ? '' : last?.stop_reason ?? ''} ${summary}`)
         attention.push({
           sortKey: finished?.getTime() ?? 0,
           item: {
-            id: `session-${last.id}`,
+            id: chatFailure ? `event-${chatFailure.id}` : last ? `session-${last.id}` : `task-${task.id}-failed`,
             at: hm(finished) ?? '',
             projectId,
             kind: status === 'held' ? 'held' : timedOut ? 'timeout' : 'failed',
             // 종류(실패, 시간 초과, 중단됨)는 아이콘이 알리므로 제목은 할 일입니다
             title: task.title,
-            detail: lines(last.summary)[0],
-            agent: agentLabel(agents.get(last.agent_id)),
+            detail: lines(summary)[0],
+            agent: last && !chatFailure ? agentLabel(agents.get(last.agent_id)) : undefined,
             task: { id: `#${task.id}`, title: task.title },
-            handoff: lines(task.handoff || last.summary),
+            handoff: lines(task.handoff || summary),
             log: eventLog(events),
             target: { roomId: state.room.id, taskId: task.id },
           },
@@ -135,7 +139,8 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
         taskId: `#${task.id}`,
         projectId,
         start: hm(parse(first?.created_at)),
-        end: status === 'done' || status === 'failed' || status === 'held' ? hm(parse(last?.finished_at)) : undefined,
+        end: status === 'done' || status === 'failed' || status === 'held'
+          ? hm(parse(chatFailure?.created_at ?? last?.finished_at)) : undefined,
         commit: task.commit_hash?.slice(0, 7) ?? undefined,
         title: task.title,
         agent: agentLabel(owner),

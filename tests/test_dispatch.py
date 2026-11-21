@@ -198,6 +198,7 @@ def test_jev_picks_owner_and_verification_profile(acp_room):
     questions = requests[0]["questions"]
     assert set(questions["owner"]["criteria"]) == {"A", "B"}
     assert set(questions["verify"]["criteria"]) == {"e2e", "unit"}
+    assert questions["verify"]["criteria"] == {"e2e": None, "unit": None}
 
 
 def test_human_chosen_verification_is_kept_and_invalid_jev_choice_falls_back(acp_room):
@@ -255,6 +256,37 @@ def test_scheduler_assigns_and_finishes_mock_task(tmp_path):
             time.sleep(0.05)
         task = state["tasks"][0]
         assert task["status"] == "done" and task["verify"] == "unit"
+
+
+def test_task_without_delegation_exhausts_attempt_budget_and_can_be_retried(tmp_path):
+    class NoDelegation:
+        async def run(self, request):
+            assert request.kind == "chat"
+            return RuntimeResult(True, "Chat ended without starting work")
+
+    settings = Settings(db_path=tmp_path / "no-delegation.db", max_chat_rounds=1, max_attempts=1)
+    app = create_app(settings, runtime_factory=lambda *_: NoDelegation())
+    with TestClient(app, base_url="http://localhost", headers=HEADERS) as client:
+        rid = client.post("/api/rooms", json={"name": "room"}).json()["id"]
+        client.post(f"/api/rooms/{rid}/agents", json={"name": "A", "kind": "demo"})
+        tid = client.post(f"/api/rooms/{rid}/tasks", json={"title": "task"}).json()["id"]
+        sid = f"/api/rooms/{rid}/state"
+        for attempt in range(2):
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                state = client.get(sid).json()
+                if state["tasks"][0]["attempts"] == 1:
+                    break
+                time.sleep(0.05)
+            task = state["tasks"][0]
+            assert state["max_attempts"] == task["attempts"] == 1
+            assert task["status"] == "open" and task["owner_id"] is None and not task["active_session_id"]
+            assert not any(session["kind"] == "work" for session in state["sessions"])
+            assert "채팅 턴 한도" in task["handoff"]
+            events = client.get(f"/api/tasks/{tid}/events").json()
+            assert sum(event["event"] == "chat_failed_release" for event in events) == attempt + 1
+            if not attempt:
+                assert client.post(f"/api/tasks/{tid}/retry", json={"note": "retry"}).status_code == 200
 
 
 def test_chat_prompt_marks_only_the_chosen_responder(room):
@@ -395,6 +427,20 @@ def test_idle_skips_rooms_waiting_on_a_human_question_or_failed_chat(room):
         c.execute("DELETE FROM sessions")
         svc.message(c, rid, "system", "채팅 실행 실패: 런타임 오류")
     assert svc.idle_rooms() == []
+
+
+def test_dismissed_question_unblocks_idle_handoff_but_later_agent_messages_do_not(room):
+    svc, rid, ids = room
+    idle_ready(svc, rid, ids)
+    svc.post_message(rid, "@human 검증 범위를 알려주세요.", ids["Alice"])
+    question = svc.snapshot(rid)["messages"][-1]["id"]
+    svc.post_message(rid, "검증 범위를 정하기 전까지 초안은 준비했습니다.", ids["Bob"])
+    last = svc.idle_context(rid)["last_message"]
+    assert svc.idle_rooms() == []
+    assert svc.hand_off(rid, ids["Alice"], last) is False
+    svc.resolve_question(question)
+    assert svc.idle_rooms() == [rid]
+    assert svc.hand_off(rid, ids["Alice"], last) is True
 
 
 def test_upgrade_does_not_wake_old_rooms(tmp_path):
