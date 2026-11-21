@@ -355,6 +355,15 @@ class TaskService:
             self.wake(c, room_id, agent_id=agent_id, reset=True)
             return True
 
+    def resolve_question(self, message_id):
+        """사람이 답장 없이 질문을 처리했다고 표시한다. 채팅에서 이미 정리된 질문을 목록에서 뺄 때 쓴다."""
+        with self.db.connect(write=True) as c:
+            question = require(c, "messages", message_id)
+            if not question["author"].startswith("agent:") or not _asks_human(question["content"]):
+                raise DomainError("사람에게 보낸 질문만 완료로 표시할 수 있습니다", 422)
+            c.execute("UPDATE messages SET resolved=1 WHERE id=?", (message_id,))
+        return {"ok": True}
+
     def merge_room_branch(self, room_id, agent_id):
         """방 통합 브랜치(ycton/room-<id>)를 프로젝트 저장소에 체크아웃된 브랜치로 병합한다.
         사람이 반영을 요청했을 때 채팅 에이전트가 부른다. 충돌하면 되돌리고 충돌 파일을 알려 준다."""
@@ -661,6 +670,7 @@ class TaskService:
                     SELECT question.* FROM messages question
                     WHERE question.room_id=? AND question.author GLOB 'agent:*'
                     AND instr(lower(question.content),'@human')>0
+                    AND question.resolved=0
                     AND NOT EXISTS (SELECT 1 FROM messages reply WHERE reply.reply_to_message_id=question.id)
                     ORDER BY question.id
                 """, (room_id,)) if _asks_human(row["content"])]

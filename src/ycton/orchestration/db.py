@@ -14,6 +14,8 @@ TASK_RETRY = "retry_required INTEGER NOT NULL DEFAULT 0 CHECK(retry_required IN 
 MESSAGE_REPLY = "reply_to_message_id INTEGER REFERENCES messages(id)"
 # 사람 메시지에 답할 에이전트 ID 목록(JSON). @이름, 답장 대상, Jev의 선택으로 정해진다.
 MESSAGE_ADDRESSED = "addressed_to TEXT NOT NULL DEFAULT '[]'"
+# 사람이 답장 없이 처리했다고 표시한 질문. 처리할 일 목록에서 빠진다.
+MESSAGE_RESOLVED = "resolved INTEGER NOT NULL DEFAULT 0"
 
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS rooms (
@@ -29,7 +31,7 @@ CREATE TABLE IF NOT EXISTS agents (
 CREATE TABLE IF NOT EXISTS messages (
  id INTEGER PRIMARY KEY, room_id INTEGER NOT NULL REFERENCES rooms(id),
  author TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
- {MESSAGE_REPLY}, {MESSAGE_ADDRESSED}
+ {MESSAGE_REPLY}, {MESSAGE_ADDRESSED}, {MESSAGE_RESOLVED}
 );
 CREATE TABLE IF NOT EXISTS tasks (
  id INTEGER PRIMARY KEY, room_id INTEGER NOT NULL REFERENCES rooms(id),
@@ -85,7 +87,7 @@ class Database:
             for table, column in (("rooms", ROOM_REPOSITORY), ("rooms", ROOM_FOLDER), ("rooms", ROOM_AUTO_TASKS),
                                   ("rooms", ROOM_IDLE_CHECKED),
                                   ("tasks", TASK_RETRY), ("messages", MESSAGE_REPLY),
-                                  ("messages", MESSAGE_ADDRESSED)):
+                                  ("messages", MESSAGE_ADDRESSED), ("messages", MESSAGE_RESOLVED)):
                 if not any(row["name"] == column.split(" ", 1)[0]
                            for row in conn.execute(f"PRAGMA table_info({table})")):
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {column}")

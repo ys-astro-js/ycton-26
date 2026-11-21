@@ -78,6 +78,11 @@ def message(room_id: int, body: MessageCreate, request: Request, background: Bac
     return {"ok": True}
 
 
+@router.post("/messages/{message_id}/resolve")
+def resolve(message_id: int, svc=Depends(service)):
+    return svc.resolve_question(message_id)
+
+
 @router.post("/rooms/{room_id}/pause")
 def pause(room_id: int, svc=Depends(service)):
     return svc.pause(room_id, True)

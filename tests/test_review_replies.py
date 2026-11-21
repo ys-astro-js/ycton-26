@@ -68,3 +68,20 @@ def test_only_explicit_human_mentions_are_questions_and_reply_targets(tmp_path):
         (question,) = state["unanswered_questions"]
         assert client.post(f"{path}/messages", json={"content": "Answer", "reply_to_message_id": question["id"]}).status_code == 201
         assert client.get(f"{path}/state").json()["unanswered_questions"] == []
+
+
+def test_marking_a_question_done_removes_it_from_review(tmp_path):
+    path = tmp_path / "state.db"
+    app = main.create_app(Settings(db_path=path), start_scheduler=False)
+    with TestClient(app, base_url="http://localhost", headers=HEADERS) as client:
+        svc = app.state.service
+        room = svc.create_room("room")["id"]
+        agent = svc.create_agent(room, "A", "demo", [])["id"]
+        svc.post_message(room, "@human 어느 쪽으로 할까요?", agent)
+        svc.post_message(room, "그냥 일반 메시지", agent)
+        questions = client.get(f"/api/rooms/{room}/state").json()["unanswered_questions"]
+        assert len(questions) == 1
+        other = client.get(f"/api/rooms/{room}/state").json()["messages"][-1]["id"]
+        assert client.post(f"/api/messages/{other}/resolve", json={}).status_code == 422
+        assert client.post(f"/api/messages/{questions[0]['id']}/resolve", json={}).status_code == 200
+        assert client.get(f"/api/rooms/{room}/state").json()["unanswered_questions"] == []
