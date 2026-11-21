@@ -277,7 +277,7 @@ function AttentionRow({
                 isResolved && 'line-through decoration-from-font',
               )}
             >
-              {open && item.body ? item.body : item.title}
+              {item.title}
             </button>
           </p>
           {item.detail ? <p className="max-w-[65ch] text-muted-foreground text-pretty">{item.detail}</p> : null}

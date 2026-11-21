@@ -25,8 +25,6 @@ export interface AttentionItem {
   projectId: ProjectId
   kind: AttentionKind
   title: string
-  /** 펼쳤을 때 제목 대신 보일 전체 본문. 긴 메시지에서 질문만 뽑아 제목으로 쓸 때 씁니다 */
-  body?: string
   detail?: string
   agent?: string
   task?: { id: string; title: string }

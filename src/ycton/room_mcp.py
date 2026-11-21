@@ -16,7 +16,7 @@ _ROOM_ID = "YCTON_ROOM_ID"
 _PARTICIPANT_ID = "YCTON_PARTICIPANT_ID"
 ROOM_MCP_NAME = "room"
 ROOM_WORK_TOOLS = ("commit",)
-ROOM_CHAT_TOOLS = ("send", "list_tasks", "create_task", "claim", "delegate")
+ROOM_CHAT_TOOLS = ("send", "ask_human", "list_tasks", "create_task", "claim", "delegate")
 _STDIO_ARGS = ("-I", "-m", "ycton.room_mcp")
 
 
@@ -79,6 +79,15 @@ def build_room_server(client: httpx.AsyncClient, *, room_id: str, participant_id
         """
         await post("/api/agent/messages", text=text)
         return "Message sent."
+
+    @server.tool()
+    async def ask_human(question: str) -> str:
+        """Ask the person for a decision or answer. Write one summarized question of at most 200 characters.
+
+        Post any background with send first; the question itself is what the person sees in their review list.
+        """
+        await post("/api/agent/questions", question=question)
+        return "Question sent."
 
     @server.tool()
     async def list_tasks() -> dict:

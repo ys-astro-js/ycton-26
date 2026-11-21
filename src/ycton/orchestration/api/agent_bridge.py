@@ -4,7 +4,7 @@ from pydantic import Field, field_validator
 from .dependencies import service
 from ..identity import Identity
 from ..schemas import Input
-from ..services.task_service import require, DomainError
+from ..services.task_service import _asks_human, require, DomainError
 
 router = APIRouter(prefix="/api/agent", tags=["내부 MCP: 세션 인증"])
 
@@ -16,6 +16,11 @@ class Actor(Input):
 
 class Message(Actor):
     text: str = Field(min_length=1, max_length=10000)
+
+
+class Question(Actor):
+    # 사람의 처리할 일 목록에 그대로 보이므로 처음부터 한 문장 요약이어야 한다.
+    question: str = Field(min_length=1, max_length=200)
 
 
 class NewTask(Actor):
@@ -73,7 +78,16 @@ def task_number(value):
 @router.post("/messages", status_code=201)
 def send(body: Message, actor=Depends(identity), svc=Depends(service)):
     validate(svc, actor, body)
+    if _asks_human(body.text):
+        raise DomainError("사람에게 묻는 질문은 send가 아니라 ask_human(question)으로 200자 이내의 한 문장 요약으로 보내세요", 422)
     svc.post_message(actor.room_id, body.text, actor.agent_id)
+    return {"ok": True}
+
+
+@router.post("/questions", status_code=201)
+def ask_human(body: Question, actor=Depends(identity), svc=Depends(service)):
+    validate(svc, actor, body)
+    svc.post_message(actor.room_id, f"@human {body.question}", actor.agent_id)
     return {"ok": True}
 
 

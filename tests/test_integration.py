@@ -64,10 +64,11 @@ def test_mcp_tools_reach_real_api(bridge):
                                     headers={'Authorization':f'Bearer {token}'}) as http:
             mcp = build_room_server(http, **{'room_id':actor['room_id'],'participant_id':actor['participant_id']})
             names = {t.name for t in await mcp.list_tools()}
-            assert names == {'send','list_tasks','create_task','claim','delegate'}
+            assert names == {'send','ask_human','list_tasks','create_task','claim','delegate'}
             await mcp.call_tool('send', {'text':'MCP 왕복'})
             await mcp.call_tool('list_tasks', {})
             await mcp.call_tool('create_task', {'title':'채팅 요청','detail':'자동 스크롤'})
+            await mcp.call_tool('ask_human', {'question':'배포해도 될까요?'})
             await mcp.call_tool('claim', {'task_id':str(tid)})
             await mcp.call_tool('delegate', {'task_id':str(tid),'request_id':'mcp-1','instructions':'go'})
     asyncio.run(exercise())
@@ -184,7 +185,7 @@ def test_chat_token_is_revoked_and_final_text_not_posted(bridge,monkeypatch):
     assert captured[0] not in Path(result.log_path).read_text()
 
 
-@pytest.mark.parametrize('tool,allowed',[('send',True),('list_tasks',True),('create_task',True),('claim',True),('delegate',True),('terminal',False)])
+@pytest.mark.parametrize('tool,allowed',[('send',True),('ask_human',True),('list_tasks',True),('create_task',True),('claim',True),('delegate',True),('terminal',False)])
 def test_permission_allowlist(tool,allowed):
     from acp.schema import ToolCallStart,ToolCallUpdate,PermissionOption
     from ycton.acp_runtime import _SessionClient
@@ -559,3 +560,14 @@ def test_manual_hold_is_visible_to_humans_but_not_mcp(bridge):
     asyncio.run(exercise())
     state = client.get(f"/api/rooms/{actor['room_id']}/state").json()
     assert state["tasks"][0]["id"] == tid and state["tasks"][0]["retry_required"] == 1
+
+
+def test_questions_to_a_human_go_through_ask_human_as_a_short_summary(bridge):
+    app, client, actor, token, sid, tid, _ = bridge
+    headers = {'Authorization': f'Bearer {token}'}
+    long_send = client.post('/api/agent/messages', headers=headers, json={**actor, 'text': '설명... @human 정해 주세요'})
+    assert long_send.status_code == 422 and 'ask_human' in long_send.json()['detail']
+    assert client.post('/api/agent/questions', headers=headers, json={**actor, 'question': '가' * 201}).status_code == 422
+    assert client.post('/api/agent/questions', headers=headers, json={**actor, 'question': '배포해도 될까요?'}).status_code == 201
+    questions = app.state.service.snapshot(int(actor['room_id']), dashboard=True)['unanswered_questions']
+    assert [q['content'] for q in questions] == ['@human 배포해도 될까요?']
