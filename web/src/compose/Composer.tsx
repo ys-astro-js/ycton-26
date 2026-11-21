@@ -29,7 +29,7 @@ const INTENTS: { value: Intent; icon: LucideIcon; label: string }[] = [
 const VERIFY_PROFILE = 'unit'
 
 /**
- * 메시지를 보내거나 할 일을 추가하는 입력. 아침 리뷰(채팅방을 고름)와 채팅방(그 방의 입력창)이 같이 씁니다.
+ * 메시지를 보내거나 할 일을 추가하는 입력. 아침 리뷰(프로젝트를 고름)와 프로젝트(그 방의 입력창)이 같이 씁니다.
  * - 메시지: POST /api/rooms/{id}/messages. 에이전트가 대화로 답합니다.
  * - 할 일: POST /api/rooms/{id}/tasks. 에이전트는 할 일을 만들 수 없으므로 실제 작업은 이 경로로만 시작됩니다.
  */
@@ -145,7 +145,7 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
         {global ? (
           <Field data-invalid={invalid.room || undefined} className="min-w-0 flex-1 basis-40 gap-0 sm:w-44 sm:flex-none sm:basis-auto">
             <FieldLabel htmlFor={ids.room} className="sr-only">
-              채팅방
+              프로젝트
             </FieldLabel>
             <NativeSelect
               ref={roomSelectRef}
@@ -160,7 +160,7 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
               }}
             >
               <NativeSelectOption value="" disabled>
-                채팅방 선택
+                프로젝트 선택
               </NativeSelectOption>
               {rooms.map((room) => (
                 <NativeSelectOption key={room.id} value={room.id}>
@@ -174,7 +174,7 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
         <IconButton type="submit" icon={assigning ? Plus : Send} label={assigning ? '할 일 추가' : '보내기'} disabled={send.isPending} />
       </div>
 
-      {invalid.room ? <FieldError id={ids.roomError}>채팅방을 선택하세요.</FieldError> : null}
+      {invalid.room ? <FieldError id={ids.roomError}>프로젝트를 선택하세요.</FieldError> : null}
       {invalid.text ? (
         <FieldError id={ids.textError}>{assigning ? '할 일을 입력하세요.' : '메시지를 입력하세요.'}</FieldError>
       ) : null}

@@ -105,7 +105,7 @@ function RailNav() {
 
       <div>
         <h2 id={headingId} className="px-3 pb-1 text-label font-semibold text-muted-foreground">
-          채팅방
+          프로젝트
         </h2>
         <ul aria-labelledby={headingId} className="grid gap-0.5">
           {rooms.map((room) => {
@@ -181,7 +181,7 @@ function NewRoom() {
           requestAnimationFrame(() => inputRef.current?.focus())
         }}
       >
-        새 채팅방
+        새 프로젝트
       </Button>
     )
   }
@@ -190,7 +190,7 @@ function NewRoom() {
     <form noValidate onSubmit={submit} className="mt-2 grid gap-2 px-3">
       <Field data-invalid={error || undefined} className="gap-0">
         <FieldLabel htmlFor={fieldId} className="text-xs text-muted-foreground">
-          채팅방 이름
+          프로젝트 이름
         </FieldLabel>
         <Input
           ref={inputRef}
@@ -211,7 +211,7 @@ function NewRoom() {
       </Field>
       {create.error ? (
         <p role="alert" className="text-label text-destructive">
-          {create.error instanceof ApiError ? create.error.message : '채팅방을 만들지 못했습니다'}. 잠시 후 다시 시도하세요.
+          {create.error instanceof ApiError ? create.error.message : '프로젝트를 만들지 못했습니다'}. 잠시 후 다시 시도하세요.
         </p>
       ) : null}
       <div className="flex gap-2">

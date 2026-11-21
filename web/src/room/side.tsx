@@ -171,8 +171,8 @@ function TaskRow({
   const events = useTaskEvents(task.id, open)
 
   const roomId = state.room.id
-  const retry = useRoomMutation(roomId, () => api.retry(task.id, '사람이 채팅방에서 다시 실행'))
-  const drop = useRoomMutation(roomId, () => api.drop(task.id, '사람이 채팅방에서 제외함'))
+  const retry = useRoomMutation(roomId, () => api.retry(task.id, '사람이 프로젝트에서 다시 실행'))
+  const drop = useRoomMutation(roomId, () => api.drop(task.id, '사람이 프로젝트에서 제외함'))
   const cancel = useRoomMutation(roomId, () => api.cancel(task.active_session_id ?? ''))
   const error = [retry, drop, cancel].find((m) => m.error)?.error
   const busy = retry.isPending || drop.isPending || cancel.isPending

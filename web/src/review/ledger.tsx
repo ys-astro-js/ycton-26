@@ -131,7 +131,7 @@ function ProjectGroup({
           className="flex items-center gap-1.5 underline-offset-4 hover:text-foreground hover:underline"
         >
           <Glyph icon={FolderGit2} className="size-3.5" />
-          <span className="sr-only">채팅방 열기: </span>
+          <span className="sr-only">프로젝트 열기: </span>
           {project.name}
         </Link>
       </h3>

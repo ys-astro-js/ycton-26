@@ -136,11 +136,11 @@ function ReviewHeader({ report, project }: { report?: OvernightReport; project?:
 
   return (
     <PageHeader title="아침 리뷰">
-      {/* 왼쪽 레일은 아침 리뷰와 채팅방 사이를 오가므로, 리뷰는 이 선택으로 한 채팅방만 좁혀 봅니다 */}
+      {/* 왼쪽 레일은 아침 리뷰와 프로젝트 사이를 오가므로, 리뷰는 이 선택으로 한 프로젝트만 좁혀 봅니다 */}
       {report && report.projects.length > 1 ? (
         <div className="w-full sm:w-56">
           <Label htmlFor={selectId} className="sr-only">
-            채팅방
+            프로젝트
           </Label>
           <NativeSelect
             id={selectId}
@@ -151,7 +151,7 @@ function ReviewHeader({ report, project }: { report?: OvernightReport; project?:
               navigate({ to: '/', search: value ? { project: value } : {} })
             }}
           >
-            <NativeSelectOption value="">모든 채팅방</NativeSelectOption>
+            <NativeSelectOption value="">모든 프로젝트</NativeSelectOption>
             {report.projects.map((p) => (
               <NativeSelectOption key={p.id} value={p.id}>
                 {p.name}

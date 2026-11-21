@@ -1,4 +1,4 @@
-// 채팅방 화면이 쓰는 조회와 변경. 모든 요청은 api/client.ts 한 곳을 거칩니다.
+// 프로젝트 화면이 쓰는 조회와 변경. 모든 요청은 api/client.ts 한 곳을 거칩니다.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
