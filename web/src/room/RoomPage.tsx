@@ -166,9 +166,9 @@ export function RoomPage() {
             {stopped ? '일시 정지' : null}
           </p>
           {stopped ? (
-            <IconButton icon={Play} label="자동 진행 재개하기" disabled={resume.isPending} onClick={() => resume.mutate(undefined)} />
+            <IconButton icon={Play} label="재개" disabled={resume.isPending} onClick={() => resume.mutate(undefined)} />
           ) : (
-            <IconButton variant="outline" icon={Pause} label="자동 진행 멈추기" disabled={pause.isPending} onClick={() => pause.mutate(undefined)} />
+            <IconButton variant="outline" icon={Pause} label="일시 정지" disabled={pause.isPending} onClick={() => pause.mutate(undefined)} />
           )}
         </div>
         {toggleError ? (
