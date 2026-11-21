@@ -1,329 +1,224 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-21T03:38:47+00:00",
+  "generatedAt": "2026-11-21T03:55:16+00:00",
   "title": "Design System: afk",
   "extensions": {
     "colorMeta": {
-      "attention": {
-        "role": "primary",
-        "displayName": "주의 빨강",
-        "canonical": "#dc2626",
-        "tonalRamp": [
-          "#7f1d1d",
-          "#991b1b",
-          "#b91c1c",
-          "#dc2626",
-          "#f87171",
-          "#fecaca",
-          "#fee2e2",
-          "#fef2f2"
-        ]
-      },
-      "attention-text": {
-        "role": "primary",
-        "displayName": "주의 글자 빨강",
-        "canonical": "#b91c1c",
-        "tonalRamp": [
-          "#7f1d1d",
-          "#991b1b",
-          "#b91c1c",
-          "#dc2626",
-          "#f87171",
-          "#fecaca",
-          "#fee2e2",
-          "#fef2f2"
-        ]
-      },
-      "attention-wash": {
-        "role": "primary",
-        "displayName": "주의 바탕 빨강",
-        "canonical": "#fef2f2",
-        "tonalRamp": [
-          "#7f1d1d",
-          "#991b1b",
-          "#b91c1c",
-          "#dc2626",
-          "#f87171",
-          "#fecaca",
-          "#fee2e2",
-          "#fef2f2"
-        ]
-      },
-      "attention-border": {
-        "role": "primary",
-        "displayName": "주의 테두리 빨강",
-        "canonical": "#fecaca",
-        "tonalRamp": [
-          "#7f1d1d",
-          "#991b1b",
-          "#b91c1c",
-          "#dc2626",
-          "#f87171",
-          "#fecaca",
-          "#fee2e2",
-          "#fef2f2"
-        ]
-      },
-      "live": {
-        "role": "secondary",
-        "displayName": "진행 파랑",
-        "canonical": "#2563eb",
-        "tonalRamp": [
-          "#1e3a8a",
-          "#1e40af",
-          "#1d4ed8",
-          "#2563eb",
-          "#60a5fa",
-          "#bfdbfe",
-          "#dbeafe",
-          "#eff6ff"
-        ]
-      },
-      "live-text": {
-        "role": "secondary",
-        "displayName": "진행 글자 파랑",
-        "canonical": "#1d4ed8",
-        "tonalRamp": [
-          "#1e3a8a",
-          "#1e40af",
-          "#1d4ed8",
-          "#2563eb",
-          "#60a5fa",
-          "#bfdbfe",
-          "#dbeafe",
-          "#eff6ff"
-        ]
-      },
-      "focus": {
-        "role": "secondary",
-        "displayName": "포커스 파랑",
-        "canonical": "#2563eb",
-        "tonalRamp": [
-          "#1e3a8a",
-          "#1e40af",
-          "#1d4ed8",
-          "#2563eb",
-          "#60a5fa",
-          "#bfdbfe",
-          "#dbeafe",
-          "#eff6ff"
-        ]
-      },
-      "bg": {
+      "background": {
         "role": "neutral",
-        "displayName": "바탕 회색",
-        "canonical": "#fafafa",
+        "displayName": "바탕 흰색",
+        "canonical": "oklch(1 0 0)",
         "tonalRamp": [
-          "#18181b",
-          "#3f3f46",
-          "#52525b",
-          "#71717a",
-          "#a1a1aa",
-          "#d4d4d8",
-          "#e4e4e7",
-          "#fafafa"
+          "oklch(0.145 0 0)",
+          "oklch(0.205 0 0)",
+          "oklch(0.269 0 0)",
+          "oklch(0.439 0 0)",
+          "oklch(0.556 0 0)",
+          "oklch(0.708 0 0)",
+          "oklch(0.922 0 0)",
+          "oklch(0.97 0 0)"
         ]
       },
-      "surface": {
-        "role": "neutral",
-        "displayName": "표면 흰색",
-        "canonical": "#ffffff",
-        "tonalRamp": [
-          "#18181b",
-          "#3f3f46",
-          "#52525b",
-          "#71717a",
-          "#a1a1aa",
-          "#d4d4d8",
-          "#e4e4e7",
-          "#fafafa"
-        ]
-      },
-      "surface-hover": {
-        "role": "neutral",
-        "displayName": "옅은 회색 호버",
-        "canonical": "#f4f4f5",
-        "tonalRamp": [
-          "#18181b",
-          "#3f3f46",
-          "#52525b",
-          "#71717a",
-          "#a1a1aa",
-          "#d4d4d8",
-          "#e4e4e7",
-          "#fafafa"
-        ]
-      },
-      "surface-selected": {
-        "role": "neutral",
-        "displayName": "옅은 회색 선택",
-        "canonical": "#f4f4f5",
-        "tonalRamp": [
-          "#18181b",
-          "#3f3f46",
-          "#52525b",
-          "#71717a",
-          "#a1a1aa",
-          "#d4d4d8",
-          "#e4e4e7",
-          "#fafafa"
-        ]
-      },
-      "text": {
+      "foreground": {
         "role": "neutral",
         "displayName": "잉크",
-        "canonical": "#18181b",
+        "canonical": "oklch(0.145 0 0)",
         "tonalRamp": [
-          "#18181b",
-          "#3f3f46",
-          "#52525b",
-          "#71717a",
-          "#a1a1aa",
-          "#d4d4d8",
-          "#e4e4e7",
-          "#fafafa"
+          "oklch(0.145 0 0)",
+          "oklch(0.205 0 0)",
+          "oklch(0.269 0 0)",
+          "oklch(0.439 0 0)",
+          "oklch(0.556 0 0)",
+          "oklch(0.708 0 0)",
+          "oklch(0.922 0 0)",
+          "oklch(0.97 0 0)"
         ]
       },
-      "text-secondary": {
+      "card": {
         "role": "neutral",
-        "displayName": "보조 회색",
-        "canonical": "#52525b",
+        "displayName": "표면 흰색",
+        "canonical": "oklch(1 0 0)",
         "tonalRamp": [
-          "#18181b",
-          "#3f3f46",
-          "#52525b",
-          "#71717a",
-          "#a1a1aa",
-          "#d4d4d8",
-          "#e4e4e7",
-          "#fafafa"
+          "oklch(0.145 0 0)",
+          "oklch(0.205 0 0)",
+          "oklch(0.269 0 0)",
+          "oklch(0.439 0 0)",
+          "oklch(0.556 0 0)",
+          "oklch(0.708 0 0)",
+          "oklch(0.922 0 0)",
+          "oklch(0.97 0 0)"
         ]
       },
-      "text-muted": {
+      "primary": {
+        "role": "neutral",
+        "displayName": "주 버튼 잉크",
+        "canonical": "oklch(0.205 0 0)",
+        "tonalRamp": [
+          "oklch(0.145 0 0)",
+          "oklch(0.205 0 0)",
+          "oklch(0.269 0 0)",
+          "oklch(0.439 0 0)",
+          "oklch(0.556 0 0)",
+          "oklch(0.708 0 0)",
+          "oklch(0.922 0 0)",
+          "oklch(0.97 0 0)"
+        ]
+      },
+      "primary-foreground": {
+        "role": "neutral",
+        "displayName": "주 버튼 글자",
+        "canonical": "oklch(0.985 0 0)",
+        "tonalRamp": [
+          "oklch(0.145 0 0)",
+          "oklch(0.205 0 0)",
+          "oklch(0.269 0 0)",
+          "oklch(0.439 0 0)",
+          "oklch(0.556 0 0)",
+          "oklch(0.708 0 0)",
+          "oklch(0.922 0 0)",
+          "oklch(0.97 0 0)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "옅은 회색",
+        "canonical": "oklch(0.97 0 0)",
+        "tonalRamp": [
+          "oklch(0.145 0 0)",
+          "oklch(0.205 0 0)",
+          "oklch(0.269 0 0)",
+          "oklch(0.439 0 0)",
+          "oklch(0.556 0 0)",
+          "oklch(0.708 0 0)",
+          "oklch(0.922 0 0)",
+          "oklch(0.97 0 0)"
+        ]
+      },
+      "muted-foreground": {
         "role": "neutral",
         "displayName": "흐린 회색",
-        "canonical": "#71717a",
+        "canonical": "oklch(0.556 0 0)",
         "tonalRamp": [
-          "#18181b",
-          "#3f3f46",
-          "#52525b",
-          "#71717a",
-          "#a1a1aa",
-          "#d4d4d8",
-          "#e4e4e7",
-          "#fafafa"
+          "oklch(0.145 0 0)",
+          "oklch(0.205 0 0)",
+          "oklch(0.269 0 0)",
+          "oklch(0.439 0 0)",
+          "oklch(0.556 0 0)",
+          "oklch(0.708 0 0)",
+          "oklch(0.922 0 0)",
+          "oklch(0.97 0 0)"
         ]
       },
       "border": {
         "role": "neutral",
         "displayName": "괘선 회색",
-        "canonical": "#e4e4e7",
+        "canonical": "oklch(0.922 0 0)",
         "tonalRamp": [
-          "#18181b",
-          "#3f3f46",
-          "#52525b",
-          "#71717a",
-          "#a1a1aa",
-          "#d4d4d8",
-          "#e4e4e7",
-          "#fafafa"
+          "oklch(0.145 0 0)",
+          "oklch(0.205 0 0)",
+          "oklch(0.269 0 0)",
+          "oklch(0.439 0 0)",
+          "oklch(0.556 0 0)",
+          "oklch(0.708 0 0)",
+          "oklch(0.922 0 0)",
+          "oklch(0.97 0 0)"
         ]
       },
-      "border-strong": {
+      "input": {
         "role": "neutral",
-        "displayName": "짙은 괘선 회색",
-        "canonical": "#d4d4d8",
+        "displayName": "입력 밑줄 회색",
+        "canonical": "oklch(0.922 0 0)",
         "tonalRamp": [
-          "#18181b",
-          "#3f3f46",
-          "#52525b",
-          "#71717a",
-          "#a1a1aa",
-          "#d4d4d8",
-          "#e4e4e7",
-          "#fafafa"
+          "oklch(0.145 0 0)",
+          "oklch(0.205 0 0)",
+          "oklch(0.269 0 0)",
+          "oklch(0.439 0 0)",
+          "oklch(0.556 0 0)",
+          "oklch(0.708 0 0)",
+          "oklch(0.922 0 0)",
+          "oklch(0.97 0 0)"
         ]
       },
-      "control-border": {
+      "ring": {
         "role": "neutral",
-        "displayName": "컨트롤 테두리",
-        "canonical": "#71717a",
+        "displayName": "링 회색",
+        "canonical": "oklch(0.708 0 0)",
         "tonalRamp": [
-          "#18181b",
-          "#3f3f46",
-          "#52525b",
-          "#71717a",
-          "#a1a1aa",
-          "#d4d4d8",
-          "#e4e4e7",
-          "#fafafa"
+          "oklch(0.145 0 0)",
+          "oklch(0.205 0 0)",
+          "oklch(0.269 0 0)",
+          "oklch(0.439 0 0)",
+          "oklch(0.556 0 0)",
+          "oklch(0.708 0 0)",
+          "oklch(0.922 0 0)",
+          "oklch(0.97 0 0)"
         ]
       },
-      "lane": {
-        "role": "neutral",
-        "displayName": "레인 회색",
-        "canonical": "#d4d4d8",
+      "destructive": {
+        "role": "primary",
+        "displayName": "입력 오류 빨강",
+        "canonical": "oklch(0.577 0.245 27.325)",
         "tonalRamp": [
-          "#18181b",
-          "#3f3f46",
-          "#52525b",
-          "#71717a",
-          "#a1a1aa",
-          "#d4d4d8",
-          "#e4e4e7",
-          "#fafafa"
+          "oklch(0.15 0.2 27.3)",
+          "oklch(0.25 0.2 27.3)",
+          "oklch(0.35 0.2 27.3)",
+          "oklch(0.45 0.2 27.3)",
+          "oklch(0.577 0.2 27.3)",
+          "oklch(0.7 0.2 27.3)",
+          "oklch(0.85 0.2 27.3)",
+          "oklch(0.95 0.2 27.3)"
         ]
       },
-      "solid": {
-        "role": "neutral",
-        "displayName": "잉크 채움",
-        "canonical": "#18181b",
+      "attention": {
+        "role": "primary",
+        "displayName": "주의 빨강",
+        "canonical": "oklch(0.577 0.245 27.325)",
         "tonalRamp": [
-          "#18181b",
-          "#3f3f46",
-          "#52525b",
-          "#71717a",
-          "#a1a1aa",
-          "#d4d4d8",
-          "#e4e4e7",
-          "#fafafa"
+          "oklch(0.15 0.2 27.3)",
+          "oklch(0.25 0.2 27.3)",
+          "oklch(0.35 0.2 27.3)",
+          "oklch(0.45 0.2 27.3)",
+          "oklch(0.577 0.2 27.3)",
+          "oklch(0.7 0.2 27.3)",
+          "oklch(0.85 0.2 27.3)",
+          "oklch(0.95 0.2 27.3)"
         ]
       },
-      "solid-hover": {
-        "role": "neutral",
-        "displayName": "잉크 채움 호버",
-        "canonical": "#3f3f46",
+      "attention-foreground": {
+        "role": "primary",
+        "displayName": "주의 글자 빨강",
+        "canonical": "oklch(0.505 0.213 27.518)",
         "tonalRamp": [
-          "#18181b",
-          "#3f3f46",
-          "#52525b",
-          "#71717a",
-          "#a1a1aa",
-          "#d4d4d8",
-          "#e4e4e7",
-          "#fafafa"
+          "oklch(0.15 0.2 27.3)",
+          "oklch(0.25 0.2 27.3)",
+          "oklch(0.35 0.2 27.3)",
+          "oklch(0.45 0.2 27.3)",
+          "oklch(0.577 0.2 27.3)",
+          "oklch(0.7 0.2 27.3)",
+          "oklch(0.85 0.2 27.3)",
+          "oklch(0.95 0.2 27.3)"
         ]
       },
-      "on-solid": {
-        "role": "neutral",
-        "displayName": "채움 위 흰색",
-        "canonical": "#ffffff",
+      "live": {
+        "role": "secondary",
+        "displayName": "진행 파랑",
+        "canonical": "oklch(0.546 0.245 262.881)",
         "tonalRamp": [
-          "#18181b",
-          "#3f3f46",
-          "#52525b",
-          "#71717a",
-          "#a1a1aa",
-          "#d4d4d8",
-          "#e4e4e7",
-          "#fafafa"
+          "oklch(0.15 0.2 262.9)",
+          "oklch(0.25 0.2 262.9)",
+          "oklch(0.35 0.2 262.9)",
+          "oklch(0.45 0.2 262.9)",
+          "oklch(0.577 0.2 262.9)",
+          "oklch(0.7 0.2 262.9)",
+          "oklch(0.85 0.2 262.9)",
+          "oklch(0.95 0.2 262.9)"
         ]
       }
     },
     "typographyMeta": {
       "title": {
         "displayName": "Title",
-        "purpose": "화면 제목 하나(아침 리뷰)."
+        "purpose": "화면 제목 하나."
       },
       "heading": {
         "displayName": "Heading",
@@ -331,149 +226,166 @@
       },
       "body": {
         "displayName": "Body",
-        "purpose": "기본 글자와 행 제목(600)."
+        "purpose": "원장 행 제목, 레일 링크, 인계 노트."
       },
       "label": {
         "displayName": "Label",
-        "purpose": "패널 제목, 그룹 이름, 버튼, 상태와 메타 값."
+        "purpose": "패널 제목과 프로젝트 그룹 이름(600), 상태와 메타 값(400)."
       },
       "caption": {
         "displayName": "Caption",
-        "purpose": "라벨-값 블록의 라벨, 레일 개수, 배지."
+        "purpose": "라벨-값 블록의 라벨, 툴팁, 예시 데이터 배지."
+      },
+      "button": {
+        "displayName": "Button",
+        "purpose": "shadcn base-sera 글자 버튼의 preset 기본. 한글에는 대문자 변환이 의미 없음."
       },
       "mono": {
         "displayName": "Mono",
-        "purpose": "시각, 기간, 해시, 할 일 번호, 세션 로그."
+        "purpose": "시각, 기간, 해시, 할 일 번호, 세션 로그, 개수."
       }
     },
-    "shadows": [
-      {
-        "name": "shadow-surface",
-        "value": "0 0 0 1px rgb(24 24 27 / 0.06), 0 1px 2px rgb(24 24 27 / 0.04)",
-        "purpose": "행 목록 그릇(처리 필요 목록, 원장 그룹, 빈 상태)의 경계. 테두리 대신 씀."
-      }
-    ],
+    "shadows": [],
     "motion": [
       {
         "name": "ease-out",
-        "value": "cubic-bezier(0.2, 0, 0, 1)",
-        "purpose": "모든 상태 전환의 기본 이징."
+        "value": "cubic-bezier(0, 0, 0.2, 1)",
+        "purpose": "펼침 높이와 chevron 회전의 이징(Tailwind ease-out)."
       },
       {
         "name": "state-change",
-        "value": "150ms",
-        "purpose": "호버 배경, chevron 회전, 버튼 누름 크기."
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "버튼과 레일 링크의 호버 배경, 글자색 전환(Tailwind 기본)."
       },
       {
-        "name": "press-scale",
-        "value": "scale 0.96",
-        "purpose": "버튼을 누르는 동안."
+        "name": "press",
+        "value": "translateY(1px)",
+        "purpose": "shadcn base-sera 버튼을 누르는 동안."
       },
       {
         "name": "disclosure",
-        "value": "height 250ms cubic-bezier(0.2, 0, 0, 1)",
-        "purpose": "측정 높이 펼침. 첫 렌더는 전환 없음, prefers-reduced-motion에서 제거. 순차 등장 없음."
+        "value": "height 250ms ease-out",
+        "purpose": "Collapsible 측정 높이 펼침. prefers-reduced-motion에서 제거. 순차 등장 없음."
+      },
+      {
+        "name": "tooltip",
+        "value": "fade-in + zoom-in-95",
+        "purpose": "툴팁이 열리고 닫힐 때(tw-animate-css)."
       }
     ],
     "breakpoints": [
       {
-        "name": "ledger-compact (container)",
-        "value": "52rem"
+        "name": "sm",
+        "value": "40rem"
       },
       {
-        "name": "rail-to-select",
+        "name": "md",
+        "value": "48rem"
+      },
+      {
+        "name": "lg",
         "value": "64rem"
       },
       {
-        "name": "narrow",
-        "value": "40rem"
+        "name": "ledger-container",
+        "value": "52rem (container query)"
       }
     ]
   },
   "components": [
     {
-      "name": "Primary Button",
+      "name": "Primary Icon Button",
       "kind": "button",
-      "refersTo": "button-primary",
-      "description": "행마다 하나뿐인 주 동작. 잉크색 채움, 빨강은 쓰지 않음.",
-      "html": "<button type=\"button\" class=\"ds-btn ds-btn-primary\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><polygon points=\"6 3 20 12 6 21 6 3\"/></svg>재개하기</button>",
-      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px 0 10px; border: 1px solid var(--color-border-strong, #d4d4d8); border-radius: var(--radius-control, 6px); background: var(--color-surface, #fff); color: var(--color-text, #18181b); font-family: var(--font-sans, 'Pretendard Variable', Pretendard, system-ui, sans-serif); font-size: 13px; font-weight: 550; line-height: 1; cursor: pointer; transition: scale 150ms ease-out, background-color 150ms cubic-bezier(0.2, 0, 0, 1); } .ds-btn svg { color: var(--color-text-secondary, #52525b); } .ds-btn:hover { background: var(--color-surface-hover, #f4f4f5); } .ds-btn:active { scale: 0.96; } .ds-btn:focus-visible { outline: 2px solid var(--color-focus, #2563eb); outline-offset: 2px; } .ds-btn-primary { border-color: transparent; background: var(--color-solid, #18181b); color: var(--color-on-solid, #fff); } .ds-btn-primary svg { color: inherit; } .ds-btn-primary:hover { background: var(--color-solid-hover, #3f3f46); }"
+      "refersTo": "icon-button-primary",
+      "description": "행마다 하나뿐인 주 동작. 잉크 채움, 아이콘 전용, aria-label과 동사 툴팁.",
+      "html": "<button type=\"button\" class=\"ds-ib ds-ib-primary\" aria-label=\"재개하기\" title=\"재개하기\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><polygon points=\"6 3 20 12 6 21 6 3\"/></svg></button>",
+      "css": ".ds-ib { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 0; background: transparent; color: var(--foreground, oklch(0.145 0 0)); cursor: pointer; transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-ib:active { transform: translateY(1px); } .ds-ib:focus-visible { outline: none; border-color: var(--ring, oklch(0.708 0 0)); box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring, oklch(0.708 0 0)) 30%, transparent); } .ds-ib-primary { background: var(--primary, oklch(0.205 0 0)); color: var(--primary-foreground, oklch(0.985 0 0)); } .ds-ib-primary:hover { background: color-mix(in oklch, var(--primary, oklch(0.205 0 0)) 80%, transparent); }"
     },
     {
-      "name": "Secondary Button",
+      "name": "Outline Icon Button",
       "kind": "button",
-      "refersTo": "button-secondary",
-      "description": "테두리 보조 버튼. 펼침 버튼은 펼친 동안 옅은 회색으로 채워짐.",
-      "html": "<button type=\"button\" class=\"ds-btn\" aria-expanded=\"false\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M15 12h-5\"/><path d=\"M15 8h-5\"/><path d=\"M19 17V5a2 2 0 0 0-2-2H4\"/><path d=\"M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3\"/></svg>기록 보기</button> <button type=\"button\" class=\"ds-btn\" aria-expanded=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M15 12h-5\"/><path d=\"M15 8h-5\"/><path d=\"M19 17V5a2 2 0 0 0-2-2H4\"/><path d=\"M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3\"/></svg>기록 접기</button>",
-      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px 0 10px; border: 1px solid var(--color-border-strong, #d4d4d8); border-radius: var(--radius-control, 6px); background: var(--color-surface, #fff); color: var(--color-text, #18181b); font-family: var(--font-sans, 'Pretendard Variable', Pretendard, system-ui, sans-serif); font-size: 13px; font-weight: 550; line-height: 1; cursor: pointer; transition: scale 150ms ease-out, background-color 150ms cubic-bezier(0.2, 0, 0, 1); } .ds-btn svg { color: var(--color-text-secondary, #52525b); } .ds-btn:hover { background: var(--color-surface-hover, #f4f4f5); } .ds-btn:active { scale: 0.96; } .ds-btn:focus-visible { outline: 2px solid var(--color-focus, #2563eb); outline-offset: 2px; } .ds-btn[aria-expanded='true'] { background: var(--color-surface-selected, #f4f4f5); }"
+      "refersTo": "icon-button-outline",
+      "description": "처리 필요 행의 펼침 버튼. 펼쳐진 동안 muted 채움, chevron 180도 회전.",
+      "html": "<button type=\"button\" class=\"ds-ib ds-ib-outline\" aria-label=\"기록 펼치기\" aria-expanded=\"false\" title=\"기록 펼치기\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg></button>",
+      "css": ".ds-ib { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 0; background: transparent; color: var(--foreground, oklch(0.145 0 0)); cursor: pointer; transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-ib:active { transform: translateY(1px); } .ds-ib:focus-visible { outline: none; border-color: var(--ring, oklch(0.708 0 0)); box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring, oklch(0.708 0 0)) 30%, transparent); } .ds-ib-outline { border-color: var(--border, oklch(0.922 0 0)); } .ds-ib-outline:hover, .ds-ib-outline[aria-expanded=\"true\"] { background: var(--muted, oklch(0.97 0 0)); } .ds-ib-outline svg { transition: transform 200ms ease-out; } .ds-ib-outline[aria-expanded=\"true\"] svg { transform: rotate(180deg); }"
     },
     {
-      "name": "Quiet Button",
+      "name": "Ghost Icon Button",
       "kind": "button",
-      "refersTo": "button-quiet",
-      "description": "테두리와 배경 없는 되돌리기 같은 약한 동작.",
-      "html": "<button type=\"button\" class=\"ds-btn ds-btn-quiet\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 14 4 9l5-5\"/><path d=\"M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11\"/></svg>되돌리기</button>",
-      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px 0 10px; border: 1px solid var(--color-border-strong, #d4d4d8); border-radius: var(--radius-control, 6px); background: var(--color-surface, #fff); color: var(--color-text, #18181b); font-family: var(--font-sans, 'Pretendard Variable', Pretendard, system-ui, sans-serif); font-size: 13px; font-weight: 550; line-height: 1; cursor: pointer; transition: scale 150ms ease-out, background-color 150ms cubic-bezier(0.2, 0, 0, 1); } .ds-btn svg { color: var(--color-text-secondary, #52525b); } .ds-btn:hover { background: var(--color-surface-hover, #f4f4f5); } .ds-btn:active { scale: 0.96; } .ds-btn:focus-visible { outline: 2px solid var(--color-focus, #2563eb); outline-offset: 2px; } .ds-btn-quiet { border-color: transparent; background: transparent; color: var(--color-text-secondary, #52525b); }"
+      "refersTo": "icon-button-ghost",
+      "description": "되돌리기와 원장 행의 펼침. 테두리와 배경 없음.",
+      "html": "<button type=\"button\" class=\"ds-ib ds-ib-ghost\" aria-label=\"되돌리기\" title=\"되돌리기\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 14 4 9l5-5\"/><path d=\"M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11\"/></svg></button>",
+      "css": ".ds-ib { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 0; background: transparent; color: var(--foreground, oklch(0.145 0 0)); cursor: pointer; transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-ib:active { transform: translateY(1px); } .ds-ib:focus-visible { outline: none; border-color: var(--ring, oklch(0.708 0 0)); box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring, oklch(0.708 0 0)) 30%, transparent); } .ds-ib-ghost:hover { background: var(--muted, oklch(0.97 0 0)); }"
+    },
+    {
+      "name": "Text Button",
+      "kind": "button",
+      "refersTo": "text-button",
+      "description": "아이콘으로 뜻이 서지 않는 동작. 글자만, shadcn Button preset 기본.",
+      "html": "<button type=\"button\" class=\"ds-tb\">편집</button>",
+      "css": ".ds-tb { display: inline-flex; align-items: center; justify-content: center; height: 40px; padding: 0 24px; border: 1px solid transparent; border-radius: 0; background: var(--primary, oklch(0.205 0 0)); color: var(--primary-foreground, oklch(0.985 0 0)); font-family: 'Pretendard Variable', Pretendard, system-ui, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-tb:hover { background: color-mix(in oklch, var(--primary, oklch(0.205 0 0)) 80%, transparent); } .ds-tb:active { transform: translateY(1px); } .ds-tb:focus-visible { outline: none; border-color: var(--ring, oklch(0.708 0 0)); box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring, oklch(0.708 0 0)) 30%, transparent); }"
     },
     {
       "name": "Count Badge",
       "kind": "chip",
       "refersTo": "count-badge-attention",
-      "description": "구역 제목 옆 개수. 남은 일이 있으면 빨강, 0이면 회색.",
-      "html": "<h2 class=\"ds-heading\">처리 필요 <span class=\"ds-badge\" data-tone=\"attention\">3</span></h2><h2 class=\"ds-heading\">처리 필요 <span class=\"ds-badge\" data-tone=\"quiet\">0</span></h2>",
-      "css": ".ds-heading { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-family: var(--font-sans, 'Pretendard Variable', Pretendard, system-ui, sans-serif); font-size: 18px; font-weight: 650; line-height: 1.3; letter-spacing: -0.01em; color: var(--color-text, #18181b); } .ds-badge { display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding-inline: 7px; border-radius: 999px; font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: 0; } .ds-badge[data-tone='attention'] { background: var(--color-attention, #dc2626); color: var(--color-on-solid, #fff); } .ds-badge[data-tone='quiet'] { background: var(--color-surface-selected, #f4f4f5); color: var(--color-text-secondary, #52525b); }"
-    },
-    {
-      "name": "Status Label",
-      "kind": "chip",
-      "description": "완료 / 진행 중 / 제외, 상태마다 lucide 아이콘 하나. 진행 중만 파랑.",
-      "html": "<span class=\"ds-status\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m9 12 2 2 4-4\"/></svg>완료</span> <span class=\"ds-status\" data-status=\"running\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/></svg>진행 중</span> <span class=\"ds-status\" data-status=\"dropped\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"9\" x2=\"15\" y1=\"15\" y2=\"9\"/></svg>제외 <span class=\"ds-status-note\">(중복)</span></span>",
-      "css": ".ds-status { display: inline-flex; align-items: center; gap: 6px; margin-inline-end: 16px; font-family: var(--font-sans, 'Pretendard Variable', Pretendard, system-ui, sans-serif); font-size: 13px; color: var(--color-text-secondary, #52525b); white-space: nowrap; } .ds-status[data-status='running'] { color: var(--color-live-text, #1d4ed8); font-weight: 550; } .ds-status[data-status='dropped'], .ds-status-note { color: var(--color-text-muted, #71717a); }"
+      "description": "구역 제목 옆 개수. 남으면 attention 채움, 0이면 muted.",
+      "html": "<span class=\"ds-count\">3</span> <span class=\"ds-count ds-count-quiet\">0</span>",
+      "css": ".ds-count { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; padding: 2px 6px; border-radius: 0; background: var(--attention, oklch(0.577 0.245 27.325)); color: #fff; font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; } .ds-count-quiet { background: var(--muted, oklch(0.97 0 0)); color: var(--muted-foreground, oklch(0.556 0 0)); }"
     },
     {
       "name": "Project Rail",
       "kind": "nav",
       "refersTo": "rail-link",
-      "description": "왼쪽 세로 프로젝트 레일. 현재 항목은 옅은 회색 채움과 잉크 글자.",
-      "html": "<nav class=\"ds-rail\" aria-label=\"프로젝트\"><a class=\"ds-rail-link\" href=\"#\" aria-current=\"page\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M18 19a5 5 0 0 1-5-5v8\"/><path d=\"M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5\"/><circle cx=\"13\" cy=\"12\" r=\"2\"/><circle cx=\"20\" cy=\"19\" r=\"2\"/></svg><span>afk-web</span><span class=\"ds-rail-count\">7</span></a><a class=\"ds-rail-link\" href=\"#\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M18 19a5 5 0 0 1-5-5v8\"/><path d=\"M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5\"/><circle cx=\"13\" cy=\"12\" r=\"2\"/><circle cx=\"20\" cy=\"19\" r=\"2\"/></svg><span>payments-api</span><span class=\"ds-rail-count\">4</span></a></nav>",
-      "css": ".ds-rail { display: grid; gap: 2px; width: 216px; } .ds-rail-link { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px 0 12px; border-radius: var(--radius-control, 6px); color: var(--color-text-secondary, #52525b); font-family: var(--font-sans, 'Pretendard Variable', Pretendard, system-ui, sans-serif); font-size: 15px; text-decoration: none; transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1); } .ds-rail-link svg { color: var(--color-text-muted, #71717a); flex: none; } .ds-rail-count { margin-inline-start: auto; font-family: var(--font-mono, 'Geist Mono Variable', ui-monospace, monospace); font-variant-numeric: tabular-nums; font-size: 12px; color: var(--color-text-muted, #71717a); } .ds-rail-link:hover { background: var(--color-surface-hover, #f4f4f5); } .ds-rail-link[aria-current='page'] { background: var(--color-surface-selected, #f4f4f5); color: var(--color-text, #18181b); font-weight: 600; } .ds-rail-link[aria-current='page'] svg { color: var(--color-text, #18181b); } .ds-rail-link:focus-visible { outline: 2px solid var(--color-focus, #2563eb); outline-offset: 2px; }"
+      "description": "왼쪽 레일의 프로젝트 링크. 링크라서 아이콘과 글자를 함께 둠.",
+      "html": "<nav class=\"ds-rail\"><a href=\"#\" class=\"ds-rail-link\" aria-current=\"page\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\"/><path d=\"M3 9h18\"/></svg><span>전체 프로젝트</span><span class=\"ds-rail-n\">12</span></a><a href=\"#\" class=\"ds-rail-link\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\"/></svg><span>afk-web</span><span class=\"ds-rail-n\">5</span></a></nav>",
+      "css": ".ds-rail { display: grid; gap: 2px; width: 13.5rem; } .ds-rail-link { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 12px; color: var(--muted-foreground, oklch(0.556 0 0)); font-family: 'Pretendard Variable', Pretendard, system-ui, sans-serif; font-size: 15px; text-decoration: none; transition: background-color 150ms, color 150ms; } .ds-rail-link:hover { background: var(--muted, oklch(0.97 0 0)); color: var(--foreground, oklch(0.145 0 0)); } .ds-rail-link[aria-current=\"page\"] { background: var(--muted, oklch(0.97 0 0)); color: var(--foreground, oklch(0.145 0 0)); font-weight: 600; } .ds-rail-n { margin-inline-start: auto; font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; font-variant-numeric: tabular-nums; } .ds-rail-link:focus-visible { outline: 2px solid color-mix(in oklch, var(--ring, oklch(0.708 0 0)) 50%, transparent); }"
     },
     {
       "name": "Reply Field",
       "kind": "input",
       "refersTo": "text-field",
-      "description": "답장 입력. 16px 글자, 오류 시 빨강 테두리와 문구.",
-      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">답장</span><textarea rows=\"2\" placeholder=\"5회로 해 주세요.\"></textarea></label><label class=\"ds-field\"><span class=\"ds-field-label\">답장</span><textarea rows=\"2\" aria-invalid=\"true\"></textarea><span class=\"ds-field-error\">보낼 답장을 입력하세요.</span></label>",
-      "css": ".ds-field { display: grid; gap: 8px; max-width: 640px; margin-block-end: 16px; font-family: var(--font-sans, 'Pretendard Variable', Pretendard, system-ui, sans-serif); } .ds-field-label { font-size: 13px; font-weight: 600; color: var(--color-text-secondary, #52525b); } .ds-field textarea { min-height: 72px; padding: 8px 12px; border: 1px solid var(--color-control-border, #71717a); border-radius: var(--radius-control, 6px); background: var(--color-surface, #fff); color: var(--color-text, #18181b); font: inherit; font-size: 16px; line-height: 1.5; resize: vertical; } .ds-field textarea::placeholder { color: var(--color-text-muted, #71717a); } .ds-field textarea:focus-visible { outline: 2px solid var(--color-focus, #2563eb); outline-offset: 2px; } .ds-field textarea[aria-invalid='true'] { border-color: var(--color-attention, #dc2626); } .ds-field-error { font-size: 13px; color: var(--color-attention-text, #b91c1c); }"
+      "description": "밑줄형 shadcn Textarea. 포커스는 ring 밑줄, 오류는 destructive.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">답장</span><textarea class=\"ds-textarea\" rows=\"2\" placeholder=\"5회로 해 주세요.\"></textarea></label>",
+      "css": ".ds-field { display: grid; gap: 4px; max-width: 65ch; font-family: 'Pretendard Variable', Pretendard, system-ui, sans-serif; } .ds-field-label { font-size: 14px; font-weight: 600; } .ds-textarea { min-height: 64px; width: 100%; padding: 12px 0; border: 1px solid transparent; border-bottom-color: var(--input, oklch(0.922 0 0)); border-radius: 0; background: transparent; color: var(--foreground, oklch(0.145 0 0)); font: inherit; font-size: 16px; resize: none; outline: none; transition: border-color 150ms; } .ds-textarea::placeholder { color: var(--muted-foreground, oklch(0.556 0 0)); } .ds-textarea:focus-visible { border-bottom-color: var(--ring, oklch(0.708 0 0)); } .ds-textarea[aria-invalid=\"true\"] { border-bottom-color: var(--destructive, oklch(0.577 0.245 27.325)); }"
+    },
+    {
+      "name": "List Surface",
+      "kind": "card",
+      "refersTo": "list-surface",
+      "description": "행 목록 그릇. 그림자 없이 1px 괘선, 각진 모서리, 펼친 행은 muted 50%.",
+      "html": "<ul class=\"ds-list\"><li class=\"ds-row\">처리 필요 행</li><li class=\"ds-row ds-row-open\">펼쳐진 행</li></ul>",
+      "css": ".ds-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border, oklch(0.922 0 0)); background: var(--card, oklch(1 0 0)); font-family: 'Pretendard Variable', Pretendard, system-ui, sans-serif; font-size: 15px; } .ds-row { padding: 16px; } .ds-row + .ds-row { border-top: 1px solid var(--border, oklch(0.922 0 0)); } .ds-row-open { background: color-mix(in oklch, var(--muted, oklch(0.97 0 0)) 50%, transparent); }"
     },
     {
       "name": "Ledger Lane",
       "kind": "custom",
       "refersTo": "list-surface",
-      "description": "프로젝트 그룹 표면 안에서 행의 노드를 잇는 레인. 완료는 채운 회색 점, 진행 중은 파란 고리, 제외는 옅은 고리.",
-      "html": "<section class=\"ds-ledger\"><h3 class=\"ds-ledger-name\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M18 19a5 5 0 0 1-5-5v8\"/><path d=\"M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5\"/><circle cx=\"13\" cy=\"12\" r=\"2\"/><circle cx=\"20\" cy=\"19\" r=\"2\"/></svg>afk-web</h3><ol class=\"ds-lane\"><li class=\"ds-row\"><span class=\"ds-node\"></span><span class=\"ds-mono\">01:12–01:48</span><span class=\"ds-title\">결제 재시도 로직 정리</span><span class=\"ds-mono ds-muted\">a1b2c3d</span></li><li class=\"ds-row\" data-status=\"running\"><span class=\"ds-node\"></span><span class=\"ds-mono\">06:40–</span><span class=\"ds-title\">리뷰 화면 접근성 점검</span><span class=\"ds-mono ds-muted\"></span></li><li class=\"ds-row\" data-status=\"dropped\"><span class=\"ds-node\"></span><span class=\"ds-mono\">03:05</span><span class=\"ds-title ds-muted\">중복 이슈 정리</span><span class=\"ds-mono ds-muted\"></span></li></ol></section>",
-      "css": ".ds-ledger { max-width: 640px; border: 1px solid transparent; border-radius: var(--radius-surface, 10px); background: var(--color-surface, #fff); box-shadow: var(--shadow-surface, 0 0 0 1px rgb(24 24 27 / 0.06), 0 1px 2px rgb(24 24 27 / 0.04)); font-family: var(--font-sans, 'Pretendard Variable', Pretendard, system-ui, sans-serif); color: var(--color-text, #18181b); } .ds-ledger-name { display: flex; align-items: center; gap: 6px; margin: 0; padding: 12px 16px 4px; font-size: 13px; font-weight: 600; color: var(--color-text-secondary, #52525b); } .ds-ledger-name svg { color: var(--color-text-muted, #71717a); } .ds-lane { position: relative; margin: 0; padding: 0 0 8px; list-style: none; } .ds-lane::before { content: ''; position: absolute; inset-inline-start: 25px; inset-block: 20px 28px; width: 2px; background: var(--color-lane, #d4d4d8); } .ds-row { position: relative; display: grid; grid-template-columns: 20px 92px minmax(0, 1fr) 72px; align-items: center; column-gap: 12px; min-height: 40px; padding: 8px 16px; font-size: 15px; transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1); } .ds-row:hover { background: var(--color-surface-hover, #f4f4f5); } .ds-node { justify-self: center; width: 10px; height: 10px; border-radius: 50%; background: var(--color-text-muted, #71717a); box-shadow: 0 0 0 3px var(--color-surface, #fff); } .ds-row[data-status='running'] .ds-node { background: var(--color-surface, #fff); box-shadow: inset 0 0 0 2px var(--color-live, #2563eb), 0 0 0 3px var(--color-surface, #fff); } .ds-row[data-status='dropped'] .ds-node { background: var(--color-surface, #fff); box-shadow: inset 0 0 0 1.5px var(--color-border-strong, #d4d4d8), 0 0 0 3px var(--color-surface, #fff); } .ds-mono { font-family: var(--font-mono, 'Geist Mono Variable', ui-monospace, monospace); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--color-text-secondary, #52525b); } .ds-muted { color: var(--color-text-muted, #71717a); }"
+      "description": "원장 레인. 노드가 곧 상태 표시: 완료는 muted 체크, 진행 중은 live 색으로 도는 loading-dev Arc(정지 화면에서는 호), 제외는 muted X와 취소선 제목. 상태를 행 오른쪽에 다시 쓰지 않음.",
+      "html": "<div class=\"ds-lane\"><span class=\"ds-node-icon ds-node-done\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg></span><span class=\"ds-node-icon ds-node-live\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M21 12a9 9 0 1 1-6.2-8.56\"/></svg></span><span class=\"ds-node ds-node-drop\"></span></div>",
+      "css": ".ds-lane { position: relative; display: grid; gap: 16px; justify-items: center; width: 20px; padding: 8px 0; } .ds-lane::before { content: \"\"; position: absolute; top: 0; bottom: 0; left: calc(50% - 1px); width: 2px; background: var(--border, oklch(0.922 0 0)); } .ds-node { position: relative; width: 10px; height: 10px; border-radius: 9999px; background: var(--card, oklch(1 0 0)); } .ds-node-done { background: var(--muted-foreground, oklch(0.556 0 0)); } .ds-node-live { box-shadow: inset 0 0 0 2px var(--live, oklch(0.546 0.245 262.881)); } .ds-node-drop { box-shadow: inset 0 0 0 1.5px var(--border, oklch(0.922 0 0)); } .ds-node-icon { position: relative; display: inline-flex; background: var(--card, oklch(1 0 0)); } .ds-node-icon.ds-node-done { color: var(--muted-foreground, oklch(0.556 0 0)); background: var(--card, oklch(1 0 0)); } .ds-node-icon.ds-node-live { color: var(--live, oklch(0.546 0.245 262.881)); box-shadow: none; }"
     }
   ],
   "narrative": {
     "northStar": "중립 회색 위의 원장",
-    "overview": "afk의 화면은 밤사이 일어난 일을 위에서 아래로 읽어 내려가는 원장입니다. 바탕은 노란 기운이 없는 중립 zinc 회색이고, 그 위에 흰 표면 몇 장과 잉크에 가까운 글자만 놓입니다. 표면은 행 목록을 담는 그릇이고, 정보는 카드 격자가 아니라 행으로 흐릅니다. 행을 펼치면 인계 노트와 세션 로그가 그 자리에서 열립니다.\n\n색은 장식이 아니라 두 가지 뜻만 실어 나릅니다. 빨강(attention)은 사람이 처리해야 할 것, 파랑(live)은 지금 진행 중인 것과 키보드 포커스입니다. 완료는 강조하지 않습니다. 끝난 일은 조용한 회색으로 물러나고, 사람의 눈은 남은 일에만 갑니다. 초록은 어디에도 없습니다.\n\n밀도는 높되 한 줄에 메타 정보를 늘어놓지 않습니다. 시각, 해시, 할 일 번호는 Geist Mono 고정폭으로, 한국어 본문은 Pretendard Variable로 씁니다. 모든 아이콘은 lucide-react의 1.75 획 선 아이콘이며 currentColor를 따릅니다.",
+    "overview": "afk의 화면은 밤사이 일어난 일을 위에서 아래로 읽어 내려가는 원장입니다. 모든 UI 요소는 shadcn/ui(preset b1oVxsfY, style base-sera, Base UI 기반, neutral 기본색) 컴포넌트로 만들고, 토큰은 그 preset이 정의한 무채색 oklch 단계를 그대로 씁니다. 바탕과 표면은 모두 흰색이고, 표면은 그림자 없이 1px 괘선 하나로 구분됩니다. 모서리는 각지고, 정보는 카드 격자가 아니라 행으로 흐릅니다. 행을 펼치면 인계 노트와 세션 로그가 그 자리에서 열립니다.\n\n색은 장식이 아니라 두 가지 뜻만 실어 나릅니다. 빨강(attention)은 사람이 처리해야 할 것, 파랑(live)은 지금 진행 중인 것입니다. 완료는 강조하지 않습니다. 끝난 일은 조용한 회색으로 물러나고, 사람의 눈은 남은 일에만 갑니다. 초록은 어디에도 없습니다.\n\n밀도는 높되 한 줄에 메타 정보를 늘어놓지 않습니다. 시각, 해시, 할 일 번호는 Geist Mono 고정폭으로, 한국어 본문은 Pretendard Variable로 씁니다. preset의 Inter는 의도적으로 Pretendard로 바꿨습니다. 버튼은 아이콘 버튼이거나 글자 버튼이고, 둘을 섞지 않습니다. 모든 아이콘은 lucide-react의 1.75 획 선 아이콘이며 currentColor를 따릅니다.",
     "keyCharacteristics": [
-      "중립 zinc 회색 바탕, 흰 행 목록 표면, 잉크 글자",
+      "shadcn/ui base-sera 컴포넌트와 neutral oklch 토큰, 각진 모서리, 그림자 없음",
+      "흰 바탕 위 흰 행 목록 표면을 1px 괘선으로 나눔",
       "색은 attention(빨강)과 live(파랑) 두 뜻에만 씀",
       "상태 어휘는 완료 / 진행 중 / 제외 세 가지, 상태마다 아이콘 하나",
-      "한국어는 Pretendard Variable, 시각·해시·번호는 Geist Mono tabular-nums",
-      "행을 그 자리에서 펼치는 측정 높이 전환, 순차 등장 없음"
+      "버튼은 아이콘 전용(aria-label과 툴팁) 또는 글자 전용 중 하나",
+      "한국어는 Pretendard Variable, 시각과 해시와 번호는 Geist Mono tabular-nums"
     ],
     "rules": [
       {
         "name": "The Two Meanings Rule",
-        "body": "색은 attention(빨강)과 live(파랑) 두 뜻만 가집니다. 새 화면에서 색을 쓰려면 둘 중 어느 뜻인지 먼저 답해야 하고, 답할 수 없으면 회색입니다.",
+        "body": "색은 attention(빨강)과 live(파랑) 두 뜻만 가집니다. 새 화면에서 색을 쓰려면 둘 중 어느 뜻인지 먼저 답해야 하고, 답할 수 없으면 무채색입니다.",
         "section": "colors"
       },
       {
         "name": "The Quiet Done Rule",
-        "body": "완료는 강조하지 않습니다. 초록을 쓰지 않으며, 완료 상태는 보조 회색 글자와 채운 muted 점으로만 표시합니다.",
+        "body": "완료는 강조하지 않습니다. 초록을 쓰지 않으며, 완료 상태는 흐린 회색 글자와 채운 muted-foreground 점으로만 표시합니다.",
         "section": "colors"
       },
       {
@@ -483,7 +395,7 @@
       },
       {
         "name": "The Fixed Scale Rule",
-        "body": "글자 크기는 12 / 13 / 15 / 18 / 28px 다섯 단계뿐이며 rem으로 지정합니다. 루트 글자 크기는 뷰포트에 따라 바꾸지 않습니다. 입력 필드만 iOS 확대를 막기 위해 16px입니다.",
+        "body": "글자 크기는 12 / 13 / 15 / 18 / 28px 다섯 단계이며 rem으로 지정합니다. 루트 글자 크기는 뷰포트에 따라 바꾸지 않습니다. 입력 필드만 좁은 화면에서 iOS 확대를 막기 위해 16px입니다.",
         "section": "typography"
       },
       {
@@ -497,27 +409,42 @@
         "section": "layout"
       },
       {
-        "name": "The One Surface Rule",
-        "body": "그림자가 있는 표면은 행 목록의 그릇뿐입니다. 행, 버튼, 배지에는 그림자를 주지 않습니다.",
+        "name": "The Hairline Surface Rule",
+        "body": "표면은 그림자가 아니라 1px 괘선으로 드러납니다. 행, 버튼, 배지, 표면 어디에도 그림자를 주지 않습니다.",
         "section": "elevation"
+      },
+      {
+        "name": "The Icon Or Text Rule",
+        "body": "버튼은 아이콘 버튼이거나 글자 버튼이고, 둘 다인 버튼은 없습니다. 표준 아이콘 하나로 동작이 통하면 아이콘 버튼(aria-label과 동사 툴팁)을, 아니면 글자 버튼을 씁니다. 프로젝트 레일의 내비게이션 링크는 버튼이 아니므로 아이콘을 글자 옆에 둘 수 있습니다.",
+        "section": "components"
+      },
+      {
+        "name": "The shadcn First Rule",
+        "body": "모든 UI 요소는 shadcn/ui(preset b1oVxsfY, style base-sera, Base UI)로 표준화합니다. 특정한 모양 때문이 아니라 디자인 시스템을 하나로 유지하기 위해서입니다. 새 UI는 있는 shadcn 컴포넌트를 쓰거나 shadcn 컴포넌트를 추가하고, 직접 만든 컨트롤을 두지 않습니다. 모양은 shadcn 컴포넌트의 className으로 덮어씁니다.",
+        "section": "components"
       }
     ],
     "dos": [
-      "Do 색을 쓰기 전에 attention(사람이 처리할 것)인지 live(지금 진행 중)인지 답하세요. 둘 다 아니면 zinc 회색입니다.",
-      "Do 원색 단계 대신 역할 토큰(`--color-*`)을 쓰세요.",
-      "Do 상태는 완료 / 진행 중 / 제외와 CircleCheck / CircleDot / CircleSlash로만 부르세요.",
+      "Do 색을 쓰기 전에 attention(사람이 처리할 것)인지 live(지금 진행 중)인지 답하세요. 둘 다 아니면 무채색입니다.",
+      "Do 색은 Tailwind 테마 이름(`bg-muted`, `text-muted-foreground`, `bg-attention`, `text-live`)으로 쓰고, 임의의 색 값을 넣지 마세요.",
+      "Do 새 UI는 shadcn/ui 컴포넌트를 쓰거나 같은 preset으로 추가하고, 모양은 className으로 덮어쓰세요.",
+      "Do 버튼은 아이콘 버튼(`IconButton`, 동사 label) 또는 글자 버튼 중 하나로 만드세요.",
+      "Do 상태는 완료 / 진행 중 / 제외 세 이름으로만 부르고, 원장에서는 레인 노드(체크, 돌아가는 Arc, X) 한 곳에만 표시하세요.",
       "Do 시각, 해시, 할 일 번호, 로그는 Geist Mono에 tabular-nums로 쓰세요.",
       "Do 글자 크기는 12 / 13 / 15 / 18 / 28px 단계 안에서 고르세요.",
-      "Do 주 버튼은 잉크색 채움으로 행마다 하나, 나머지는 테두리 버튼으로 두고, 누를 때 0.96으로 줄이세요.",
-      "Do 펼침은 측정 높이 250ms ease-out 전환으로, reduced motion에서는 즉시 바꾸세요.",
+      "Do 주 버튼은 잉크색 채움으로 행마다 하나, 나머지는 outline이나 ghost로 두세요.",
+      "Do 펼침은 Collapsible 측정 높이 250ms ease-out 전환으로, reduced motion에서는 즉시 바꾸세요.",
       "Do 예시 데이터는 헤더의 \"예시 데이터\" 배지로 표시하세요."
     ],
     "donts": [
       "Don't 초록을 쓰거나 완료를 강조하지 마세요.",
       "Don't 빨강을 파괴적이지 않은 동작의 버튼에 쓰지 마세요.",
-      "Don't 노란 기운이 도는 미색 바탕을 쓰지 마세요. 바탕은 중립 zinc입니다.",
+      "Don't 아이콘과 글자를 한 버튼에 함께 넣지 마세요.",
+      "Don't shadcn 컴포넌트가 있는 자리에 손으로 만든 버튼, 입력, 배지를 두지 마세요.",
+      "Don't preset의 Inter로 되돌리지 마세요. 글꼴은 Pretendard Variable과 Geist Mono입니다.",
       "Don't 가운뎃점(·)을 구분자로 쓰거나 메타 정보와 컨트롤을 한 줄로 나열하지 마세요.",
-      "Don't 행 목록 그릇 밖의 요소에 그림자를 주지 마세요.",
+      "Don't 표면이나 컨트롤에 그림자를 주지 마세요.",
+      "Don't 유채색 기운이 도는 바탕을 쓰지 마세요. 바탕은 무채색입니다.",
       "Don't 행이나 목록에 순차 등장 애니메이션을 넣지 마세요.",
       "Don't lucide 외의 아이콘이나 글리프 문자를 아이콘으로 쓰지 마세요.",
       "Don't 루트 글자 크기를 뷰포트 단위로 늘이거나 줄이지 마세요."
