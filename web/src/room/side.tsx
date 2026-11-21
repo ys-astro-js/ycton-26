@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { StatusNode } from '../review/ledger.tsx'
 import { DisclosurePanel, Glyph, Handoff, STATUS, countFormat } from '../review/shared.tsx'
 import { clock, lines, splitRequest, taskPhase, useAgentModels, useRoomMutation, useTaskEvents, workSessions, type TaskPhase } from './data.ts'
+import { MessageBody } from './message-body.tsx'
 import { ModelPicker, type ModelChoice } from './model-picker.tsx'
 import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
 import { SessionDetails } from './session-details.tsx'
@@ -311,8 +312,13 @@ function TaskRow({
       </div>
 
       <DisclosurePanel open={open} id={panelId}>
-        <div className="grid gap-5 ps-12 pe-4 pt-1 pb-4">
-          {task.detail ? <p className="max-w-[60ch] text-body whitespace-pre-line text-pretty">{task.detail}</p> : null}
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label={`#${task.id} 상세`}
+          className="grid max-h-96 min-w-0 gap-5 overflow-y-auto overscroll-contain ps-12 pe-4 pt-1 pb-4 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+        >
+          {task.detail ? <MessageBody text={task.detail} className="max-w-[60ch] min-w-0 space-y-2 text-body text-pretty" /> : null}
 
           {task.scope || task.commit_hash || task.attempts > 1 ? (
             <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-muted-foreground">
@@ -348,10 +354,10 @@ function TaskRow({
                   return (
                     <li key={event.id} className="grid grid-cols-[3rem_minmax(0,1fr)] gap-x-3">
                       <time className="font-mono text-muted-foreground tabular-nums">{clock(event.created_at)}</time>
-                      <p className="min-w-0 break-words whitespace-pre-line">
-                        {what}
-                        {detail ? <span className="text-muted-foreground">: {detail}</span> : null}
-                      </p>
+                      <div className="min-w-0 break-words">
+                        <p>{what}</p>
+                        {detail ? <MessageBody text={detail} className="space-y-1 text-muted-foreground" /> : null}
+                      </div>
                     </li>
                   )
                 })}

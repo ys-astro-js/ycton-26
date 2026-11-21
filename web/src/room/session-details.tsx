@@ -96,8 +96,8 @@ function SessionAttempt({ initial }: { initial: Session }) {
         ) : null}
         {positions.length > 1 || page?.has_more ? (
           <div className="mt-2 flex gap-2">
-            <Button size="sm" variant="outline" disabled={positions.length === 1} onClick={() => setPositions((p) => p.slice(0, -1))}>이전 이벤트</Button>
-            <Button size="sm" variant="outline" disabled={!page?.has_more} onClick={() => {
+            <Button size="sm" variant="outline" className="tracking-normal normal-case" disabled={positions.length === 1} onClick={() => setPositions((p) => p.slice(0, -1))}>이전 이벤트</Button>
+            <Button size="sm" variant="outline" className="tracking-normal normal-case" disabled={!page?.has_more} onClick={() => {
               if (page?.has_more) setPositions((p) => [...p, page.next_cursor])
             }}>다음 이벤트</Button>
           </div>

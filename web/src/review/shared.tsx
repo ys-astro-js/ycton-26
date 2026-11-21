@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
 
+import { MessageBody } from '../room/message-body.tsx'
 import type { LedgerStatus, LogLine } from './model.ts'
 
 /** 할 일 상태는 화면 어디서나 이 이름과 아이콘 하나로만 부릅니다 */
@@ -44,9 +45,11 @@ export function Handoff({ lines }: { lines: string[] }) {
         <Glyph icon={NotebookText} className="size-3.5" />
         인계 노트
       </h3>
-      <ul className="grid max-w-[60ch] gap-1 text-body text-pretty">
+      <ul className="grid max-w-[60ch] min-w-0 gap-1 text-body text-pretty">
         {lines.map((line) => (
-          <li key={line}>{line}</li>
+          <li key={line} className="min-w-0 break-words">
+            <MessageBody text={line} />
+          </li>
         ))}
       </ul>
     </div>

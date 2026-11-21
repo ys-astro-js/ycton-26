@@ -37,7 +37,7 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
   const questions = new Set(state.unanswered_questions.map((message) => message.id))
 
   return (
-    <ol aria-label="대화" className="grid pb-2">
+    <ol aria-label="대화" tabIndex={-1} className="grid pb-2 outline-none">
       {entries.map((entry, index) => {
         const previous = entries[index - 1]
         const key = authorKey(entry)

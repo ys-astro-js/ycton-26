@@ -79,11 +79,11 @@ const components: Components = {
 
 export function MessageBody({
   text,
-  attention,
+  attention = () => false,
   ...props
-}: { text: string; attention: (name: string) => boolean } & Omit<ComponentProps<'div'>, 'children'>) {
+}: { text: string; attention?: (name: string) => boolean } & Omit<ComponentProps<'div'>, 'children'>) {
   return (
-    <div className="space-y-2" {...props}>
+    <div className="min-w-0 space-y-2 break-words" {...props}>
       <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks, [remarkMentions, { attention }]]} components={components}>
         {text}
       </ReactMarkdown>

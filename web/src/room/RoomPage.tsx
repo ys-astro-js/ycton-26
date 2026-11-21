@@ -1,5 +1,5 @@
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { ChevronDown, Folder, Pause, Play, Unplug } from 'lucide-react'
+import { ArrowDown, ChevronDown, Folder, Pause, Play, Unplug } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 
 import { api, ApiError, type RoomState } from '@/api/client'
@@ -13,6 +13,7 @@ import { DisclosurePanel, Glyph, countFormat } from '../review/shared.tsx'
 import { useRoomMutation, useRoomState, useRuntimeOptions } from './data.ts'
 import { AgentList, TaskList } from './side.tsx'
 import { Timeline } from './timeline.tsx'
+import { useFollowLatest } from './use-follow-latest.ts'
 import { PageHeader } from '../shell/PageHeader.tsx'
 
 const route = getRouteApi('/rooms/$roomId')
@@ -66,6 +67,7 @@ export function RoomPage() {
   const wide = useWide()
   const [sideOpen, setSideOpen] = useState(false)
   const sidePanelId = useId()
+  const follow = useFollowLatest(roomId, state?.messages)
 
   const pause = useRoomMutation(roomId, () => api.pause(roomId))
   const resume = useRoomMutation(roomId, () => api.resume(roomId))
@@ -218,6 +220,26 @@ export function RoomPage() {
             <Timeline state={state} focus={focus} />
           )}
           <div className="sticky bottom-0 z-10 mt-auto border-t bg-background px-4 pt-3 pb-5">
+            {/* 대화 위에 겹치는 이동 버튼. 입력 바 위에 떠서 레이아웃을 밀지 않습니다 */}
+            <div className="absolute inset-x-4 bottom-full mb-3 flex justify-end">
+              {follow.showJump ? (
+                follow.unread ? (
+                  <Button size="sm" onClick={follow.jumpToLatest} className="animate-in fade-in duration-150 motion-reduce:animate-none">
+                    새 메시지가 있습니다
+                  </Button>
+                ) : (
+                  <IconButton
+                    icon={ArrowDown}
+                    label="최신 메시지로 이동"
+                    variant="outline"
+                    onClick={follow.jumpToLatest}
+                    className="bg-background animate-in fade-in duration-150 motion-reduce:animate-none"
+                  />
+                )
+              ) : null}
+            </div>
+            {/* 위로 올라가 있을 때 도착한 새 메시지를 화면 읽기 프로그램에 알립니다. 빈 영역을 먼저 렌더링합니다 */}
+            <p role="status" className="sr-only">{follow.unread ? '새 메시지가 있습니다' : ''}</p>
             <Composer roomId={room.id} />
           </div>
         </section>
