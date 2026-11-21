@@ -34,7 +34,8 @@ def _work_prompt(task: WorkTask, *, can_commit: bool = False, base: str = "HEAD"
         finish = (
             "When the change is complete and the verification passes, call the room `commit` tool with "
             "the exact worktree-relative paths of the files this task changed and a short commit message. "
-            "The task does not count as done without a commit. "
+            "The task does not count as done without a commit. If the task needs no file changes (for example "
+            "a review), call the room `no_changes` tool with your findings instead of committing. "
             "Do not run git commit, merge, or push yourself, and do not start detached processes.\n\n"
         )
     else:
@@ -96,6 +97,14 @@ async def ensure_branch(repo: Path, branch: str) -> None:
         # 동시에 시작한 다른 시도가 먼저 만들었으면 그대로 쓴다.
         if await _branch_tip(repo, branch) is None:
             raise
+
+
+async def worktree_clean(worktree: Path) -> bool:
+    """커밋하지 않은 변경이 없으면 True."""
+    try:
+        return not (await _git(worktree, "status", "--porcelain")).strip()
+    except RuntimeError:
+        return False
 
 
 async def fast_forward(repo: Path, branch: str, commit: str) -> bool:

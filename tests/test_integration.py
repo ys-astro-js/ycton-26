@@ -224,11 +224,11 @@ def test_wrong_stop_reason_cannot_complete_work(bridge,monkeypatch):
     assert not result.succeeded
 
 
-def test_work_mcp_exposes_only_commit():
+def test_work_mcp_exposes_only_commit_and_no_changes():
     async def exercise():
         async with httpx.AsyncClient(base_url="http://127.0.0.1") as client:
             server = build_room_server(client, room_id="1", participant_id="2", work=True)
-            assert {t.name for t in await server.list_tools()} == {"commit"}
+            assert {t.name for t in await server.list_tools()} == {"commit", "no_changes"}
     asyncio.run(exercise())
 
 
@@ -670,3 +670,28 @@ def test_merge_to_project_merges_room_branch_into_checked_out_branch(bridge, tmp
     assert (repo / 'done.txt').read_text() == 'done\n'
     again = client.post('/api/agent/merge', headers=headers, json=actor).json()
     assert again['changed'] is False
+
+
+def test_review_task_finishes_without_a_commit_via_no_changes(bridge, monkeypatch):
+    app, client, actor, token, sid, tid, root = bridge
+    svc, config, request = setup_work(bridge)
+    room_branch = f'ycton/room-{request.room_id}'
+
+    def review(worktree, prompt):
+        assert 'no_changes' in prompt
+        with svc.db.connect(write=True) as c:
+            c.execute("UPDATE sessions SET no_changes=? WHERE id=?", ('README 검토: 고칠 점 없음', request.session_id))
+    result = run_real_work(svc, config, request, monkeypatch, review)
+    assert result.succeeded and 'README 검토' in result.summary
+    assert svc.snapshot(request.room_id)['tasks'][0]['status'] == 'done'
+
+
+def test_no_changes_with_uncommitted_edits_is_not_done(bridge, monkeypatch):
+    app, client, actor, token, sid, tid, root = bridge
+    svc, config, request = setup_work(bridge)
+
+    def lazy(worktree, prompt):
+        (Path(worktree) / 'left.txt').write_text('x\n')
+        with svc.db.connect(write=True) as c:
+            c.execute("UPDATE sessions SET no_changes=? WHERE id=?", ('바꿀 것 없음', request.session_id))
+    assert not run_real_work(svc, config, request, monkeypatch, lazy).succeeded

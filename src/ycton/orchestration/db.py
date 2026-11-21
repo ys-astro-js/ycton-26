@@ -16,6 +16,8 @@ MESSAGE_REPLY = "reply_to_message_id INTEGER REFERENCES messages(id)"
 MESSAGE_ADDRESSED = "addressed_to TEXT NOT NULL DEFAULT '[]'"
 # 사람이 답장 없이 처리했다고 표시한 질문. 처리할 일 목록에서 빠진다.
 MESSAGE_RESOLVED = "resolved INTEGER NOT NULL DEFAULT 0"
+# 검토처럼 파일을 바꿀 필요가 없는 작업 세션이 남긴 이유. 있으면 커밋 없이도 완료로 본다.
+SESSION_NO_CHANGES = "no_changes TEXT"
 
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS rooms (
@@ -87,7 +89,8 @@ class Database:
             for table, column in (("rooms", ROOM_REPOSITORY), ("rooms", ROOM_FOLDER), ("rooms", ROOM_AUTO_TASKS),
                                   ("rooms", ROOM_IDLE_CHECKED),
                                   ("tasks", TASK_RETRY), ("messages", MESSAGE_REPLY),
-                                  ("messages", MESSAGE_ADDRESSED), ("messages", MESSAGE_RESOLVED)):
+                                  ("messages", MESSAGE_ADDRESSED), ("messages", MESSAGE_RESOLVED),
+                                  ("sessions", SESSION_NO_CHANGES)):
                 if not any(row["name"] == column.split(" ", 1)[0]
                            for row in conn.execute(f"PRAGMA table_info({table})")):
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {column}")

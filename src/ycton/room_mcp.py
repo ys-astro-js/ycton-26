@@ -15,7 +15,7 @@ _TOKEN = "YCTON_AGENT_TOKEN"
 _ROOM_ID = "YCTON_ROOM_ID"
 _PARTICIPANT_ID = "YCTON_PARTICIPANT_ID"
 ROOM_MCP_NAME = "room"
-ROOM_WORK_TOOLS = ("commit",)
+ROOM_WORK_TOOLS = ("commit", "no_changes")
 ROOM_CHAT_TOOLS = ("send", "ask_human", "list_tasks", "create_task", "merge_to_project", "claim", "delegate")
 _STDIO_ARGS = ("-I", "-m", "ycton.room_mcp")
 
@@ -68,6 +68,14 @@ def build_room_server(client: httpx.AsyncClient, *, room_id: str, participant_id
             Other changes, staged or not, stay uncommitted. Returns the new commit hash.
             """
             return (await post("/api/agent/commit", paths=paths, message=message)).json()
+
+        @server.tool()
+        async def no_changes(reason: str) -> dict:
+            """Finish a task that needs no file changes, such as a review, with the findings or the reason.
+
+            Use it only when nothing should be committed; leave the worktree without uncommitted edits.
+            """
+            return (await post("/api/agent/no-changes", reason=reason)).json()
 
         return server
 

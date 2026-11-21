@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from ycton.acp_runtime import run_session
-from ycton.work_session import WorkTask, ensure_branch, fast_forward, run_work_session
+from ycton.work_session import WorkTask, ensure_branch, fast_forward, run_work_session, worktree_clean
 from ycton.room_mcp import room_mcp_server
 from ycton.agent_process import spawn_owned_agent
 from ycton.subprocess_env import child_environment
@@ -145,11 +145,15 @@ class AcpRuntime:
             self.service.execution_metadata(request.session_id, verification_output=output)
             # 검증을 통과해도 commit 도구로 남긴 커밋이 없으면 done으로 보지 않는다.
             with self.service.db.connect() as c:
-                commit = require(c, "sessions", request.session_id)["commit_hash"]
+                session = require(c, "sessions", request.session_id)
+            commit, no_changes = session["commit_hash"], session["no_changes"]
             summary = (f"{result.session.text}\n서버 검증: {'passed' if passed else 'failed'}\n"
                        f"{output[:4000]}\nworktree={worktree}; branch={branch}")
+            if commit is None and no_changes and passed and await worktree_clean(worktree):
+                # 검토처럼 바꿀 파일이 없는 작업. 방 브랜치는 그대로 둔다.
+                return RuntimeResult(True, f"{result.session.text}\n변경 없음: {no_changes}", "passed", log_path=str(log))
             if commit is None:
-                summary += "\n커밋 없음: commit 도구로 고른 파일을 커밋해야 완료됩니다"
+                summary += "\n커밋 없음: commit 도구로 고른 파일을 커밋하거나, 바꿀 파일이 없으면 no_changes를 불러야 완료됩니다"
                 return RuntimeResult(False, summary, "passed" if passed else "failed", log_path=str(log))
             if not passed:
                 return RuntimeResult(False, summary, "failed", log_path=str(log))

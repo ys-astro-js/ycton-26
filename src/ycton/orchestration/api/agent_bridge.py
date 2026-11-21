@@ -127,6 +127,16 @@ def delegate(body: Delegation, actor=Depends(identity), svc=Depends(service)):
     return svc.delegate(task_number(body.task_id), actor.agent_id, key, body.instructions)
 
 
+class NoChanges(Actor):
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+@router.post("/no-changes")
+def no_changes(body: NoChanges, actor=Depends(identity), svc=Depends(service)):
+    validate(svc, actor, body, kind="work")
+    return svc.record_no_changes(actor.session_id, body.reason)
+
+
 @router.post("/commit", status_code=201)
 def commit(body: Commit, actor=Depends(identity), svc=Depends(service)):
     validate(svc, actor, body, kind="work")

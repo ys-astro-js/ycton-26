@@ -532,6 +532,17 @@ class TaskService:
             self.event(c, task_id, "delegated", sid)
             return require(c, "sessions", sid)
 
+    def record_no_changes(self, session_id, reason):
+        """검토처럼 파일을 바꿀 필요가 없는 작업이라고 기록한다. 이미 커밋한 세션에는 쓸 수 없다."""
+        with self.db.connect(write=True) as c:
+            s = require(c, "sessions", session_id)
+            if s["kind"] != "work" or s["status"] != "running":
+                raise DomainError("실행 중인 작업 세션만 쓸 수 있습니다", 403)
+            if s["commit_hash"]:
+                raise DomainError("이미 커밋한 작업입니다", 409)
+            c.execute("UPDATE sessions SET no_changes=? WHERE id=?", (reason, session_id))
+        return {"ok": True}
+
     def commit_work(self, session_id, paths, message):
         """활성 작업 세션의 worktree에서 고른 파일만 커밋하고 해시를 세션에 기록한다."""
         with self.db.connect() as c:
