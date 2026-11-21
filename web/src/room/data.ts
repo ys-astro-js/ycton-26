@@ -90,6 +90,7 @@ export function taskPhase(task: Task, state: RoomState): TaskPhase {
   if (task.active_session_id) return 'running'
   if (task.status === 'open') {
     if (task.retry_required) return 'held'
+    if (task.attempts >= state.max_attempts) return 'failed'
     if (task.attempts > 0) {
       const last = workSessions(state, task.id).at(-1)
       if (last?.status === 'failed' || last?.status === 'cancelled') return 'failed'

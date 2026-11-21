@@ -663,13 +663,16 @@ class TaskService:
             else:
                 # claim 이후 위임 전에 채팅이 실패하면 작업을 영구 점유하지 않게 반환한다.
                 pending = c.execute("SELECT id FROM tasks WHERE owner_id=? AND status='claimed' AND active_session_id IS NULL", (s["agent_id"],)).fetchall()
-                for row in pending:
-                    if status != "succeeded":
-                        # 실패한 시도로 세어 같은 에이전트에게 끝없이 다시 배정되지 않게 한다.
-                        c.execute("""UPDATE tasks SET status='open',owner_id=NULL,handoff=?,attempts=attempts+1
-                                     WHERE id=?""", (summary, row["id"]))
-                        self.event(c, row["id"], "chat_failed_release", summary)
-                    elif row is pending[0]:
+                if pending:
+                    room = require(c, "rooms", s["room_id"])
+                    exhausted = not room["paused"] and room["chat_rounds"] >= self.settings.max_chat_rounds
+                    if status != "succeeded" or exhausted:
+                        note = "채팅 턴 한도에 닿아 실행을 시작하지 못했습니다" if status == "succeeded" else summary
+                        for row in pending:
+                            c.execute("""UPDATE tasks SET status='open',owner_id=NULL,handoff=?,attempts=attempts+1
+                                         WHERE id=?""", (note, row["id"]))
+                            self.event(c, row["id"], "chat_failed_release", note)
+                    else:
                         self.wake(c, s["room_id"], agent_id=s["agent_id"])
                 if status == "failed":
                     self.message(c, s["room_id"], "system", f"{CHAT_FAILED}: {summary}")
@@ -734,6 +737,7 @@ class TaskService:
             result["messages"] = [dict(r) for r in c.execute(
                 "SELECT * FROM (SELECT * FROM messages WHERE room_id=? ORDER BY id DESC LIMIT 100) ORDER BY id", (room_id,))]
             if dashboard:
+                result["max_attempts"] = self.settings.max_attempts
                 for session in result["sessions"]:
                     public_session(session)
                 result["running_work"] = c.execute(
