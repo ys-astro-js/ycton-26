@@ -178,9 +178,8 @@ function ReviewHeader({ report, project }: { report?: OvernightReport; project?:
 }
 
 function ProjectRail({ report, project }: { report: OvernightReport; project?: ProjectId }) {
-  const countFor = (id?: ProjectId) =>
-    report.attention.filter((item) => !id || item.projectId === id).length +
-    report.ledger.filter((entry) => !id || entry.projectId === id).length
+  // 숫자는 그 프로젝트에서 사람이 처리할 일의 수입니다. 0이면 숫자를 쓰지 않습니다.
+  const countFor = (id?: ProjectId) => report.attention.filter((item) => !id || item.projectId === id).length
   const items: { id?: ProjectId; name: string }[] = [{ name: '모든 프로젝트' }, ...report.projects]
 
   return (
@@ -201,7 +200,12 @@ function ProjectRail({ report, project }: { report: OvernightReport; project?: P
               >
                 <Glyph icon={item.id ? FolderGit2 : LayoutList} />
                 <span className="min-w-0 break-words">{item.name}</span>
-                <span className="ms-auto font-mono text-xs tabular-nums">{countFormat.format(countFor(item.id))}</span>
+                {countFor(item.id) > 0 ? (
+                  <span className="ms-auto font-mono text-xs font-semibold text-attention-foreground tabular-nums">
+                    {countFormat.format(countFor(item.id))}
+                    <span className="sr-only">건 처리 필요</span>
+                  </span>
+                ) : null}
               </Link>
             </li>
           )
