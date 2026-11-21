@@ -1,12 +1,13 @@
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { Arc } from 'loading-dev'
-import { FolderGit2, Menu, Sunrise, X } from 'lucide-react'
+import { FolderGit2, Menu, Plus, Sunrise, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 
 import { IconButton } from '@/components/icon-button'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -170,58 +171,54 @@ function NewRoom() {
     create.mutate(name.trim())
   }
 
-  if (!open) {
-    return (
-      <Button
-        variant="ghost"
-        className="mt-1 h-9 w-full justify-start px-3 text-label font-medium tracking-normal text-muted-foreground normal-case"
-        onClick={() => {
-          setOpen(true)
-          requestAnimationFrame(() => inputRef.current?.focus())
-        }}
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) setError(false)
+      }}
+    >
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            className="mt-1 h-9 w-full justify-start px-3 text-label font-medium tracking-normal text-muted-foreground normal-case"
+          />
+        }
       >
         새 프로젝트
-      </Button>
-    )
-  }
-
-  return (
-    <form noValidate onSubmit={submit} className="mt-2 grid gap-2 px-3">
-      <Field data-invalid={error || undefined} className="gap-0">
-        <FieldLabel htmlFor={fieldId} className="text-xs text-muted-foreground">
-          프로젝트 이름
-        </FieldLabel>
-        <Input
-          ref={inputRef}
-          id={fieldId}
-          value={name}
-          placeholder="mobile-app"
-          aria-invalid={error || undefined}
-          aria-describedby={error ? errorId : undefined}
-          onChange={(event) => {
-            setName(event.target.value)
-            if (error) setError(false)
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') setOpen(false)
-          }}
-        />
-        {error ? <FieldError id={errorId}>이름을 입력하세요.</FieldError> : null}
-      </Field>
-      {create.error ? (
-        <p role="alert" className="text-label text-destructive">
-          {create.error instanceof ApiError ? create.error.message : '프로젝트를 만들지 못했습니다'}. 잠시 후 다시 시도하세요.
-        </p>
-      ) : null}
-      <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={create.isPending} className="tracking-normal normal-case">
-          만들기
-        </Button>
-        <Button type="button" size="sm" variant="ghost" className="tracking-normal normal-case" onClick={() => setOpen(false)}>
-          취소
-        </Button>
-      </div>
-    </form>
+      </PopoverTrigger>
+      <PopoverContent side="right" align="start" initialFocus={inputRef} className="w-64">
+        <form noValidate onSubmit={submit} className="grid gap-3">
+          <Field data-invalid={error || undefined} className="gap-0">
+            <FieldLabel htmlFor={fieldId} className="text-label font-medium">
+              프로젝트 이름
+            </FieldLabel>
+            <div className="flex items-center gap-2">
+              <Input
+                ref={inputRef}
+                id={fieldId}
+                value={name}
+                aria-invalid={error || undefined}
+                aria-describedby={error ? errorId : undefined}
+                onChange={(event) => {
+                  setName(event.target.value)
+                  if (error) setError(false)
+                }}
+              />
+              <IconButton type="submit" icon={Plus} label="프로젝트 만들기" disabled={create.isPending} />
+            </div>
+            {error ? <FieldError id={errorId}>이름을 입력하세요.</FieldError> : null}
+          </Field>
+          {create.error ? (
+            <p role="alert" className="text-label text-destructive">
+              {create.error instanceof ApiError ? create.error.message : '프로젝트를 만들지 못했습니다'}. 잠시 후 다시 시도하세요.
+            </p>
+          ) : null}
+        </form>
+      </PopoverContent>
+    </Popover>
   )
 }
 

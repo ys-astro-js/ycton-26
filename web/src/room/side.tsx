@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
 import { StatusNode } from '../review/ledger.tsx'
@@ -320,22 +321,10 @@ function TaskRow({
 
 export function AgentList({ state }: { state: RoomState }) {
   const headingId = useId()
-  const formId = useId()
-  const empty = state.agents.length === 0
-  const [adding, setAdding] = useState(empty)
-  const triggerRef = useRef<HTMLButtonElement>(null)
+  const [adding, setAdding] = useState(false)
   const busy = new Set(
     state.sessions.filter((s) => s.status === 'queued' || s.status === 'running').map((s) => s.agent_id),
   )
-
-  useEffect(() => {
-    if (empty) setAdding(true)
-  }, [empty])
-
-  const close = () => {
-    setAdding(false)
-    requestAnimationFrame(() => triggerRef.current?.focus())
-  }
 
   return (
     <section aria-labelledby={headingId} className="grid gap-3">
@@ -344,19 +333,16 @@ export function AgentList({ state }: { state: RoomState }) {
           에이전트
           <CountBadge count={state.agents.length} unit="명" />
         </h2>
-        {empty ? null : (
-          <IconButton
-            ref={triggerRef}
-            variant="outline"
-            icon={Plus}
-            label="에이전트 추가"
-            aria-expanded={adding}
-            aria-controls={adding ? formId : undefined}
-            onClick={() => (adding ? close() : setAdding(true))}
-          />
-        )}
+        <Popover open={adding} onOpenChange={setAdding}>
+          <PopoverTrigger render={<IconButton variant="outline" icon={Plus} label="에이전트 추가" />} />
+          <PopoverContent side="bottom" align="end" className="w-80">
+            <AddAgent state={state} onClose={() => setAdding(false)} />
+          </PopoverContent>
+        </Popover>
       </div>
-      {empty ? null : (
+      {state.agents.length === 0 ? (
+        <p className="border bg-card px-4 py-4 text-body text-muted-foreground">아직 에이전트가 없습니다.</p>
+      ) : (
         <ul className="border bg-card py-1.5">
           {state.agents.map((agent) => (
             <li key={agent.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 px-4 py-2">
@@ -382,23 +368,11 @@ export function AgentList({ state }: { state: RoomState }) {
           ))}
         </ul>
       )}
-      {adding ? <AddAgent id={formId} state={state} autoFocus={!empty} onClose={empty ? undefined : close} /> : null}
     </section>
   )
 }
 
-function AddAgent({
-  id,
-  state,
-  autoFocus,
-  onClose,
-}: {
-  id: string
-  state: RoomState
-  autoFocus: boolean
-  /** 없으면 취소할 수 없습니다(에이전트가 하나도 없을 때). */
-  onClose?: () => void
-}) {
+function AddAgent({ state, onClose }: { state: RoomState; onClose: () => void }) {
   const [name, setName] = useState('')
   const [kind, setKind] = useState('')
   const [goodAt, setGoodAt] = useState('')
@@ -410,9 +384,10 @@ function AddAgent({
     api.addAgent(state.room.id, body),
   )
 
+  // 팝오버가 열리면 이름 입력에 초점을 둡니다
   useEffect(() => {
-    if (autoFocus) nameRef.current?.focus()
-  }, [autoFocus])
+    nameRef.current?.focus()
+  }, [])
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -434,7 +409,7 @@ function AddAgent({
           setName('')
           setKind('')
           setGoodAt('')
-          onClose?.()
+          onClose()
         },
       },
     )
@@ -442,19 +417,7 @@ function AddAgent({
 
   const label = 'text-label font-medium'
   return (
-    <form
-      id={id}
-      noValidate
-      aria-label="에이전트 추가"
-      onSubmit={submit}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape' && onClose) {
-          event.stopPropagation()
-          onClose()
-        }
-      }}
-      className="grid gap-3 border bg-card px-4 py-4"
-    >
+    <form noValidate aria-label="에이전트 추가" onSubmit={submit} className="grid gap-3">
       <Field data-invalid={invalid.name || undefined} className="gap-0">
         <FieldLabel htmlFor={ids.name} className={label}>
           이름
@@ -502,15 +465,8 @@ function AddAgent({
           {add.error instanceof ApiError ? add.error.message : '에이전트를 추가하지 못했습니다.'} 잠시 후 다시 시도하세요.
         </p>
       ) : null}
-      <div className="mt-1 flex gap-2">
-        <Button type="submit" size="sm" disabled={add.isPending} className="tracking-normal normal-case">
-          추가
-        </Button>
-        {onClose ? (
-          <Button type="button" size="sm" variant="outline" className="tracking-normal normal-case" onClick={onClose}>
-            취소
-          </Button>
-        ) : null}
+      <div className="flex justify-end">
+        <IconButton type="submit" icon={Plus} label="에이전트 추가" disabled={add.isPending} />
       </div>
     </form>
   )
