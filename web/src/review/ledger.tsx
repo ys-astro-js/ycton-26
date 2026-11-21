@@ -61,7 +61,7 @@ export function StatusNode({ status }: { status: LedgerStatus }) {
     <Icon
       aria-hidden="true"
       strokeWidth={2.5}
-      className={cn('size-4', status === 'failed' ? 'text-attention-foreground' : 'text-muted-foreground')}
+      className={cn('size-4', status === 'failed' ? 'text-attention' : 'text-muted-foreground')}
     />
   )
 }
@@ -88,7 +88,7 @@ export function LedgerSection({ projects, entries, period }: { projects: Project
       </div>
 
       {groups.length === 0 ? (
-        <p className={cn('mt-3', META_TEXT, 'text-[0.9375rem]')}>이 프로젝트에는 기록이 없습니다.</p>
+        <p className={cn('mt-3', META_TEXT, 'text-[0.9375rem]')}>아직 기록이 없습니다.</p>
       ) : (
         <div className="mt-3 grid gap-3">
           {groups.map((group) => (

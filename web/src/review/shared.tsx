@@ -65,10 +65,10 @@ export function SessionLog({ lines }: { lines: LogLine[] }) {
           return (
             <li
               key={`${line.at}-${line.kind}`}
-              className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 sm:grid-cols-[auto_4.5rem_minmax(0,1fr)]"
+              className="grid grid-cols-[auto_4.5rem_minmax(0,1fr)] gap-x-3"
             >
               <time className="text-muted-foreground">{line.at}</time>
-              <span className={cn('hidden sm:inline', alarming ? 'text-attention-foreground' : 'text-muted-foreground')}>
+              <span className={alarming ? 'text-attention-foreground' : 'text-muted-foreground'}>
                 {line.kind}
               </span>
               <span className={cn('break-all', alarming && 'text-attention-foreground')}>{line.text}</span>

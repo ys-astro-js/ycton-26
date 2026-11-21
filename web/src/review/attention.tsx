@@ -36,7 +36,7 @@ const RESOLUTION_LABEL: Record<Resolution, string> = {
 }
 
 const KIND: Record<AttentionKind, { icon: LucideIcon; label: string }> = {
-  'jev-stop': { icon: OctagonPause, label: 'Jev 정지' },
+  'jev-stop': { icon: OctagonPause, label: '멈춤' },
   timeout: { icon: TimerOff, label: '시간 초과' },
   failed: { icon: TriangleAlert, label: '실패' },
   question: { icon: MessageCircleQuestionMark, label: '질문' },
@@ -137,7 +137,7 @@ export function AttentionSection({ items, projects, onAction, onUndo }: Attentio
         </div>
       ) : (
         <h2 id={headingId} className="flex items-center gap-2 text-lg font-semibold">
-          처리 필요
+          처리할 일
           <Badge className="min-w-6 bg-attention px-1.5 py-0.5 font-mono text-xs tracking-normal text-primary-foreground tabular-nums">
             {countFormat.format(openCount)}
             <span className="sr-only">건</span>
@@ -344,7 +344,7 @@ function AttentionRow({
       </div>
 
       <DisclosurePanel open={open} id={panelId}>
-        <div className="grid gap-6 pr-4 pb-5 pl-12 md:grid-cols-2">
+        <div className="grid gap-6 ps-12 pe-4 pb-5 md:grid-cols-2">
           {replying ? (
             <ReplyForm className="md:col-span-2" busy={busy} onSend={(text) => handleResolve('answered', text)} />
           ) : null}
@@ -425,7 +425,7 @@ function AllClearMark({ draw }: { draw: boolean }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={1.75}
       strokeLinecap="round"
       strokeLinejoin="round"
       data-draw={draw || undefined}
