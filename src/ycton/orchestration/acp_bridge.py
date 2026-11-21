@@ -73,7 +73,7 @@ class AcpRuntime:
         같은 방의 두 에이전트가 동시에 채팅해도 서로의 폴더를 되돌리지 않는다. 준비에 실패하면 프로젝트 폴더를 쓴다.
         """
         room_branch = f"ycton/room-{request.room_id}"
-        folder = self.config.worktrees / f"room-{request.room_id}-chat-agent-{request.agent_id}"
+        folder = self.config.worktrees / "chat" / f"room-{request.room_id}-agent-{request.agent_id}"
         try:
             return await checkout_branch_snapshot(Path(repository.path), room_branch, folder), room_branch
         except (OSError, RuntimeError, ValueError):

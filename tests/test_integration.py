@@ -816,6 +816,23 @@ def test_chat_reads_room_branch_without_touching_user_checkout(bridge, monkeypat
     assert not (Path(checkout) / 'PLAN.md').exists()
 
 
+def test_chat_does_not_clean_a_manually_created_worktree(bridge, monkeypatch):
+    _, _, _, _, sid, _, _ = bridge
+    svc, config, work = setup_work(bridge)
+    checkout = config.repositories["default"].path
+    collision = config.worktrees / "chat" / f"room-{work.room_id}-agent-{work.agent_id}"
+    collision.parent.mkdir(parents=True)
+    git_out(checkout, "worktree", "add", "-q", "--detach", str(collision), "HEAD")
+    (collision / "app.txt").write_text("user edits\n", encoding="utf-8")
+    (collision / "draft.txt").write_text("user draft\n", encoding="utf-8")
+    chat = RuntimeRequest(sid, work.room_id, work.agent_id, "chat", "context", "demo", repository_id="default")
+    used = []
+    assert run_chat(svc, config, chat, monkeypatch, lambda cwd, _: used.append(cwd)).succeeded
+    assert used == [checkout]
+    assert (collision / "app.txt").read_text(encoding="utf-8") == "user edits\n"
+    assert (collision / "draft.txt").read_text(encoding="utf-8") == "user draft\n"
+
+
 def test_chat_falls_back_to_project_folder_when_not_a_git_checkout(bridge, monkeypatch):
     app, client, actor, token, sid, tid, root = bridge
     folder = root / 'plain'
