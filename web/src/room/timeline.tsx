@@ -1,4 +1,4 @@
-import { Bot, GitCommitHorizontal, MessageCircleQuestionMark } from 'lucide-react'
+import { Bot, GitCommitHorizontal } from 'lucide-react'
 import { useId, useState } from 'react'
 
 import type { Agent, RoomState, Task } from '@/api/client'
@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { StatusNode } from '../review/ledger.tsx'
 import { DisclosurePanel, Glyph, Handoff } from '../review/shared.tsx'
 import { clock, toTimeline, type TimelineEntry } from './data.ts'
-import { MessageBody, mentionsIn } from './message-body.tsx'
+import { MessageBody } from './message-body.tsx'
 import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
 
 /*
@@ -17,7 +17,6 @@ import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
  * 사람과 에이전트의 말은 shadcn Message·Bubble 말풍선입니다. 사람은 오른쪽, 에이전트는 왼쪽에 섭니다.
  * 사람의 말풍선은 테두리만 두어, 처리할 일(빨강)보다 무겁게 보이지 않게 합니다.
  * 같은 작성자가 이어 말하면 이름은 첫 말풍선에만, 시각은 마지막 말풍선 아래에만 씁니다.
- * 에이전트가 사람을 부른 말은 이름 옆에 attention 질문 아이콘을 둡니다. 이어 말한 말풍선이어도 이름 줄을 다시 씁니다.
  * 실행 실패 같은 시스템 알림은 말풍선이 아니라 [시각] [내용] 행으로 둡니다.
  * 작업 결과("할 일 #n <status>: …" system 메시지)는 접힌 결과 행으로 두고, 펼치면 요약 전문과 검증 출력이 열립니다.
  */
@@ -78,21 +77,14 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
         const human = entry.type === 'human'
         const next = entries[index + 1]
         const last = next === undefined || authorKey(next) !== key
-        const asksHuman = !human && mentionsIn(entry.message.content).some(callsPerson)
-        const named = !human && (!continued || asksHuman)
+        const named = !human && !continued
         return (
-          <li key={entry.message.id} className={cn('px-4', continued && !named ? 'pt-1' : 'pt-4')}>
+          <li key={entry.message.id} className={cn('px-4', continued ? 'pt-1' : 'pt-4')}>
             <Message align={human ? 'end' : 'start'}>
               <MessageContent className="gap-1">
                 {named ? (
-                  <MessageHeader className="gap-1.5 text-label">
+                  <MessageHeader className="text-label">
                     <span className="font-semibold text-foreground">{agent?.name ?? '에이전트'}</span>
-                    {asksHuman ? (
-                      <>
-                        <Glyph icon={MessageCircleQuestionMark} className="size-4 text-attention" />
-                        <span className="sr-only">나에게 묻는 말</span>
-                      </>
-                    ) : null}
                   </MessageHeader>
                 ) : null}
                 <Bubble variant={human ? 'outline' : 'muted'}>

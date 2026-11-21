@@ -11,15 +11,6 @@ import remarkGfm from 'remark-gfm'
 
 const MENTION = /(@[^\s@]+)/
 
-/** 본문에서 부른 이름들. 코드 안의 @는 멘션이 아니므로 코드 블록과 인라인 코드를 먼저 지웁니다. */
-export function mentionsIn(text: string) {
-  const prose = text.replace(/```[\s\S]*?```/g, ' ').replace(/`[^`]*`/g, ' ')
-  return prose
-    .split(MENTION)
-    .filter((part) => part.length > 1 && part.startsWith('@'))
-    .map((part) => part.slice(1))
-}
-
 interface MdastNode {
   type: string
   value?: string
