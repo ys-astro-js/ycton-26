@@ -3,6 +3,8 @@ import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 
+import { cn } from '@/lib/utils'
+
 /*
  * 말풍선 본문. 에이전트는 마크다운(인라인 코드, 굵게, 목록, 코드 블록, 표)으로 쓰므로 그대로 렌더링합니다.
  * 줄바꿈 하나도 줄바꿈으로 둡니다(remark-breaks). 원시 HTML은 렌더링하지 않습니다(react-markdown 기본값).
@@ -80,10 +82,12 @@ const components: Components = {
 export function MessageBody({
   text,
   attention = () => false,
+  className,
   ...props
 }: { text: string; attention?: (name: string) => boolean } & Omit<ComponentProps<'div'>, 'children'>) {
+  // wrap-anywhere: 해시나 경로처럼 끊을 곳 없는 긴 값도 최소 너비 계산에서 줄을 바꿔 칸을 넘지 않습니다
   return (
-    <div className="min-w-0 space-y-2 break-words" {...props}>
+    <div className={cn('min-w-0 space-y-2 wrap-anywhere', className)} {...props}>
       <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks, [remarkMentions, { attention }]]} components={components}>
         {text}
       </ReactMarkdown>

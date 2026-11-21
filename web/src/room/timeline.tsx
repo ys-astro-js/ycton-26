@@ -158,19 +158,21 @@ function ResultRow({
             <span className="sr-only">작업 {outcome.label}</span>
           </span>
           <div className="min-w-0 py-1.5">
-            <p className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-mono text-label text-muted-foreground tabular-nums">#{entry.taskId}</span>
-              <span className="text-body font-semibold text-pretty">
-                {hasMore ? (
-                  <RowToggle open={open} panelId={panelId} onToggle={() => setOpen((current) => !current)}>
-                    {task?.title ?? '작업 결과'}
-                  </RowToggle>
-                ) : (
-                  (task?.title ?? '작업 결과')
-                )}
-              </span>
+            {/* 번호를 제목과 같은 글줄에 둡니다. 버튼은 inline-block이라 밖에 두면 긴 제목이 번호 다음 줄로 밀립니다. */}
+            <p className="text-body font-semibold text-pretty break-words">
+              {hasMore ? (
+                <RowToggle open={open} panelId={panelId} onToggle={() => setOpen((current) => !current)}>
+                  <span className="me-2 font-mono text-label font-normal text-muted-foreground tabular-nums">#{entry.taskId}</span>
+                  {task?.title ?? '작업 결과'}
+                </RowToggle>
+              ) : (
+                <>
+                  <span className="me-2 font-mono text-label font-normal text-muted-foreground tabular-nums">#{entry.taskId}</span>
+                  {task?.title ?? '작업 결과'}
+                </>
+              )}
             </p>
-            {headline ? <p className="mt-0.5 max-w-[65ch] text-body text-muted-foreground text-pretty">{headline}</p> : null}
+            {headline ? <MessageBody text={headline} className="mt-0.5 max-w-[65ch] text-body text-muted-foreground text-pretty" /> : null}
             {agent || session?.commit_hash ? (
               <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-muted-foreground">
                 {agent ? (

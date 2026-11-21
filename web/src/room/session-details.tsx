@@ -1,10 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useId, useState } from 'react'
 
 import { api, type Session, type SessionEventPage } from '@/api/client'
-import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/icon-button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+
+import { Clamp } from './clamp.tsx'
 
 const STATUS: Record<Session['status'], string> = {
   queued: '대기', running: '진행 중', succeeded: '성공', failed: '실패', cancelled: '중단',
@@ -38,7 +41,7 @@ export function SessionDetails({ sessions }: { sessions: Session[] }) {
           <FieldLabel htmlFor={`${label}-attempt`} className="text-label">실행 시도</FieldLabel>
           <NativeSelect id={`${label}-attempt`} value={selected.id} onChange={(event) => setSelectedId(event.target.value)}>
             {sessions.map((session, index) => (
-              <NativeSelectOption key={session.id} value={session.id}>{index + 1}번째 · {STATUS[session.status]}</NativeSelectOption>
+              <NativeSelectOption key={session.id} value={session.id}>{index + 1}번째 시도 {STATUS[session.status]}</NativeSelectOption>
             ))}
           </NativeSelect>
         </Field>
@@ -67,17 +70,19 @@ function SessionAttempt({ initial }: { initial: Session }) {
   const rows = page ? groupMessages(page.events) : []
   return (
     <>
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 break-all text-label">
-        <dt>상태</dt><dd>{STATUS[session.status]}</dd>
-        {session.acp_session_id ? <><dt>ACP 세션</dt><dd>{session.acp_session_id}</dd></> : null}
-        {session.stop_reason ? <><dt>종료 사유</dt><dd>{session.stop_reason}</dd></> : null}
-        {session.commit_hash ? <><dt>커밋</dt><dd>{session.commit_hash}</dd></> : null}
+      {/* 사람이 판단에 쓰는 값만 둡니다. ACP 세션 id와 종료 사유 같은 내부 값은 두지 않습니다. */}
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-label">
+        <dt className="text-muted-foreground">상태</dt><dd>{STATUS[session.status]}</dd>
+        {session.commit_hash ? <><dt className="text-muted-foreground">커밋</dt><dd className="font-mono tabular-nums">{session.commit_hash.slice(0, 7)}</dd></> : null}
       </dl>
       {detail.error ? <p role="alert" className="text-label text-destructive">{detail.error.message}</p> : null}
-      {session.verification_output ? (
-        <div>
+      {/* 통과한 검증의 출력(exit_code=0)은 읽을 것이 없어 실패했을 때만 보여 줍니다 */}
+      {session.verification_output && session.status !== 'succeeded' ? (
+        <div className="min-w-0">
           <h4 className="mb-1 text-label font-semibold">검증 출력</h4>
-          <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-label">{session.verification_output}</pre>
+          <Clamp lines={4}>
+            <pre className="font-mono text-label break-all whitespace-pre-wrap">{session.verification_output}</pre>
+          </Clamp>
         </div>
       ) : null}
       <div className="min-w-0">
@@ -86,20 +91,23 @@ function SessionAttempt({ initial }: { initial: Session }) {
         {events.isPending ? <p role="status" className="text-label">불러오는 중…</p> : null}
         {page && rows.length === 0 ? <p className="text-label text-muted-foreground">이 페이지에는 표시할 ACP 이벤트가 없습니다.</p> : null}
         {rows.length ? (
-          <ol className="grid max-h-64 gap-2 overflow-auto text-label">
+          <ol className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-1 font-mono text-label">
             {rows.map((event) => (
-              <li key={event.id} className="break-words whitespace-pre-wrap">
-                <span className="me-2 font-semibold text-muted-foreground">{EVENT[event.kind]}</span>{event.text}
+              <li key={event.id} className="col-span-2 grid grid-cols-subgrid">
+                <span className="text-muted-foreground">{EVENT[event.kind]}</span>
+                <Clamp lines={2}>
+                  <p className="break-words whitespace-pre-wrap">{event.text}</p>
+                </Clamp>
               </li>
             ))}
           </ol>
         ) : null}
         {positions.length > 1 || page?.has_more ? (
           <div className="mt-2 flex gap-2">
-            <Button size="sm" variant="outline" className="tracking-normal normal-case" disabled={positions.length === 1} onClick={() => setPositions((p) => p.slice(0, -1))}>이전 이벤트</Button>
-            <Button size="sm" variant="outline" className="tracking-normal normal-case" disabled={!page?.has_more} onClick={() => {
+            <IconButton variant="outline" icon={ChevronLeft} label="이전 이벤트" disabled={positions.length === 1} onClick={() => setPositions((p) => p.slice(0, -1))} />
+            <IconButton variant="outline" icon={ChevronRight} label="다음 이벤트" disabled={!page?.has_more} onClick={() => {
               if (page?.has_more) setPositions((p) => [...p, page.next_cursor])
-            }}>다음 이벤트</Button>
+            }} />
           </div>
         ) : null}
       </div>

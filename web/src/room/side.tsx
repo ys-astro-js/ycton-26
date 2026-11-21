@@ -1,5 +1,5 @@
 import { Arc } from 'loading-dev'
-import { Ban, Bot, Check, Cpu, FolderCode, Gauge, GitCommitHorizontal, History, Plus, RotateCcw, Square } from 'lucide-react'
+import { Ban, Bot, Check, CircleCheck, Cpu, FolderCode, Gauge, GitCommitHorizontal, History, NotebookText, Plus, RotateCcw, Square } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 
 import { api, ApiError, modelLabel, type RoomState, type Task } from '@/api/client'
@@ -13,8 +13,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 import { StatusNode } from '../review/ledger.tsx'
-import { DisclosurePanel, Glyph, Handoff, STATUS, countFormat } from '../review/shared.tsx'
+import { DisclosurePanel, Glyph, STATUS, countFormat } from '../review/shared.tsx'
 import { clock, lines, splitRequest, taskPhase, useAgentModels, useRoomMutation, useTaskEvents, workSessions, type TaskPhase } from './data.ts'
+import { Clamp } from './clamp.tsx'
 import { MessageBody } from './message-body.tsx'
 import { ModelPicker, type ModelChoice } from './model-picker.tsx'
 import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
@@ -24,15 +25,20 @@ import { SessionDetails } from './session-details.tsx'
  * 서버의 이벤트 이름(created, claimed …)과 내부 값(agent:3, 세션 id)을 사람이 읽는 한 문장으로 바꿉니다.
  * 모르는 이벤트는 서버가 준 이름을 그대로 둡니다.
  */
-function describeEvent(event: string, detail: string, state: RoomState): { what: string; detail?: string } {
+function describeEvent(event: string, detail: string, state: RoomState): { what: string; detail?: string; hash?: string } {
   switch (event) {
     case 'created':
       return { what: '추가됨' }
-    case 'claimed': {
-      const id = Number(detail.replace('agent:', ''))
+    case 'claimed':
+    case 'assigned': {
+      // detail은 "agent:4" 또는 "agent:4 verify=unit"입니다. 검증 프로필은 화면에 두지 않습니다.
+      const id = Number(/agent:(\d+)/.exec(detail)?.[1])
       const agent = state.agents.find((candidate) => candidate.id === id)
       return { what: `${agent?.name ?? '에이전트'} 배정` }
     }
+    case 'committed':
+      // detail은 "<전체 해시> <커밋 제목>"입니다. 짧은 해시만 둡니다.
+      return { what: '커밋', hash: detail.split(' ')[0]?.slice(0, 7) }
     case 'delegated':
       return { what: '작업 시작' }
     case 'released':
@@ -58,6 +64,11 @@ function describeEvent(event: string, detail: string, state: RoomState): { what:
   }
 }
 
+/** 서버가 붙이는 key=value 줄(worktree=…, exit_code=0)은 사람이 읽을 내용이 아니라 빼고 보여 줍니다 */
+function readableLines(text: string) {
+  return lines(text).filter((line) => !/^[a-z_]+=/.test(line))
+}
+
 const PHASE_ORDER: Record<TaskPhase, number> = { running: 0, failed: 1, held: 2, waiting: 3, done: 4, dropped: 5 }
 
 function CountBadge({ count, unit }: { count: number; unit: string }) {
@@ -72,13 +83,23 @@ function CountBadge({ count, unit }: { count: number; unit: string }) {
 export function TaskList({ state, focus }: { state: RoomState; focus?: number }) {
   const headingId = useId()
   const [openId, setOpenId] = useState<number | null>(focus ?? null)
-  const tasks = [...state.tasks].sort(
-    (a, b) => PHASE_ORDER[taskPhase(a, state)] - PHASE_ORDER[taskPhase(b, state)] || b.id - a.id,
-  )
+  // 완료와 제외는 기본 목록에서 빼고, 버튼으로 따로 봅니다. 목록 자리는 하나라 보기를 바꿔도 머리 줄은 그대로입니다.
+  const [showDone, setShowDone] = useState(false)
+  const isClosed = (task: Task) => {
+    const phase = taskPhase(task, state)
+    return phase === 'done' || phase === 'dropped'
+  }
+  const tasks = state.tasks
+    .filter((task) => isClosed(task) === showDone)
+    .sort((a, b) => PHASE_ORDER[taskPhase(a, state)] - PHASE_ORDER[taskPhase(b, state)] || b.id - a.id)
 
-  // 리뷰나 할 일 추가에서 넘어온 할 일은 펼쳐서 보여 줍니다
+  // 리뷰나 할 일 추가에서 넘어온 할 일은 그 할 일이 있는 목록에서 펼쳐서 보여 줍니다
   useEffect(() => {
-    if (focus !== undefined) setOpenId(focus)
+    if (focus === undefined) return
+    setOpenId(focus)
+    const task = state.tasks.find((candidate) => candidate.id === focus)
+    if (task) setShowDone(isClosed(task))
+    // focus가 바뀔 때만 목록을 고릅니다. 상태 갱신마다 사람이 고른 보기를 바꾸지 않습니다.
   }, [focus])
 
   return (
@@ -86,12 +107,30 @@ export function TaskList({ state, focus }: { state: RoomState; focus?: number })
       <div className="flex items-center justify-between gap-3">
         <h2 id={headingId} className="flex items-center gap-2 text-lg font-semibold">
           할 일
-          <CountBadge count={state.tasks.length} unit="개" />
+          <CountBadge count={tasks.length} unit="개" />
         </h2>
-        <AddTask state={state} onAdded={setOpenId} />
+        <div className="flex gap-2">
+          <IconButton
+            variant="outline"
+            icon={CircleCheck}
+            label="완료된 할 일 보기"
+            aria-pressed={showDone}
+            className="aria-pressed:bg-muted"
+            onClick={() => setShowDone((current) => !current)}
+          />
+          <AddTask
+            state={state}
+            onAdded={(taskId) => {
+              setShowDone(false)
+              setOpenId(taskId)
+            }}
+          />
+        </div>
       </div>
       {tasks.length === 0 ? (
-        <p className="border bg-card px-4 py-4 text-body text-muted-foreground">아직 할 일이 없습니다.</p>
+        <p className="border bg-card px-4 py-4 text-body text-muted-foreground">
+          {showDone ? '완료된 할 일이 없습니다.' : state.tasks.length === 0 ? '아직 할 일이 없습니다.' : '남은 할 일이 없습니다.'}
+        </p>
       ) : (
         <ol className="border bg-card py-1.5">
           {tasks.map((task) => (
@@ -251,6 +290,7 @@ function TaskRow({
   const dropped = phase === 'dropped'
   const finished = phase === 'done' || dropped
   const events = useTaskEvents(task.id, open)
+  const handoff = readableLines(task.handoff)
 
   const roomId = state.room.id
   const retry = useRoomMutation(roomId, () => api.retry(task.id, '사람이 프로젝트에서 다시 실행'))
@@ -291,13 +331,12 @@ function TaskRow({
           {phase !== 'held' ? <span className="sr-only">{STATUS[phase].label}</span> : null}
         </span>
         <div className="min-w-0 py-1.5">
-          <p className="flex items-baseline gap-2">
-            <span className="font-mono text-label whitespace-nowrap text-muted-foreground tabular-nums">#{task.id}</span>
-            <span className={cn('min-w-0 text-body text-pretty break-words', finished && 'text-muted-foreground')}>
-              <RowToggle open={open} panelId={panelId} onToggle={onToggle} className={cn(dropped && 'line-through decoration-from-font')}>
-                {task.title}
-              </RowToggle>
-            </span>
+          {/* 번호를 제목 버튼 안의 같은 글줄에 둡니다. 버튼은 inline이 될 수 없어(inline-block) 밖에 두면 긴 제목이 번호 다음 줄로 밀립니다. */}
+          <p className={cn('text-body text-pretty break-words', finished && 'text-muted-foreground')}>
+            <RowToggle open={open} panelId={panelId} onToggle={onToggle}>
+              <span className="me-2 font-mono text-label whitespace-nowrap text-muted-foreground tabular-nums">#{task.id}</span>
+              <span className={cn(dropped && 'line-through decoration-from-font')}>{task.title}</span>
+            </RowToggle>
           </p>
           {phase === 'held' ? <p className="text-label text-muted-foreground">{STATUS.held.label}</p> : null}
           {owner ? (
@@ -312,63 +351,35 @@ function TaskRow({
       </div>
 
       <DisclosurePanel open={open} id={panelId}>
-        <div
-          tabIndex={0}
-          role="region"
-          aria-label={`#${task.id} 상세`}
-          className="grid max-h-96 min-w-0 gap-5 overflow-y-auto overscroll-contain ps-12 pe-4 pt-1 pb-4 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-        >
-          {task.detail ? <MessageBody text={task.detail} className="max-w-[60ch] min-w-0 space-y-2 text-body text-pretty" /> : null}
+        {/* 패널 안에 따로 스크롤을 두지 않습니다. 긴 글은 몇 줄만 보이고 펼치기로 전체를 엽니다. */}
+        <div className="grid min-w-0 gap-5 ps-12 pe-4 pt-1 pb-4">
+          {task.detail ? (
+            <Clamp lines={3}>
+              <MessageBody text={task.detail} className="max-w-[60ch] min-w-0 space-y-2 text-body text-pretty" />
+            </Clamp>
+          ) : null}
 
           {task.scope || task.commit_hash || task.attempts > 1 ? (
-            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-muted-foreground">
+            <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-muted-foreground">
               {task.scope ? (
-                <span className="flex min-w-0 items-center gap-1.5 break-words">
+                <li className="flex min-w-0 items-center gap-1.5">
                   <Glyph icon={FolderCode} className="size-3.5" />
                   <span className="sr-only">범위</span>
-                  {task.scope}
-                </span>
+                  <span className="min-w-0 break-all">{task.scope}</span>
+                </li>
               ) : null}
               {task.commit_hash ? (
-                <span className="flex items-center gap-1.5 font-mono tabular-nums">
+                <li className="flex items-center gap-1.5 font-mono tabular-nums">
                   <Glyph icon={GitCommitHorizontal} className="size-3.5" />
                   <span className="sr-only">커밋</span>
                   {task.commit_hash.slice(0, 7)}
-                </span>
+                </li>
               ) : null}
-              {task.attempts > 1 ? <span>{countFormat.format(task.attempts)}번째 시도</span> : null}
-            </p>
+              {task.attempts > 1 ? <li>{countFormat.format(task.attempts)}번째 시도</li> : null}
+            </ul>
           ) : null}
 
-          {task.handoff ? <Handoff lines={lines(task.handoff).filter((line) => !line.startsWith('worktree='))} /> : null}
-
-          <div>
-            <h3 className="mb-2 flex items-center gap-1.5 text-label font-semibold text-muted-foreground">
-              <Glyph icon={History} className="size-3.5" />
-              변경 이력
-            </h3>
-            {events.data?.length ? (
-              <ol className="grid gap-1 text-label">
-                {events.data.map((event) => {
-                  const { what, detail } = describeEvent(event.event, event.detail, state)
-                  return (
-                    <li key={event.id} className="grid grid-cols-[3rem_minmax(0,1fr)] gap-x-3">
-                      <time className="font-mono text-muted-foreground tabular-nums">{clock(event.created_at)}</time>
-                      <div className="min-w-0 break-words">
-                        <p>{what}</p>
-                        {detail ? <MessageBody text={detail} className="space-y-1 text-muted-foreground" /> : null}
-                      </div>
-                    </li>
-                  )
-                })}
-              </ol>
-            ) : (
-              <p className="text-label text-muted-foreground">{events.isPending ? '불러오는 중…' : '이력이 없습니다.'}</p>
-            )}
-          </div>
-
-          {open ? <SessionDetails sessions={workSessions(state, task.id)} /> : null}
-
+          {/* 동작은 긴 기록 아래에 묻히지 않도록 내용 요약 바로 다음에 둡니다 */}
           {finished ? null : (
             <div className="grid gap-2">
               {confirming ? (
@@ -402,6 +413,61 @@ function TaskRow({
               ) : null}
             </div>
           )}
+
+          {handoff.length ? (
+            <div className="min-w-0">
+              <h3 className="mb-2 flex items-center gap-1.5 text-label font-semibold text-muted-foreground">
+                <Glyph icon={NotebookText} className="size-3.5" />
+                인계 노트
+              </h3>
+              {/* 줄 수 자르기(line-clamp)가 목록 안까지 닿도록 grid가 아닌 블록 흐름으로 둡니다 */}
+              <Clamp lines={4}>
+                <ul className="max-w-[60ch] min-w-0 space-y-1 text-body text-pretty">
+                  {handoff.map((line) => (
+                    <li key={line} className="min-w-0">
+                      <MessageBody text={line} />
+                    </li>
+                  ))}
+                </ul>
+              </Clamp>
+            </div>
+          ) : null}
+
+          <div className="min-w-0">
+            <h3 className="mb-2 flex items-center gap-1.5 text-label font-semibold text-muted-foreground">
+              <Glyph icon={History} className="size-3.5" />
+              변경 이력
+            </h3>
+            {events.data?.length ? (
+              <ol className="grid gap-1 text-label">
+                {events.data.map((event) => {
+                  const { what, detail, hash } = describeEvent(event.event, event.detail, state)
+                  // 완료 기록의 내용은 위 인계 노트와 같으므로 다시 쓰지 않습니다
+                  const note = detail && !(event.event === 'succeeded' && handoff.length) ? readableLines(detail).join('\n') : ''
+                  return (
+                    <li key={event.id} className="grid grid-cols-[3rem_minmax(0,1fr)] gap-x-3">
+                      <time className="font-mono text-muted-foreground tabular-nums">{clock(event.created_at)}</time>
+                      <div className="min-w-0 break-words">
+                        <p>
+                          {what}
+                          {hash ? <span className="ms-2 font-mono text-muted-foreground tabular-nums">{hash}</span> : null}
+                        </p>
+                        {note ? (
+                          <Clamp lines={2}>
+                            <MessageBody text={note} className="space-y-1 text-muted-foreground" />
+                          </Clamp>
+                        ) : null}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
+            ) : (
+              <p className="text-label text-muted-foreground">{events.isPending ? '불러오는 중…' : '이력이 없습니다.'}</p>
+            )}
+          </div>
+
+          {open ? <SessionDetails sessions={workSessions(state, task.id)} /> : null}
         </div>
       </DisclosurePanel>
     </li>
