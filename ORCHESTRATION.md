@@ -73,7 +73,7 @@ python3 scripts/demo.py --fail
 | `logs` | 원본·작업 worktree 밖의 로그 경로 |
 | `api_url` | 서버 포트와 일치하는 `http://127.0.0.1:8000` |
 | `kinds.*.command` | 담당 1이 확인한 ACP 어댑터의 실제 실행 명령 배열 |
-| `kinds.*.label` | 화면에 보일 모델 제공자 이름(Claude, GPT, Gemini) |
+| `kinds.*.label` | 화면에 보일 모델 제공자 이름(Claude, GPT) |
 | `kinds.*.models` | 고를 수 있는 모델. ACP 세션의 `model` 설정 값과 같아야 합니다. 생략하면 어댑터의 기본 모델을 사용합니다 |
 | `kinds.*.efforts` | 고를 수 있는 추론 수준. ACP 세션의 `thought_level` 설정 값과 같아야 합니다. 없으면 비웁니다 |
 | `kinds.*.instructions` | 제공자별 지침(선택) |

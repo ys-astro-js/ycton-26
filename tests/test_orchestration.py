@@ -202,7 +202,7 @@ def test_agent_models_list_example_catalog_and_validate_choice(tmp_path):
     app = create_app(settings, start_scheduler=False)
     with TestClient(app, base_url="http://localhost", headers={"X-Orch-Client": "web"}) as client:
         providers = client.get("/api/agent-models").json()
-        assert [p["label"] for p in providers] == ["Claude", "GPT", "Gemini"]
+        assert [p["label"] for p in providers] == ["Claude", "GPT"]
         claude = providers[0]
         room = client.post("/api/rooms", json={"name": "r"}).json()["id"]
         body = {"name": "A", "kind": claude["id"], "model": claude["models"][0], "effort": claude["efforts"][-1],

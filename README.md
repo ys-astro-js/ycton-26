@@ -6,7 +6,7 @@
 
 ## 왜 만드나
 
-Claude Code, Codex, Gemini CLI 같은 코딩 에이전트를 여러 개 동시에 쓰면, 개발자는 코드보다 에이전트의 진행 확인, 작업 분배, 지시 반복에 더 많은 주의를 씁니다. 이 도구의 목표는 그 인지 부하를 줄이는 것입니다. 사람이 신경 쓰지 않아도 알아서 돌아가는 것("알잘딱")이 기준입니다.
+Claude Code, Codex 같은 코딩 에이전트를 여러 개 동시에 쓰면, 개발자는 코드보다 에이전트의 진행 확인, 작업 분배, 지시 반복에 더 많은 주의를 씁니다. 이 도구의 목표는 그 인지 부하를 줄이는 것입니다. 사람이 신경 쓰지 않아도 알아서 돌아가는 것("알잘딱")이 기준입니다.
 
 | 문제 | 이 도구의 해결 방식 |
 | --- | --- |
@@ -37,7 +37,7 @@ Claude Code, Codex, Gemini CLI 같은 코딩 에이전트를 여러 개 동시�
 
 ```yaml
 - name: frontend
-  cli: claude                       # claude | codex | gemini
+  cli: claude                       # claude | codex
   command: null                     # 비우면 CLI별 기본 ACP 실행 명령
   chat: claude-sonnet-5:medium      # 채팅 턴 모델:effort
   work: claude-opus-5:medium        # 서브세션 모델:effort
@@ -54,7 +54,8 @@ Claude Code, Codex, Gemini CLI 같은 코딩 에이전트를 여러 개 동시�
 | --- | --- |
 | Claude Code | [claude-agent-acp](https://github.com/zed-industries/claude-agent-acp) 어댑터 |
 | Codex | [codex-acp](https://github.com/agentclientprotocol/codex-acp) 어댑터 |
-| Gemini CLI | 자체 ACP 모드(`gemini --acp`) |
+
+Gemini CLI는 2026년 6월 18일 개인 사용자 서비스가 종료되었고, 후속인 Antigravity CLI(`agy`)는 ACP를 지원하지 않아 연결하지 않습니다.
 
 ## 기술 스택
 

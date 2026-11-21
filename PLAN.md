@@ -78,7 +78,7 @@ uv run --locked python -m ycton.acp_runtime --prompt 'Reply with exactly ACP_CON
 | A. 기록 통합 | 에이전트와 사람이 함께 있는 "AI 그룹 채팅방"을 중심으로, 위키와 이슈에 작업 기록과 할 일을 모읍니다. | 가시성 부족, 정보 분산 |
 | B. 작업 할당 | 프로젝트의 에이전트들이 토론하면서 누가 어떤 일을 가져갈지 스스로 정합니다. 이때 에이전트 종류별로 잘하는 작업이 판단에 반영됩니다. | 사람이 지켜봐야 함 |
 | C. Jev 자동 검토와 무인 운영 | Jev가 go/stop 같은 간단한 판단과 spawn 여부를 맡습니다. 사람이 자는 동안에도 돌아갑니다. | 사람이 지켜봐야 함 |
-| D. 에이전트 종류와 설정 | 에이전트 종류는 사람이 미리 정의합니다. 모델 프로바이더마다 잘하는 작업이 다르기 때문입니다(예: Gemini는 디자인, GPT는 백엔드, Claude는 프론트엔드). AGENTS.md는 프로젝트 단위가 아니라 에이전트 단위로 적용합니다. | 반복 지시 |
+| D. 에이전트 종류와 설정 | 에이전트 종류는 사람이 미리 정의합니다. 모델 프로바이더마다 잘하는 작업이 다르기 때문입니다(예: GPT는 백엔드, Claude는 프론트엔드). AGENTS.md는 프로젝트 단위가 아니라 에이전트 단위로 적용합니다. | 반복 지시 |
 | E. 작업은 서브세션에서 | 프로젝트의 에이전트는 직접 작업하지 않고 서브세션(서버가 띄우는 별도 ACP 세션)에 맡기는 것을 기본으로 합니다. 채팅 에이전트에 컨텍스트가 쌓이는 것을 최소화하기 위해서입니다. | 컨텍스트 누적 |
 
 ## 동작 방식
@@ -87,7 +87,7 @@ uv run --locked python -m ycton.acp_runtime --prompt 'Reply with exactly ACP_CON
 
 ### 에이전트 종류
 
-에이전트 종류는 사람이 데이터 폴더의 YAML 파일에 정의합니다. 종류는 쓸 에이전트 CLI(Claude Code, Codex, Gemini CLI 중 하나), 모델, 잘하는 작업, 종류별 지침으로 이루어집니다.
+에이전트 종류는 사람이 데이터 폴더의 YAML 파일에 정의합니다. 종류는 쓸 에이전트 CLI(Claude Code, Codex 중 하나), 모델, 잘하는 작업, 종류별 지침으로 이루어집니다.
 
 에이전트는 아래 세 가지 방식으로 돌고, 종류마다 각각에 쓸 모델을 정합니다.
 
@@ -97,7 +97,7 @@ uv run --locked python -m ycton.acp_runtime --prompt 'Reply with exactly ACP_CON
 
 ```yaml
 - name: frontend
-  cli: claude                 # claude(Claude Code) | codex | gemini
+  cli: claude                 # claude(Claude Code) | codex
   command: null               # 비우면 CLI별 기본 ACP 실행 명령
   chat: claude-sonnet-5:medium     # 채팅 턴 모델:effort
   work: claude-opus-5:medium       # 서브세션 모델:effort
@@ -114,7 +114,6 @@ uv run --locked python -m ycton.acp_runtime --prompt 'Reply with exactly ACP_CON
 | --- | --- | --- | --- |
 | claude | `claude-sonnet-5`, medium | `claude-opus-5`, medium | `claude-opus-5`, high |
 | codex | `gpt-6.2-sol`, medium | `gpt-6.2-sol`, high | `gpt-6.2-sol`, high |
-| gemini | `gemini-4-neon` | `gemini-4-neon` | `gemini-4-neon` |
 
 ### 서브세션
 
@@ -139,7 +138,7 @@ uv run --locked python -m ycton.acp_runtime --prompt 'Reply with exactly ACP_CON
 
 **판단 기준(예시)**
 
-- **에이전트 종류별 강점**: 사람이 미리 정의한 종류 가운데 이 작업을 잘하는 종류를 고릅니다(예: 디자인은 Gemini, 백엔드는 GPT, 프론트엔드는 Claude). 그 종류가 프로젝트에 없거나, 있어도 서브세션 자리가 없으면 spawn을 검토합니다.
+- **에이전트 종류별 강점**: 사람이 미리 정의한 종류 가운데 이 작업을 잘하는 종류를 고릅니다(예: 백엔드는 GPT, 프론트엔드는 Claude). 그 종류가 프로젝트에 없거나, 있어도 서브세션 자리가 없으면 spawn을 검토합니다.
 - **작업 규모**: 가볍거나 무거운 정도, 예상 소요 시간입니다. 남은 서브세션 자리와 함께, 대기할지 새로 spawn할지 판단하는 데 씁니다.
 - **맥락 연관성**: 이미 관련 파일과 맥락을 가진 에이전트가 있으면 그 에이전트의 서브세션 자리가 날 때까지 대기시키는 쪽이 유리합니다.
 - **충돌 가능성**: 진행 중인 작업과 같은 파일을 건드리면 병렬보다 순차 처리가 낫습니다.
@@ -179,7 +178,6 @@ uv run --locked python -m ycton.acp_runtime --prompt 'Reply with exactly ACP_CON
 | --- | --- |
 | claude | [claude-agent-acp](https://github.com/zed-industries/claude-agent-acp) 어댑터(Claude Agent SDK 기반) |
 | codex | [codex-acp](https://github.com/agentclientprotocol/codex-acp) 어댑터 |
-| gemini | Gemini CLI의 자체 ACP 모드(`gemini --acp`) |
 
 - 사용량은 로컬에 로그인된 각 에이전트 계정의 것을 씁니다.
 - 실행 명령은 CLI별 기본값을 두고 에이전트 종류의 `command`로 바꿀 수 있습니다. ACP를 지원하는 다른 에이전트도 같은 방식으로 추가합니다.

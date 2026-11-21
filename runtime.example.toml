@@ -28,12 +28,6 @@ command = ["node", "/absolute/path/to/codex-acp/dist/index.js"]
 models = ["gpt-6.2-sol", "gpt-6.2-astra", "gpt-6.1-sol"]
 efforts = ["low", "medium", "high", "xhigh", "max"]
 
-[kinds.gemini]
-label = "Gemini"
-command = ["gemini", "--acp"]
-models = ["gemini-4-neon"]
-efforts = []
-
 [verify.unit]
 # worktree 안에서 실행됩니다. 환경을 재현할 수 있는 절대 Python 경로를 권장합니다.
 command = ["/absolute/path/to/python", "-m", "pytest", "-q"]
