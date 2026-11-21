@@ -83,3 +83,10 @@ logs/
 
 # ===== Claude Code (local only) =====
 .claude/settings.local.json
+
+# ===== Impeccable (generated design artifacts) =====
+.impeccable/build/
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/questions/
+.impeccable/hook.cache.json
