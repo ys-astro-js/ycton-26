@@ -1,13 +1,13 @@
 """담당 1의 실제 함수와 담당 2의 실행 계약을 연결한다. 완료 판정은 직접 검증한다."""
 import asyncio
 import json
-import os
 from pathlib import Path
 
 from ycton.acp_runtime import run_session
 from ycton.work_session import WorkTask, run_work_session
 from ycton.room_mcp import room_mcp_server
 from ycton.agent_process import spawn_owned_agent
+from ycton.subprocess_env import child_environment
 from .runtime_port import RuntimeResult
 from .identity import Identity
 from .services.task_service import require
@@ -20,7 +20,7 @@ async def verify_worktree(profile, worktree):
     """서버가 정한 argv만 실행. 프롬프트/verify 문자열을 shell 명령으로 실행하지 않는다."""
     chunks = []
     size = 0
-    async with spawn_owned_agent(*profile.command, cwd=Path(worktree), env=os.environ.copy()) as process:
+    async with spawn_owned_agent(*profile.command, cwd=Path(worktree), env=child_environment()) as process:
         process.stdin.close()
         async with asyncio.timeout(profile.timeout):
             while chunk := await process.stdout.read(8192):

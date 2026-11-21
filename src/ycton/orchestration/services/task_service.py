@@ -9,6 +9,7 @@ from ycton.orchestration.folders import FolderError, git_root
 from ycton.orchestration.git_commit import CommitError, commit_paths
 from ycton.orchestration.runtime_config import Repository, read_catalog
 from ycton.orchestration.runtime_port import RuntimeResult
+from ycton.subprocess_env import child_environment
 
 # mock 모드에 runtime.toml이 없을 때 고를 모델을 저장소의 예시 설정에서 가져온다.
 EXAMPLE_RUNTIME_CONFIG = Path(__file__).resolve().parents[4] / "runtime.example.toml"
@@ -102,7 +103,8 @@ class TaskService:
             repo = git_root(folder)
         except FolderError as exc:
             raise DomainError(exc.message, exc.status)
-        head = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "HEAD"], capture_output=True, timeout=10)
+        head = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "HEAD"],
+                              env=child_environment(), capture_output=True, timeout=10)
         if head.returncode != 0:
             raise DomainError("커밋이 하나도 없는 저장소입니다. 첫 커밋을 만든 뒤 다시 고르세요", 422)
         config = getattr(self, "runtime_config", None)
@@ -369,7 +371,7 @@ class TaskService:
             self.wake(c, task["room_id"], reset=True)
             return require(c, "tasks", task_id)
 
-    def snapshot(self, room_id):
+    def snapshot(self, room_id, *, dashboard=False):
         with self.db.connect() as c:
             result = {"room": require(c, "rooms", room_id)}
             for table in ("agents", "tasks", "sessions"):
@@ -378,6 +380,9 @@ class TaskService:
                 agent["good_at"] = json.loads(agent["good_at"])
             result["messages"] = [dict(r) for r in c.execute(
                 "SELECT * FROM (SELECT * FROM messages WHERE room_id=? ORDER BY id DESC LIMIT 100) ORDER BY id", (room_id,))]
+            if dashboard:
+                result["running_work"] = c.execute(
+                    "SELECT count(*) FROM sessions WHERE kind='work' AND status='running'").fetchone()[0]
             return result
 
     def recover(self):

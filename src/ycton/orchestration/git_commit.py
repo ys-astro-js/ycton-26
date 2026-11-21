@@ -1,7 +1,8 @@
 """작업 worktree에서 에이전트가 고른 파일만 커밋한다. 셸을 거치지 않고 git argv만 실행한다."""
-import os
 import subprocess
 from pathlib import Path, PurePath
+
+from ycton.subprocess_env import child_environment
 
 GIT_TIMEOUT_SECONDS = 120
 
@@ -29,7 +30,7 @@ def checked_paths(worktree: Path, paths: list[str]) -> list[str]:
 
 def _git(worktree: Path, *args: str) -> str:
     # 경로를 glob·magic pathspec으로 해석하지 않게 한다.
-    env = {**os.environ, "GIT_LITERAL_PATHSPECS": "1", "GIT_TERMINAL_PROMPT": "0"}
+    env = child_environment(GIT_LITERAL_PATHSPECS="1", GIT_TERMINAL_PROMPT="0")
     try:
         done = subprocess.run(("git", "-C", str(worktree), *args), env=env, capture_output=True,
                               text=True, errors="replace", timeout=GIT_TIMEOUT_SECONDS)

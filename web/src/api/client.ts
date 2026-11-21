@@ -138,10 +138,13 @@ export interface Message {
   content: string
   created_at: string
 }
+export type JevRecommendation = { action: 'wait' | 'spawn_suggested'; reason: string }
+
 
 export interface Jev {
   action: 'stop' | 'wait' | 'go' | 'spawn_suggested'
   reason: string
+  recommendation?: JevRecommendation
 }
 
 /** 프로젝트 저장소의 현재 브랜치와 origin 원격(host/경로). 실제 폴더가 없는 mock 기본 저장소는 null입니다 */

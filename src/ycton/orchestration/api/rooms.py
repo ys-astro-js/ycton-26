@@ -2,11 +2,12 @@
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from starlette.concurrency import run_in_threadpool
 from ycton.orchestration.api.dependencies import human, service
 from ycton.orchestration.schemas import RoomCreate, AgentCreate, MessageCreate
 from ycton.orchestration.services.task_service import require
-from ycton.orchestration.jev import advise
 from ycton.orchestration.folders import FolderError, git_info
+from ycton.orchestration.jev import advise, workload
 
 router = APIRouter(prefix="/api", tags=["프론트: 방"], dependencies=[Depends(human)])
 
@@ -51,12 +52,19 @@ def create_agent(room_id: int, body: AgentCreate, svc=Depends(service)):
 
 
 @router.get("/rooms/{room_id}/state")
-def state(room_id: int, svc=Depends(service)):
-    result = svc.snapshot(room_id)
-    result["jev"] = advise(result, svc.settings)
+async def state(room_id: int, request: Request, svc=Depends(service)):
+    result = await run_in_threadpool(svc.snapshot, room_id, dashboard=True)
+    load = workload(result, svc.settings)
+    del result["running_work"]
+    result["jev"] = advise(result["room"]["paused"], load)
+    advisor = request.app.state.jev
+    if advisor is not None and result["jev"]["action"] in ("wait", "spawn_suggested"):
+        recommendation = advisor.recommendation(room_id, load)
+        if recommendation is not None:
+            result["jev"]["recommendation"] = recommendation
     result["mode"] = svc.settings.mode
     path = svc.room_path(result["room"])
-    result["git"] = git_info(path) if path else None
+    result["git"] = await run_in_threadpool(git_info, path) if path else None
     return result
 
 

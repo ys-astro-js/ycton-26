@@ -2,7 +2,6 @@
 
 import argparse
 import asyncio
-import os
 import sys
 from collections.abc import Callable
 from contextlib import suppress
@@ -27,6 +26,7 @@ from acp.schema import (
 )
 
 from .agent_process import spawn_owned_agent
+from .subprocess_env import child_environment
 from .room_mcp import ROOM_CHAT_TOOLS, ROOM_MCP_NAME, ROOM_WORK_TOOLS, is_room_mcp_server, room_mcp_for_work
 
 
@@ -106,7 +106,7 @@ async def describe_session(executable: str, *args: str, cwd: Path, timeout: floa
 
     Returns {category: {value: name}}, e.g. {"model": {"opus": "Opus 5.5"}}.
     """
-    env = {**os.environ, "INITIAL_AGENT_MODE": "read-only"}
+    env = child_environment(INITIAL_AGENT_MODE="read-only")
     async with spawn_owned_agent(executable, *args, cwd=cwd.resolve(), env=env) as process:
         assert process.stdin is not None and process.stdout is not None
         connection = connect_to_agent(_SessionClient(None, room_tools=()), process.stdin, process.stdout)
@@ -175,7 +175,7 @@ async def _run_session(
     if work:
         servers = [room_mcp_for_work(server) if is_room_mcp_server(server) else server for server in servers]
     client = _SessionClient(on_update, room_tools=room_tools)
-    env = {**os.environ, "INITIAL_AGENT_MODE": "workspace-write"} if work else {**os.environ, "INITIAL_AGENT_MODE": "read-only"}
+    env = child_environment(INITIAL_AGENT_MODE="workspace-write" if work else "read-only")
     async with spawn_owned_agent(executable, *args, cwd=workdir, env=env) as process:
         assert process.stdin is not None and process.stdout is not None
         connection = connect_to_agent(client, process.stdin, process.stdout)

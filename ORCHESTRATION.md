@@ -114,6 +114,18 @@ uv run uvicorn ycton.orchestration.main:app --host 127.0.0.1 --port 8000 --worke
 
 uv가 없다면 위 실행 명령의 `uv run uvicorn`을 `.venv/bin/python -m uvicorn`으로 바꿉니다.
 
+### OpenRouter Jev (선택)
+
+실행할 백엔드 터미널에 `OPENROUTER_API_KEY`를 설정한 뒤 서버를 시작합니다. 키를 `runtime.toml`, 프론트 환경 변수, 저장소에 넣지 마세요. Windows PowerShell 7.2 이상에서는 입력을 가릴 수 있습니다.
+
+```powershell
+$env:OPENROUTER_API_KEY = Read-Host 'OpenRouter API key' -MaskInput
+# 기본 모델을 바꿀 때만 필요
+$env:ORCH_JEV_MODEL = 'typesafe/jev-1.14'
+```
+
+Jev는 OpenRouter [Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request)를 사용합니다. 프로젝트가 대기 중이거나 에이전트가 부족할 때 작업·에이전트·실행 자리 개수만 전송하며, 대화·코드·로컬 경로는 보내지 않습니다. 요청 중이거나 실패하거나 키가 없으면 규칙 기반 상태가 계속 보입니다. 모델은 대기 또는 에이전트 추가를 **추천**할 뿐, 자동으로 에이전트를 추가하거나 실행을 멈추지 않습니다.
+
 ## 4. 실제 작업 등록
 
 API 문서 또는 프론트에서 아래 순서로 요청합니다.
@@ -163,4 +175,4 @@ API 문서 또는 프론트에서 아래 순서로 요청합니다.
 
 pause는 새 실행 시작만 멈춥니다. 실행 중 작업은 별도 cancel로 취소합니다. 서버 재시작은 기존 방을 일시 중지하고 남은 실행을 실패 기록으로 정리합니다. 비정상 강제 종료 후 외부 프로세스의 존재 확인은 별도 운영 작업입니다.
 
-Jev는 규칙 안내만 제공합니다. 실제 모델 판단 및 자동 에이전트 추가, 위키·이슈·think, WebSocket, 파일 충돌 조정은 범위에 포함하지 않습니다.
+자동 에이전트 추가, 위키·이슈·think, WebSocket, 파일 충돌 조정은 범위에 포함하지 않습니다.

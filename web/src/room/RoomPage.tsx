@@ -1,5 +1,5 @@
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { ChevronDown, Folder, GitBranch, OctagonPause, Pause, Play, Unplug } from 'lucide-react'
+import { ChevronDown, Clock, Folder, GitBranch, OctagonPause, Pause, Play, Unplug, UserRoundPlus } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 
 import { api, ApiError, type RoomState } from '@/api/client'
@@ -16,6 +16,15 @@ import { Timeline } from './timeline.tsx'
 import { PageHeader } from '../shell/PageHeader.tsx'
 
 const route = getRouteApi('/rooms/$roomId')
+
+const AUTOMATION = {
+  stop: { label: '자동 진행 멈춤', icon: OctagonPause },
+  wait: { label: '작업 대기 중', icon: Clock },
+  spawn_suggested: { label: '에이전트 필요', icon: UserRoundPlus },
+  go: { label: '자동 진행 중', icon: null },
+}
+
+const RECOMMENDATION = { wait: '대기', spawn_suggested: '에이전트 추가' }
 
 /** 사이드가 대화 옆에 설 만큼 넓은지(80rem). 좁으면 사이드를 대화 위의 접힌 구역으로 둡니다. */
 function useWide() {
@@ -134,7 +143,8 @@ export function RoomPage() {
 
   const { room } = state
   const repositoryLabel = runtimeOptions?.repositories.find(({ id }) => id === room.repository_id)?.label ?? room.repository_id
-  const stopped = Boolean(room.paused) || state.jev.action === 'stop'
+  const progress = AUTOMATION[state.jev.action]
+  const stopped = Boolean(room.paused)
   const toggleError = pause.error ?? resume.error
 
   const side = (
@@ -149,10 +159,7 @@ export function RoomPage() {
     <main id="main" className="flex min-h-dvh flex-col">
       <PageHeader title={room.name} />
 
-      {/*
-        프로젝트의 폴더와 Git 저장소, 자동 진행 조작을 한 줄에 둡니다. 넓은 화면에서는 위에 붙어 있고, 레일의 워드마크 줄과 같은 높이에 섭니다.
-        자동 진행이 멈췄을 때만 그 사실과 이유를 아래에 붙입니다. 진행 중은 따로 적지 않습니다.
-      */}
+      {/* 프로젝트의 폴더와 Git 저장소, 자동 진행 조작을 한 줄에 둡니다. */}
       <div
         ref={barRef}
         className="z-10 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 bg-background pt-4 pb-3 lg:sticky lg:top-0 lg:border-b lg:pt-6"
@@ -163,16 +170,17 @@ export function RoomPage() {
         ) : (
           <IconButton variant="outline" icon={Pause} label="자동 진행 멈추기" disabled={pause.isPending} onClick={() => pause.mutate(undefined)} />
         )}
-        <div role="status" className="col-span-2 empty:hidden">
-          {stopped ? (
-            <div className="mt-3 flex min-w-0 items-start gap-2">
-              <Glyph icon={OctagonPause} className="mt-0.5 text-attention" />
-              <p className="min-w-0 text-body text-pretty">
-                <span className="block font-semibold">자동 진행 멈춤</span>
-                {state.jev.reason ? <span className="block text-muted-foreground">{state.jev.reason}</span> : null}
+        <div role="status" className="col-span-2 mt-3 flex min-w-0 items-start gap-2">
+          {progress.icon ? <Glyph icon={progress.icon} className="mt-0.5 text-attention" /> : null}
+          <div className="min-w-0 text-body text-pretty">
+            <p className={progress.icon ? 'font-semibold' : 'text-muted-foreground'}>{progress.label}</p>
+            {progress.icon ? <p className="text-muted-foreground">{state.jev.reason}</p> : null}
+            {state.jev.recommendation ? (
+              <p className="mt-1 text-label text-muted-foreground">
+                Jev 추천: {RECOMMENDATION[state.jev.recommendation.action]} — {state.jev.recommendation.reason}
               </p>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
         {toggleError ? (
           <p role="alert" className="col-span-2 mt-2 text-label text-destructive">
