@@ -96,26 +96,24 @@ export function ReviewPage() {
   return (
     <Shell>
       <div className="grid min-w-0 content-start gap-10 pt-6 pb-16">
-          <section aria-labelledby="compose-heading" className="grid gap-3">
-            <h2 id="compose-heading" className="flex min-h-9 items-center text-lg font-semibold">
-              새 할 일
-            </h2>
-            <div className="border bg-card px-4 pt-2 pb-3">
-              <Composer />
-            </div>
-          </section>
-          <AttentionSection
-            items={report.attention}
-            projects={report.projects}
-            onAction={act}
-            onUndo={undo}
-          />
-          <LedgerSection
-            projects={report.projects.filter((p) => !project || p.id === project)}
-            entries={inScope(report.ledger)}
-            period={report.from && report.to ? `${report.from} – ${report.to}` : undefined}
-            filter={<ProjectFilter report={report} project={project} />}
-          />
+        <AttentionSection
+          items={report.attention}
+          projects={report.projects}
+          onAction={act}
+          onUndo={undo}
+        />
+        <section aria-labelledby="compose-heading">
+          <h2 id="compose-heading" className="sr-only">
+            새 할 일
+          </h2>
+          <Composer />
+        </section>
+        <LedgerSection
+          projects={report.projects.filter((p) => !project || p.id === project)}
+          entries={inScope(report.ledger)}
+          period={report.from && report.to ? `${report.from} – ${report.to}` : undefined}
+          filter={<ProjectFilter report={report} project={project} />}
+        />
       </div>
     </Shell>
   )
