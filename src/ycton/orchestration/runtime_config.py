@@ -31,7 +31,8 @@ class RuntimeConfig:
     @classmethod
     def read(cls, path):
         path = Path(path).resolve()
-        data = tomllib.loads(path.read_text())
+        with path.open("rb") as file:
+            data = tomllib.load(file)
         def location(value):
             p = Path(value).expanduser()
             return (path.parent / p).resolve() if not p.is_absolute() else p.resolve()
