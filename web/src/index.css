@@ -140,3 +140,24 @@
     @apply font-sans antialiased;
     }
 }
+/* 처리할 일이 0이 된 순간 한 번만 원과 체크를 긋습니다 */
+@media (prefers-reduced-motion: no-preference) {
+  .all-clear-mark[data-draw] circle,
+  .all-clear-mark[data-draw] path {
+    stroke-dasharray: 1;
+    animation: all-clear-draw 420ms cubic-bezier(0.2, 0, 0, 1) both;
+  }
+  .all-clear-mark[data-draw] path {
+    animation-delay: 300ms;
+    animation-duration: 260ms;
+  }
+}
+
+@keyframes all-clear-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}

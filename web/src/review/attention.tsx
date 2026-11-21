@@ -64,6 +64,15 @@ export function AttentionSection({ items, projects, onAction, onUndo }: Attentio
 
   const shown = [...items, ...Object.values(kept).filter((item) => !items.some((current) => current.id === item.id))]
   const openCount = shown.filter((item) => !resolved[item.id]).length
+  const allClear = openCount === 0
+
+  // 마지막 항목을 처리해 0이 된 순간에만 체크를 그립니다. 처음 들어왔을 때 이미 0이면 움직이지 않습니다.
+  const hadOpen = useRef(openCount > 0)
+  const [justCleared, setJustCleared] = useState(false)
+  useEffect(() => {
+    if (hadOpen.current && openCount === 0) setJustCleared(true)
+    hadOpen.current = openCount > 0
+  }, [openCount])
 
   const toggle = (id: string) => {
     setExpanded((current) => (current === id ? null : id))
@@ -117,22 +126,25 @@ export function AttentionSection({ items, projects, onAction, onUndo }: Attentio
 
   return (
     <section aria-labelledby={headingId} className="grid gap-3 text-[0.9375rem]">
-      <h2 id={headingId} className="flex items-center gap-2 text-lg font-semibold">
-        처리 필요
-        <Badge
-          className={cn(
-            'min-w-6 px-1.5 py-0.5 font-mono text-xs tracking-normal tabular-nums',
-            openCount > 0 ? 'bg-attention text-primary-foreground' : 'bg-muted text-muted-foreground',
-          )}
-        >
-          {countFormat.format(openCount)}
-          <span className="sr-only">건</span>
-        </Badge>
-      </h2>
-
-      {shown.length === 0 ? (
-        <EmptyAttention />
+      {allClear ? (
+        // 처리할 일이 없으면 제목과 개수 대신 이 사실 하나를 구역의 제목으로 세웁니다
+        <div className="flex items-center gap-4 border bg-card px-5 py-7">
+          <AllClearMark draw={justCleared} />
+          <h2 id={headingId} className="text-lg font-semibold tracking-tight">
+            처리할 일이 없습니다
+          </h2>
+        </div>
       ) : (
+        <h2 id={headingId} className="flex items-center gap-2 text-lg font-semibold">
+          처리 필요
+          <Badge className="min-w-6 bg-attention px-1.5 py-0.5 font-mono text-xs tracking-normal text-primary-foreground tabular-nums">
+            {countFormat.format(openCount)}
+            <span className="sr-only">건</span>
+          </Badge>
+        </h2>
+      )}
+
+      {shown.length === 0 ? null : (
         <ul className="divide-y border bg-card">
           {shown.map((item) => (
             <AttentionRow
@@ -241,7 +253,10 @@ function AttentionRow({
               aria-expanded={open}
               aria-controls={panelId}
               onClick={onToggle}
-              className="cursor-pointer text-start outline-none after:absolute after:inset-0"
+              className={cn(
+                'cursor-pointer text-start outline-none after:absolute after:inset-0',
+                isResolved && 'line-through decoration-from-font',
+              )}
             >
               {item.title}
             </button>
@@ -396,13 +411,22 @@ function ReplyForm({
   )
 }
 
-function EmptyAttention() {
+/** 처리 완료 표시. 손으로 그린 듯 원을 두르고 체크를 긋습니다(동작 줄이기에서는 바로 나타남). */
+function AllClearMark({ draw }: { draw: boolean }) {
   return (
-    <div className="flex items-start gap-3 border bg-card px-4 py-5">
-      <Glyph icon={CircleCheck} className="mt-0.5 size-5 text-muted-foreground" />
-      <div className="grid gap-1">
-        <p className="font-semibold">처리할 일이 없습니다</p>
-      </div>
-    </div>
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      data-draw={draw || undefined}
+      className="all-clear-mark size-8 shrink-0 text-foreground"
+    >
+      <circle cx="12" cy="12" r="10" pathLength={1} />
+      <path d="m8 12.5 2.75 2.75L16 9.5" pathLength={1} />
+    </svg>
   )
 }
