@@ -46,6 +46,7 @@ def _work_prompt(task: WorkTask, *, can_commit: bool = False, base: str = "HEAD"
     return (
         "Complete the delegated task using only the current worktree. "
         "Run the requested verification here and report the exact command and observed outcome. "
+        "Write your final report in Korean, short: what changed, the commit, and the verification result. "
         + finish +
         f"Title: {task.title}\n\nDetail:\n{task.detail}\n\nScope:\n{task.scope}\n\n"
         f"Verification:\n{task.verify}\n\nInstructions:\n{task.instructions}\n\n"
