@@ -111,13 +111,14 @@ export function TaskList({ state, focus }: { state: RoomState; focus?: number })
 function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: number) => void }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
+  const [scope, setScope] = useState('')
   const [invalid, setInvalid] = useState(false)
   const textRef = useRef<HTMLTextAreaElement>(null)
-  const ids = { text: useId(), error: useId() }
+  const ids = { text: useId(), scope: useId(), error: useId() }
   const { verify, error: optionsError } = useVerificationProfile(state.room, open)
-  const add = useRoomMutation(state.room.id, ({ body, verify }: { body: string; verify: string }) => {
+  const add = useRoomMutation(state.room.id, ({ body, scope, verify }: { body: string; scope: string; verify: string }) => {
     const { title, detail } = splitRequest(body)
-    return api.createTask(state.room.id, { title, detail, scope: '', verify })
+    return api.createTask(state.room.id, { title, detail, scope, verify })
   })
 
   const submit = (event?: FormEvent) => {
@@ -127,9 +128,10 @@ function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: numbe
       return textRef.current?.focus()
     }
     if (!verify || add.isPending) return
-    add.mutate({ body: text.trim(), verify }, {
+    add.mutate({ body: text.trim(), scope: scope.trim(), verify }, {
       onSuccess: (task) => {
         setText('')
+        setScope('')
         setOpen(false)
         onAdded(task.id)
       },
@@ -170,6 +172,10 @@ function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: numbe
               <IconButton type="submit" icon={Check} label="할 일 추가" disabled={!verify || add.isPending} />
             </div>
             {invalid ? <FieldError id={ids.error}>할 일을 입력하세요.</FieldError> : null}
+          </Field>
+          <Field className="gap-0">
+            <FieldLabel htmlFor={ids.scope} className="text-label font-medium">작업 범위 (선택)</FieldLabel>
+            <Input id={ids.scope} value={scope} maxLength={5000} placeholder="예: src/search/" onChange={(event) => setScope(event.target.value)} />
           </Field>
           {optionsError ? <p role="alert" className="text-label text-destructive">{optionsError}</p> : null}
           {add.error ? (

@@ -6,6 +6,7 @@ import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'rea
 import { api, ApiError } from '@/api/client'
 import { IconButton } from '@/components/icon-button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
@@ -25,6 +26,7 @@ export function Composer({ roomId }: { roomId?: number }) {
 
   const [target, setTarget] = useState(roomId !== undefined ? String(roomId) : '')
   const [text, setText] = useState('')
+  const [scope, setScope] = useState('')
   const [invalid, setInvalid] = useState<{ room?: boolean; text?: boolean }>({})
 
   const textRef = useRef<HTMLTextAreaElement>(null)
@@ -32,6 +34,7 @@ export function Composer({ roomId }: { roomId?: number }) {
   const ids = {
     room: useId(),
     text: useId(),
+    scope: useId(),
     textError: useId(),
     roomError: useId(),
     server: useId(),
@@ -43,16 +46,17 @@ export function Composer({ roomId }: { roomId?: number }) {
   const taskUnavailable = assigning && (Boolean(optionsError) || (target !== '' && !verify))
 
   const send = useMutation({
-    mutationFn: async ({ room, body, verify }: { room: number; body: string; verify?: string }) => {
+    mutationFn: async ({ room, body, scope, verify }: { room: number; body: string; scope: string; verify?: string }) => {
       if (verify === undefined) {
         await api.postMessage(room, body)
         return undefined
       }
       const { title: taskTitle, detail } = splitRequest(body)
-      return api.createTask(room, { title: taskTitle, detail, scope: '', verify })
+      return api.createTask(room, { title: taskTitle, detail, scope, verify })
     },
     onSuccess: async (task, { room }) => {
       setText('')
+      setScope('')
       await Promise.all([
         client.invalidateQueries({ queryKey: roomKey(room) }),
         client.invalidateQueries({ queryKey: ROOMS_KEY }),
@@ -71,7 +75,7 @@ export function Composer({ roomId }: { roomId?: number }) {
     if (next.room) return roomSelectRef.current?.focus()
     if (next.text) return textRef.current?.focus()
     if (send.isPending || (assigning && !verify)) return
-    send.mutate({ room, body: text.trim(), verify: assigning ? verify : undefined })
+    send.mutate({ room, body: text.trim(), scope: scope.trim(), verify: assigning ? verify : undefined })
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -134,6 +138,12 @@ export function Composer({ roomId }: { roomId?: number }) {
         <IconButton type="submit" icon={assigning ? Plus : Send} label={assigning ? '할 일 추가' : '보내기'}
           disabled={send.isPending || taskUnavailable} />
       </div>
+      {assigning ? (
+        <Field className="gap-1">
+          <FieldLabel htmlFor={ids.scope} className="text-label text-muted-foreground">작업 범위 (선택)</FieldLabel>
+          <Input id={ids.scope} value={scope} maxLength={5000} placeholder="예: src/search/" onChange={(event) => setScope(event.target.value)} />
+        </Field>
+      ) : null}
 
       {assigning && optionsError ? <p role="alert" className="text-label text-destructive">{optionsError}</p> : null}
       {invalid.room ? <FieldError id={ids.roomError}>프로젝트를 선택하세요.</FieldError> : null}
