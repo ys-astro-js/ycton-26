@@ -66,7 +66,18 @@ export function StatusNode({ status }: { status: LedgerStatus }) {
   )
 }
 
-export function LedgerSection({ projects, entries, period }: { projects: Project[]; entries: LedgerEntry[]; period?: string }) {
+export function LedgerSection({
+  projects,
+  entries,
+  period,
+  filter,
+}: {
+  projects: Project[]
+  entries: LedgerEntry[]
+  period?: string
+  /** 제목 줄 끝에 두는 프로젝트 선택 */
+  filter?: React.ReactNode
+}) {
   const [openId, setOpenId] = useState<string | null>(null)
   const headingId = useId()
 
@@ -80,11 +91,14 @@ export function LedgerSection({ projects, entries, period }: { projects: Project
 
   return (
     <section aria-labelledby={headingId} className="@container">
-      <div className="flex flex-wrap items-baseline gap-x-3">
-        <h2 id={headingId} className="text-lg font-semibold">
-          기록
-        </h2>
-        {period ? <p className="font-mono text-label text-muted-foreground tabular-nums">{period}</p> : null}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <div className="flex flex-wrap items-baseline gap-x-3">
+          <h2 id={headingId} className="text-lg font-semibold">
+            기록
+          </h2>
+          {period ? <p className="font-mono text-label text-muted-foreground tabular-nums">{period}</p> : null}
+        </div>
+        {filter}
       </div>
 
       {groups.length === 0 ? (

@@ -75,9 +75,9 @@ function AttentionBadge({ count }: { count: number }) {
 
 function Rail() {
   return (
-    <aside className="sticky top-0 hidden h-dvh self-start overflow-y-auto pb-8 lg:block">
-      {/* 워드마크를 화면 머리와 같은 높이의 칸 가운데에 두어 제목과 한 줄에 섭니다 */}
-      <div className="mb-6 flex h-(--page-header-height) items-center border-b px-3">
+    <aside className="sticky top-0 hidden h-dvh self-start overflow-y-auto pt-6 pb-8 lg:block">
+      {/* 워드마크 줄은 본문 첫 줄(24px 아래, 36px 높이)과 같은 자리에 섭니다 */}
+      <div className="mb-6 flex h-9 items-center px-3">
         <Wordmark />
       </div>
       <RailNav />

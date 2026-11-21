@@ -1,23 +1,19 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect } from 'react'
 
 /**
- * 아침 리뷰와 프로젝트가 같이 쓰는 화면 머리.
- * 높이를 --page-header-height로 맞추고, 스크롤해도 위에 붙어 있습니다.
- * 넓은 화면에서는 레일이 이미 현재 화면을 표시하므로 제목은 스크린 리더에만 남기고 조작만 보입니다.
- * 이때 레일과의 간격(gap-8)까지 덮어, 레일의 워드마크 칸과 한 띠로 이어집니다.
+ * 좁은 화면의 화면 제목. 레일이 없으니 지금 어느 화면인지 여기서 보이고, 스크롤해도 위에 붙어 있습니다.
+ * 넓은 화면에서는 레일이 이미 현재 화면을 표시하므로 스크린 리더용 제목으로만 남깁니다.
+ * 화면의 조작은 여기 두지 않고 그 조작이 다루는 내용 옆에 둡니다.
  */
-export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
+export function PageHeader({ title }: { title: string }) {
   // 탭과 방문 기록에서 화면을 구분하도록 브라우저 제목도 같은 제목으로 맞춥니다
   useEffect(() => {
     document.title = `${title} – afk`
   }, [title])
 
   return (
-    <header className="sticky top-0 z-20 flex min-h-(--page-header-height) flex-wrap items-center justify-between gap-x-8 gap-y-3 border-b bg-background py-3 lg:-ms-8 lg:flex-nowrap lg:ps-8">
-      <h1 className="min-w-0 text-title leading-tight font-bold tracking-tight break-words text-balance lg:sr-only">
-        {title}
-      </h1>
-      {children ? <div className="ms-auto flex shrink-0 flex-wrap items-center gap-x-8 gap-y-3">{children}</div> : null}
+    <header className="sticky top-0 z-20 flex min-h-(--page-header-height) items-center border-b bg-background py-3 lg:sr-only">
+      <h1 className="min-w-0 text-title leading-tight font-bold tracking-tight break-words text-balance">{title}</h1>
     </header>
   )
 }

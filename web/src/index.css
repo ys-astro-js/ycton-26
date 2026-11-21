@@ -50,6 +50,8 @@
 :root {
     /* 아침 리뷰와 프로젝트가 같이 쓰는 화면 머리 높이. 레일의 워드마크 칸도 이 높이에 맞춥니다. */
     --page-header-height: 5.25rem;
+    /* 넓은 화면에서 프로젝트 화면 위에 붙는 자동 진행 상태 줄 높이(위 여백 24px 포함) */
+    --status-bar-height: 4.625rem;
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -109,10 +111,10 @@
   html {
     @apply font-sans antialiased;
     /* 위에 붙는 화면 머리 높이만큼, 앵커와 포커스가 머리 밑에 숨지 않게 띄웁니다 */
-    scroll-padding-block-start: 1rem;
-    /* 머리가 고정 높이로 붙는 넓은 화면에서만 그 높이만큼 띄웁니다 */
+    /* 좁은 화면에서는 제목 머리가, 넓은 화면에서는 자동 진행 상태 줄이 위에 붙으므로 그 높이만큼 띄웁니다 */
+    scroll-padding-block-start: calc(var(--page-header-height) + 1rem);
     @media (width >= 64rem) {
-      scroll-padding-block-start: calc(var(--page-header-height) + 1rem);
+      scroll-padding-block-start: calc(var(--status-bar-height) + 1rem);
     }
     }
 }

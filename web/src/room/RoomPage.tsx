@@ -120,27 +120,34 @@ export function RoomPage() {
   return (
     // 화면 높이를 채워, 대화가 짧아도 입력 바가 화면 맨 아래에 붙어 있게 합니다
     <main id="main" className="flex min-h-dvh flex-col">
-      <PageHeader title={room.name}>
-        {stopped ? null : (
+      <PageHeader title={room.name} />
+
+      {/* 자동 진행 상태와 그 조작을 한 줄에 둡니다. 넓은 화면에서는 위에 붙어 있고, 레일의 워드마크 줄과 같은 높이에 섭니다. */}
+      <div className="z-10 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 bg-background pt-4 pb-3 lg:sticky lg:top-0 lg:border-b lg:pt-6">
+        <div role="status" className="flex min-w-0 items-start gap-2">
+          {stopped ? (
+            <>
+              <Glyph icon={OctagonPause} className="mt-0.5 text-attention" />
+              <p className="min-w-0 text-body text-pretty">
+                <span className="block font-semibold">자동 진행 멈춤</span>
+                {state.jev.reason ? <span className="block text-muted-foreground">{state.jev.reason}</span> : null}
+              </p>
+            </>
+          ) : (
+            <p className="text-body text-muted-foreground">자동 진행 중</p>
+          )}
+        </div>
+        {stopped ? (
+          <IconButton icon={Play} label="자동 진행 재개하기" disabled={resume.isPending} onClick={() => resume.mutate(undefined)} />
+        ) : (
           <IconButton variant="outline" icon={Pause} label="자동 진행 멈추기" disabled={pause.isPending} onClick={() => pause.mutate(undefined)} />
         )}
-      </PageHeader>
-
-      {stopped ? (
-        <div role="status" className="mt-6 grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-start gap-x-3 border bg-card px-4 py-4">
-          <Glyph icon={OctagonPause} className="mt-0.5 size-5 text-attention" />
-          <div className="min-w-0">
-            <p className="text-body font-semibold">자동 진행 멈춤</p>
-            {state.jev.reason ? <p className="text-body text-muted-foreground text-pretty">{state.jev.reason}</p> : null}
-          </div>
-          <IconButton icon={Play} label="자동 진행 재개하기" disabled={resume.isPending} onClick={() => resume.mutate(undefined)} />
-        </div>
-      ) : null}
-      {toggleError ? (
-        <p role="alert" className="mt-3 text-label text-destructive">
-          {toggleError.message}. 잠시 후 다시 시도하세요.
-        </p>
-      ) : null}
+        {toggleError ? (
+          <p role="alert" className="col-span-2 mt-2 text-label text-destructive">
+            {toggleError.message}. 잠시 후 다시 시도하세요.
+          </p>
+        ) : null}
+      </div>
 
       <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-8 pt-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:grid-rows-1">
         {wide ? null : (
@@ -183,7 +190,7 @@ export function RoomPage() {
         </section>
 
         {wide ? (
-          <aside aria-label="할 일과 에이전트" className="sticky top-[calc(var(--page-header-height)+1.5rem)] max-h-[calc(100dvh-var(--page-header-height)-3rem)] self-start overflow-y-auto">
+          <aside aria-label="할 일과 에이전트" className="sticky top-[calc(var(--status-bar-height)+1.5rem)] max-h-[calc(100dvh-var(--status-bar-height)-3rem)] self-start overflow-y-auto">
             {side}
           </aside>
         ) : null}

@@ -94,10 +94,10 @@ export function ReviewPage() {
     project ? items.filter((item) => item.projectId === project) : items
 
   return (
-    <Shell report={report} project={project}>
+    <Shell>
       <div className="grid min-w-0 content-start gap-10 pt-6 pb-16">
           <section aria-labelledby="compose-heading" className="grid gap-3">
-            <h2 id="compose-heading" className="text-lg font-semibold">
+            <h2 id="compose-heading" className="flex min-h-9 items-center text-lg font-semibold">
               새 할 일
             </h2>
             <div className="border bg-card px-4 pt-2 pb-3">
@@ -105,8 +105,7 @@ export function ReviewPage() {
             </div>
           </section>
           <AttentionSection
-            key={project ?? 'all'}
-            items={inScope(report.attention)}
+            items={report.attention}
             projects={report.projects}
             onAction={act}
             onUndo={undo}
@@ -115,51 +114,51 @@ export function ReviewPage() {
             projects={report.projects.filter((p) => !project || p.id === project)}
             entries={inScope(report.ledger)}
             period={report.from && report.to ? `${report.from} – ${report.to}` : undefined}
+            filter={<ProjectFilter report={report} project={project} />}
           />
       </div>
     </Shell>
   )
 }
 
-function Shell({ report, project, children }: { report?: OvernightReport; project?: ProjectId; children: React.ReactNode }) {
+function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main id="main">
-      <ReviewHeader report={report} project={project} />
+      <PageHeader title="아침 리뷰" />
       {children}
     </main>
   )
 }
 
-function ReviewHeader({ report, project }: { report?: OvernightReport; project?: ProjectId }) {
+/**
+ * 기록을 한 프로젝트로 좁히는 선택. 처리할 일은 몇 건 안 되고 급하므로 가리지 않고, 길어지는 기록에만 씁니다.
+ */
+function ProjectFilter({ report, project }: { report: OvernightReport; project?: ProjectId }) {
   const navigate = useNavigate()
   const selectId = useId()
+  if (report.projects.length < 2) return null
 
   return (
-    <PageHeader title="아침 리뷰">
-      {/* 왼쪽 레일은 아침 리뷰와 프로젝트 사이를 오가므로, 리뷰는 이 선택으로 한 프로젝트만 좁혀 봅니다 */}
-      {report && report.projects.length > 1 ? (
-        <div className="w-full sm:w-56">
-          <Label htmlFor={selectId} className="sr-only">
-            프로젝트
-          </Label>
-          <NativeSelect
-            id={selectId}
-            className="w-full"
-            value={project ?? ''}
-            onChange={(event) => {
-              const value = event.target.value as ProjectId | ''
-              navigate({ to: '/', search: value ? { project: value } : {} })
-            }}
-          >
-            <NativeSelectOption value="">모든 프로젝트</NativeSelectOption>
-            {report.projects.map((p) => (
-              <NativeSelectOption key={p.id} value={p.id}>
-                {p.name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
-      ) : null}
-    </PageHeader>
+    <div className="w-full sm:w-56">
+      <Label htmlFor={selectId} className="sr-only">
+        기록을 볼 프로젝트
+      </Label>
+      <NativeSelect
+        id={selectId}
+        className="w-full"
+        value={project ?? ''}
+        onChange={(event) => {
+          const value = event.target.value as ProjectId | ''
+          navigate({ to: '/', search: value ? { project: value } : {}, resetScroll: false })
+        }}
+      >
+        <NativeSelectOption value="">모든 프로젝트</NativeSelectOption>
+        {report.projects.map((p) => (
+          <NativeSelectOption key={p.id} value={p.id}>
+            {p.name}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+    </div>
   )
 }
