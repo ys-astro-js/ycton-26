@@ -1,13 +1,12 @@
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { Arc } from 'loading-dev'
-import { FolderGit2, Sunrise } from 'lucide-react'
-import { useId, useRef, useState, type FormEvent } from 'react'
+import { FolderGit2, Menu, Sunrise, X } from 'lucide-react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 
+import { IconButton } from '@/components/icon-button'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { cn } from '@/lib/utils'
 
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -34,6 +33,14 @@ function useRoomSignals() {
 
 export function AppShell() {
   return (
+    <>
+      {/* 키보드 사용자가 레일을 건너뛰고 바로 본문으로 갈 수 있게, 포커스를 받을 때만 보입니다 */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-50 focus:border focus:bg-background focus:px-3 focus:py-2 focus:text-label focus:font-semibold"
+      >
+        본문으로 건너뛰기
+      </a>
     <div className="mx-auto max-w-7xl px-4 sm:px-8 lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:gap-8">
       <Rail />
       <MobileBar />
@@ -42,6 +49,7 @@ export function AppShell() {
         <Outlet />
       </div>
     </div>
+    </>
   )
 }
 
@@ -67,63 +75,69 @@ function AttentionBadge({ count }: { count: number }) {
 }
 
 function Rail() {
-  const { data: rooms = [] } = useRooms()
-  const signals = useRoomSignals()
-  const pathname = useRouterState({ select: (state) => state.location.pathname })
-  const headingId = useId()
-
   return (
     <aside className="sticky top-0 hidden h-dvh self-start overflow-y-auto pb-8 lg:block">
       {/* 워드마크를 화면 머리와 같은 높이의 칸 가운데에 두어 제목과 한 줄에 섭니다 */}
       <div className="mb-6 flex h-(--page-header-height) items-center border-b px-3">
         <Wordmark />
       </div>
-
-      <nav aria-label="화면" className="grid gap-5">
-        <Link to="/" aria-current={pathname === '/' ? 'page' : undefined} className={cn(RAIL_LINK, pathname === '/' && RAIL_LINK_CURRENT)}>
-          <Glyph icon={Sunrise} />
-          <span className="min-w-0 break-words">아침 리뷰</span>
-          <span className="ms-auto">
-            <AttentionBadge count={signals.attention()} />
-          </span>
-        </Link>
-
-        <div>
-          <h2 id={headingId} className="px-3 pb-1 text-label font-semibold text-muted-foreground">
-            채팅방
-          </h2>
-          <ul aria-labelledby={headingId} className="grid gap-0.5">
-            {rooms.map((room) => {
-              const current = pathname === `/rooms/${room.id}`
-              const live = signals.live(room.id)
-              return (
-                <li key={room.id}>
-                  <Link
-                    to="/rooms/$roomId"
-                    params={{ roomId: String(room.id) }}
-                    aria-current={current ? 'page' : undefined}
-                    className={cn(RAIL_LINK, current && RAIL_LINK_CURRENT)}
-                  >
-                    <Glyph icon={FolderGit2} />
-                    <span className="min-w-0 break-words">{room.name}</span>
-                    <span className="ms-auto flex items-center gap-2">
-                      {live ? (
-                        <>
-                          <Arc size={12} color="var(--live)" />
-                          <span className="sr-only">진행 중</span>
-                        </>
-                      ) : null}
-                      <AttentionBadge count={signals.attention(room.id)} />
-                    </span>
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-          <NewRoom />
-        </div>
-      </nav>
+      <RailNav />
     </aside>
+  )
+}
+
+/** 넓은 화면의 레일과 좁은 화면의 메뉴가 같이 쓰는 내비게이션 */
+function RailNav() {
+  const { data: rooms = [] } = useRooms()
+  const signals = useRoomSignals()
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const headingId = useId()
+
+  return (
+    <nav aria-label="화면" className="grid gap-5">
+      <Link to="/" aria-current={pathname === '/' ? 'page' : undefined} className={cn(RAIL_LINK, pathname === '/' && RAIL_LINK_CURRENT)}>
+        <Glyph icon={Sunrise} />
+        <span className="min-w-0 break-words">아침 리뷰</span>
+        <span className="ms-auto">
+          <AttentionBadge count={signals.attention()} />
+        </span>
+      </Link>
+
+      <div>
+        <h2 id={headingId} className="px-3 pb-1 text-label font-semibold text-muted-foreground">
+          채팅방
+        </h2>
+        <ul aria-labelledby={headingId} className="grid gap-0.5">
+          {rooms.map((room) => {
+            const current = pathname === `/rooms/${room.id}`
+            const live = signals.live(room.id)
+            return (
+              <li key={room.id}>
+                <Link
+                  to="/rooms/$roomId"
+                  params={{ roomId: String(room.id) }}
+                  aria-current={current ? 'page' : undefined}
+                  className={cn(RAIL_LINK, current && RAIL_LINK_CURRENT)}
+                >
+                  <Glyph icon={FolderGit2} />
+                  <span className="min-w-0 break-words">{room.name}</span>
+                  <span className="ms-auto flex items-center gap-2">
+                    {live ? (
+                      <>
+                        <Arc size={12} color="var(--live)" />
+                        <span className="sr-only">진행 중</span>
+                      </>
+                    ) : null}
+                    <AttentionBadge count={signals.attention(room.id)} />
+                  </span>
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+        <NewRoom />
+      </div>
+    </nav>
   )
 }
 
@@ -212,40 +226,43 @@ function NewRoom() {
   )
 }
 
-/** 레일이 숨는 좁은 화면에서 아침 리뷰와 채팅방 사이를 이 선택 하나로 오갑니다 */
+/** 레일이 숨는 좁은 화면에서는 같은 내비게이션을 메뉴 버튼으로 여닫습니다 */
 function MobileBar() {
-  const { data: rooms = [] } = useRooms()
-  const signals = useRoomSignals()
+  const [open, setOpen] = useState(false)
   const pathname = useRouterState({ select: (state) => state.location.pathname })
-  const navigate = useNavigate()
-  const selectId = useId()
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const panelId = useId()
+
+  // 다른 화면으로 옮기면 메뉴를 닫습니다
+  useEffect(() => setOpen(false), [pathname])
 
   return (
-    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 pt-5 pb-2 lg:hidden">
-      <Wordmark />
-      <div className="grid w-full gap-1 sm:w-56">
-        <Label htmlFor={selectId} className="text-xs text-muted-foreground">
-          화면
-        </Label>
-        <NativeSelect
-          id={selectId}
-          className="w-full"
-          value={pathname}
-          onChange={(event) => {
-            const value = event.target.value
-            if (value === '/') navigate({ to: '/' })
-            else navigate({ to: '/rooms/$roomId', params: { roomId: value.replace('/rooms/', '') } })
-          }}
-        >
-          <NativeSelectOption value="/">아침 리뷰 (처리할 일 {signals.attention()}건)</NativeSelectOption>
-          {rooms.map((room) => (
-            <NativeSelectOption key={room.id} value={`/rooms/${room.id}`}>
-              {room.name}
-              {signals.live(room.id) ? ' (진행 중)' : ''}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
+    <div
+      className="pt-4 pb-2 lg:hidden"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && open) {
+          setOpen(false)
+          buttonRef.current?.focus()
+        }
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <Wordmark />
+        <IconButton
+          ref={buttonRef}
+          variant="outline"
+          icon={open ? X : Menu}
+          label={open ? '메뉴 닫기' : '메뉴 열기'}
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen((current) => !current)}
+        />
       </div>
+      {open ? (
+        <div id={panelId} className="mt-4 -mx-3 border-b pb-4">
+          <RailNav />
+        </div>
+      ) : null}
     </div>
   )
 }
