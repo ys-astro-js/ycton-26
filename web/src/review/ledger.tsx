@@ -1,5 +1,5 @@
 import { Arc } from 'loading-dev'
-import { Bot, ChevronDown, CircleCheck, CircleDashed, CircleX, FolderGit2, GitCommitHorizontal } from 'lucide-react'
+import { Bot, ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleX, FolderGit2, GitCommitHorizontal } from 'lucide-react'
 import { useId, useMemo, useState } from 'react'
 
 import { cn } from '@/lib/utils'
@@ -38,9 +38,9 @@ const META_TEXT = 'text-[0.8125rem] text-muted-foreground'
 
 /**
  * 상태 표식. 네 상태 모두 같은 16px 원 하나로 그립니다.
- * 완료는 체크 원, 진행 중은 같은 지름으로 도는 호, 대기는 점선 원, 제외는 X 원. 뜻은 sr-only 글자가 전합니다.
+ * 완료는 체크 원, 진행 중은 같은 지름으로 도는 호, 대기는 점선 원, 실패는 느낌표 원, 제외는 X 원. 뜻은 sr-only 글자가 전합니다.
  */
-const NODE_ICON = { done: CircleCheck, waiting: CircleDashed, dropped: CircleX } as const
+const NODE_ICON = { done: CircleCheck, waiting: CircleDashed, failed: CircleAlert, dropped: CircleX } as const
 
 function StatusNode({ status }: { status: LedgerStatus }) {
   if (status === 'running') {
@@ -55,7 +55,14 @@ function StatusNode({ status }: { status: LedgerStatus }) {
     )
   }
   const Icon = NODE_ICON[status]
-  return <Icon aria-hidden="true" strokeWidth={2.5} className="size-4 text-muted-foreground" />
+  // 실패는 사람이 다시 맡겨야 하는 일이라 빨강(attention)으로, 나머지는 흐린 회색으로 둡니다
+  return (
+    <Icon
+      aria-hidden="true"
+      strokeWidth={2.5}
+      className={cn('size-4', status === 'failed' ? 'text-attention-foreground' : 'text-muted-foreground')}
+    />
+  )
 }
 
 export function LedgerSection({ projects, entries }: { projects: Project[]; entries: LedgerEntry[] }) {

@@ -32,7 +32,7 @@ export interface AttentionItem {
   target: { roomId: number; taskId?: number }
 }
 
-export type LedgerStatus = 'done' | 'running' | 'waiting' | 'dropped'
+export type LedgerStatus = 'done' | 'running' | 'waiting' | 'failed' | 'dropped'
 
 export interface LedgerEntry {
   taskId: string

@@ -59,10 +59,12 @@ function eventLog(events: TaskEvent[]): LogLine[] {
   })
 }
 
-function ledgerStatus(task: Task): LedgerStatus {
+function ledgerStatus(task: Task, last?: Session): LedgerStatus {
   if (task.status === 'done') return 'done'
   if (task.status === 'dropped') return 'dropped'
   if (task.status === 'claimed' || task.active_session_id) return 'running'
+  // 서버는 실패한 할 일을 open으로 되돌립니다. 마지막 작업 세션이 실패했으면 대기가 아니라 실패로 부릅니다.
+  if (last && (last.status === 'failed' || last.status === 'cancelled')) return 'failed'
   return 'waiting'
 }
 
@@ -125,15 +127,16 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
 
       const first = [...sessions].sort((a, b) => a.created_at.localeCompare(b.created_at))[0]
       const owner = agents.get(task.owner_id ?? last?.agent_id ?? -1)
+      const status = ledgerStatus(task, last)
       ledger.push({
         taskId: `#${task.id}`,
         projectId,
         start: hm(parse(first?.created_at)),
-        end: task.status === 'done' ? hm(parse(last?.finished_at)) : undefined,
+        end: status === 'done' || status === 'failed' ? hm(parse(last?.finished_at)) : undefined,
         commit: task.commit_hash?.slice(0, 7) ?? undefined,
         title: task.title,
         agent: agentLabel(owner),
-        status: ledgerStatus(task),
+        status,
         handoff: lines(task.handoff),
         log: eventLog(events),
       })

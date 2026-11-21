@@ -1,4 +1,4 @@
-import { Circle, CircleCheck, CircleDot, CircleSlash, NotebookText, Terminal, type LucideIcon } from 'lucide-react'
+import { Circle, CircleAlert, CircleCheck, CircleDot, CircleSlash, NotebookText, Terminal, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
@@ -11,6 +11,7 @@ export const STATUS: Record<LedgerStatus, { label: string; icon: LucideIcon }> =
   done: { label: '완료', icon: CircleCheck },
   running: { label: '진행 중', icon: CircleDot },
   waiting: { label: '대기', icon: Circle },
+  failed: { label: '실패', icon: CircleAlert },
   dropped: { label: '제외', icon: CircleSlash },
 }
 
