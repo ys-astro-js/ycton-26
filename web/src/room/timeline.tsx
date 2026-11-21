@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { StatusNode } from '../review/ledger.tsx'
 import { DisclosurePanel, Glyph, Handoff } from '../review/shared.tsx'
 import { clock, toTimeline, type TimelineEntry } from './data.ts'
+import { MessageBody } from './message-body.tsx'
 import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
 
 /*
@@ -32,6 +33,9 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
   const agents = new Map(state.agents.map((agent) => [agent.id, agent]))
   const tasks = new Map(state.tasks.map((task) => [task.id, task]))
   const entries = toTimeline(state)
+  // 에이전트가 다른 에이전트를 부른 것(@Claude)은 사람이 처리할 일이 아니라 attention 색을 쓰지 않습니다
+  const agentNames = new Set(state.agents.map((agent) => agent.name))
+  const callsPerson = (name: string) => !agentNames.has(name)
 
   return (
     <ol aria-label="대화" className="grid pb-2">
@@ -86,9 +90,14 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
                   </MessageHeader>
                 )}
                 <Bubble variant={human ? 'default' : 'muted'}>
-                  <BubbleContent className="text-body whitespace-pre-line">
-                    {human ? <span className="sr-only">나: </span> : null}
-                    <MessageText text={entry.message.content} calls={!human} />
+                  <BubbleContent className="text-body">
+                    {/* 이어 보낸 말풍선에도 화면 읽기 프로그램이 누가 말했는지 알 수 있게 작성자를 붙입니다 */}
+                    {human ? (
+                      <span className="sr-only">나: </span>
+                    ) : continued ? (
+                      <span className="sr-only">{agent?.name ?? '에이전트'}: </span>
+                    ) : null}
+                    <MessageBody text={entry.message.content} attention={human ? never : callsPerson} />
                   </BubbleContent>
                 </Bubble>
                 <MessageFooter className={cn('font-normal tracking-normal normal-case', !last && 'sr-only')}>
@@ -103,18 +112,7 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
   )
 }
 
-/** @멘션을 굵게 구분합니다. 에이전트가 부른 것은 사람이 답할 것이므로 attention 글자색입니다. 사람의 잉크색 말풍선에서는 굵게만 씁니다. */
-function MessageText({ text, calls }: { text: string; calls: boolean }) {
-  return text.split(/(@\S+)/).map((part, index) =>
-    part.startsWith('@') ? (
-      <span key={index} className={cn('font-semibold', calls && 'text-attention-foreground')}>
-        {part}
-      </span>
-    ) : (
-      part
-    ),
-  )
-}
+const never = () => false
 
 const OUTCOME = {
   succeeded: { label: '성공', alarming: false },
