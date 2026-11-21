@@ -77,8 +77,18 @@ async def _branch_tip(repo: Path, branch: str) -> str | None:
 
 
 async def ensure_branch(repo: Path, branch: str) -> None:
-    """Create ``branch`` at the checkout's HEAD unless it exists. The checked-out branch is untouched."""
-    if await _branch_tip(repo, branch) is not None:
+    """Create ``branch`` at the checkout's HEAD unless it exists. The checked-out branch is untouched.
+
+    If everything on ``branch`` is already in HEAD (for example after it was merged into the project branch),
+    move it up to HEAD so the next attempt also sees what people committed there.
+    """
+    tip = await _branch_tip(repo, branch)
+    if tip is not None:
+        try:
+            await _git(repo, "merge-base", "--is-ancestor", tip, "HEAD")
+            await _git(repo, "update-ref", f"refs/heads/{branch}", "HEAD", tip)
+        except RuntimeError:
+            pass
         return
     try:
         await _git(repo, "branch", "--no-track", branch, "HEAD")
