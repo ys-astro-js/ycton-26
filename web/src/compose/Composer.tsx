@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Send } from 'lucide-react'
+import { ListTodo, MessageSquare, Plus, Send, type LucideIcon } from 'lucide-react'
 import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 
 import { api, ApiError } from '@/api/client'
@@ -9,11 +9,18 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 import { ROOMS_KEY, roomKey, splitRequest, useRooms } from '../room/data.ts'
 
 type Intent = 'say' | 'assign'
+
+/** 버튼 규칙(아이콘 또는 글자 하나만)에 따라 입력 종류도 아이콘 토글로 두고, 이름은 aria-label과 툴팁이 전합니다 */
+const INTENTS: { value: Intent; icon: LucideIcon; label: string }[] = [
+  { value: 'say', icon: MessageSquare, label: '메시지 보내기' },
+  { value: 'assign', icon: ListTodo, label: '할 일 추가하기' },
+]
 
 /**
  * 할 일마다 서버에 등록된 검증 프로필 이름을 보내야 합니다.
@@ -89,7 +96,7 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
     <form noValidate onSubmit={submit} className="grid gap-3">
       {global ? null : (
         <ToggleGroup
-          aria-label="보내는 방식"
+          aria-label="입력 종류"
           spacing={0}
           variant="outline"
           size="sm"
@@ -98,17 +105,23 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
             if (value[0] === 'say' || value[0] === 'assign') setIntent(value[0])
           }}
         >
-          <ToggleGroupItem value="say" className="h-8 px-3! text-[0.8125rem] tracking-normal normal-case">
-            메시지
-          </ToggleGroupItem>
-          <ToggleGroupItem value="assign" className="h-8 px-3! text-[0.8125rem] tracking-normal normal-case">
-            할 일
-          </ToggleGroupItem>
+          {INTENTS.map(({ value, icon: Icon, label }) => (
+            <Tooltip key={value}>
+              <TooltipTrigger
+                render={
+                  <ToggleGroupItem value={value} aria-label={label} className="size-8 px-0!">
+                    <Icon aria-hidden="true" strokeWidth={1.75} className="size-4" />
+                  </ToggleGroupItem>
+                }
+              />
+              <TooltipContent>{label}</TooltipContent>
+            </Tooltip>
+          ))}
         </ToggleGroup>
       )}
 
       <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-        <Field data-invalid={invalid.text || undefined} className="min-w-0 flex-1 basis-64 gap-0">
+        <Field data-invalid={invalid.text || undefined} className="min-w-0 flex-1 basis-48 gap-0">
           <FieldLabel htmlFor={ids.text} className="sr-only">
             {assigning ? '할 일' : '메시지'}
           </FieldLabel>
@@ -130,7 +143,7 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
         </Field>
 
         {global ? (
-          <Field data-invalid={invalid.room || undefined} className="min-w-0 flex-1 gap-0 sm:w-44 sm:flex-none">
+          <Field data-invalid={invalid.room || undefined} className="min-w-0 flex-1 basis-40 gap-0 sm:w-44 sm:flex-none sm:basis-auto">
             <FieldLabel htmlFor={ids.room} className="sr-only">
               채팅방
             </FieldLabel>
@@ -158,18 +171,18 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
           </Field>
         ) : null}
 
-        <IconButton type="submit" icon={Send} label={assigning ? '할 일 추가' : '보내기'} disabled={send.isPending} />
+        <IconButton type="submit" icon={assigning ? Plus : Send} label={assigning ? '할 일 추가' : '보내기'} disabled={send.isPending} />
       </div>
 
-      {invalid.room ? <FieldError id={ids.roomError}>채팅방을 고르세요.</FieldError> : null}
+      {invalid.room ? <FieldError id={ids.roomError}>채팅방을 선택하세요.</FieldError> : null}
       {invalid.text ? (
-        <FieldError id={ids.textError}>{assigning ? '할 일을 적어 주세요.' : '보낼 메시지를 적어 주세요.'}</FieldError>
+        <FieldError id={ids.textError}>{assigning ? '할 일을 입력하세요.' : '메시지를 입력하세요.'}</FieldError>
       ) : null}
 
 
       {send.error ? (
         <p id={ids.server} role="alert" className="text-[0.8125rem] text-destructive">
-          {send.error instanceof ApiError ? send.error.message : '보내지 못했습니다'}
+          {send.error instanceof ApiError ? send.error.message : '보내지 못했습니다'}. 잠시 후 다시 시도하세요.
         </p>
       ) : null}
     </form>
