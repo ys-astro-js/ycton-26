@@ -1,5 +1,6 @@
 """프론트가 방·참여자·메시지와 전체 상태를 조회/변경하는 API."""
 import asyncio
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
@@ -22,7 +23,7 @@ async def pick_folder(request: Request, svc=Depends(service)):
     if folder is None:
         return {"path": None, "name": None}
     repo = await asyncio.to_thread(svc.project_folder, folder)
-    return {"path": repo, "name": repo.rstrip("/").rsplit("/", 1)[-1]}
+    return {"path": repo, "name": Path(repo).name}
 
 
 @router.post("/rooms", status_code=201)
