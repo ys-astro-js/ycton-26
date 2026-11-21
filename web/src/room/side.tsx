@@ -2,7 +2,7 @@ import { Arc } from 'loading-dev'
 import { Ban, Bot, Check, Cpu, FolderCode, Gauge, GitCommitHorizontal, History, Plus, RotateCcw, Square } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 
-import { api, ApiError, type RoomState, type Task } from '@/api/client'
+import { api, ApiError, modelLabel, type RoomState, type Task } from '@/api/client'
 import { IconButton } from '@/components/icon-button'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -402,6 +402,7 @@ function TaskRow({
 
 export function AgentList({ state }: { state: RoomState }) {
   const headingId = useId()
+  const { data: providers } = useAgentModels()
   const [adding, setAdding] = useState(false)
   const busy = new Set(
     state.sessions.filter((s) => s.status === 'queued' || s.status === 'running').map((s) => s.agent_id),
@@ -433,7 +434,13 @@ export function AgentList({ state }: { state: RoomState }) {
                   <span className="flex min-w-0 items-center gap-1.5 break-all">
                     <Glyph icon={Cpu} className="size-3.5" />
                     <span className="sr-only">모델</span>
-                    <span className="font-mono">{agent.model || agent.kind}</span>
+                    {agent.model ? (
+                      <span className={cn(modelLabel(providers, agent.kind, agent.model) === agent.model && 'font-mono')}>
+                        {modelLabel(providers, agent.kind, agent.model)}
+                      </span>
+                    ) : (
+                      <span className="font-mono">{agent.kind}</span>
+                    )}
                   </span>
                   {agent.effort ? (
                     <span className="flex items-center gap-1.5">

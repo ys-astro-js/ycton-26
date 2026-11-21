@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode, type Ref } from 'react'
 
-import type { ModelProvider } from '@/api/client'
+import { modelLabel, type ModelProvider } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -132,7 +132,13 @@ export function ModelPicker({
         {/* 모델과 추론 수준은 가운뎃점으로 잇지 않고 양 끝에 따로 둡니다 */}
         {value ? (
           <>
-            <span className="min-w-0 truncate font-mono text-label">{value.model || '기본 모델'}</span>
+            {value.model ? (
+              <span className={cn('min-w-0 truncate', modelLabel(providers, value.provider, value.model) === value.model && 'font-mono text-label')}>
+                {modelLabel(providers, value.provider, value.model)}
+              </span>
+            ) : (
+              <span className="min-w-0 truncate">기본 모델</span>
+            )}
             {value.effort ? (
               <span className="ms-auto shrink-0 text-label text-muted-foreground">
                 <span className="sr-only">추론 수준 </span>
@@ -194,7 +200,7 @@ export function ModelPicker({
             <Option
               key={candidate}
               value={candidate}
-              mono
+              mono={!provider.model_labels?.[candidate]}
               onPreview={(fromPointer) => {
                 if (provider.efforts.length === 0) return
                 const preview = () => setModel(candidate)
@@ -203,7 +209,7 @@ export function ModelPicker({
               }}
               onLeave={aim.cancel}
             >
-              {candidate}
+              {modelLabel(providers, provider.id, candidate)}
             </Option>
           ))}
         </Column>

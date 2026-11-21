@@ -18,6 +18,13 @@ export interface ModelProvider {
   label: string
   models: string[]
   efforts: string[]
+  /** 어댑터가 알려 준 모델 표시 이름(opus → Opus 5.5). 서버가 아직 받지 못했거나 mock이면 비어 있습니다 */
+  model_labels?: Record<string, string>
+}
+
+/** 모델 값을 사람이 읽는 이름으로 바꿉니다. 이름을 모르면 값을 그대로 씁니다 */
+export function modelLabel(providers: ModelProvider[] | undefined, provider: string, model: string) {
+  return providers?.find((p) => p.id === provider)?.model_labels?.[model] ?? model
 }
 
 async function request<T>(path: string, init?: { method?: 'GET' | 'POST'; body?: unknown }): Promise<T> {
