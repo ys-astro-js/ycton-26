@@ -154,23 +154,18 @@ export function RoomPage() {
       {/*
         프로젝트의 폴더와 자동 진행 조작을 한 줄에 둡니다. 넓은 화면에서는 위에 붙어 있고, 레일의 워드마크 줄과 같은 높이에 섭니다.
         이 줄의 높이는 프로젝트나 상태와 상관없이 버튼 한 줄 높이로 고정합니다. 긴 경로는 줄여서 보이고, 프로젝트를 옮겨도 아래 내용이 움직이지 않습니다.
-        자동 진행이 멈췄을 때만 그 사실을 조작 버튼 옆에 적습니다. 진행 중은 따로 적지 않습니다.
+        멈춤 상태는 따로 적지 않고, 버튼(일시 정지, 재개)이 알립니다.
       */}
       <div
         ref={barRef}
         className="z-10 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 bg-background pt-4 pb-3 lg:sticky lg:top-0 lg:border-b lg:pt-6"
       >
         <ProjectSource state={state} repositoryLabel={repositoryLabel} />
-        <div className="flex items-center gap-3">
-          <p role="status" className="text-label font-semibold whitespace-nowrap empty:hidden">
-            {stopped ? '일시 정지' : null}
-          </p>
-          {stopped ? (
-            <IconButton icon={Play} label="재개" disabled={resume.isPending} onClick={() => resume.mutate(undefined)} />
-          ) : (
-            <IconButton variant="outline" icon={Pause} label="일시 정지" disabled={pause.isPending} onClick={() => pause.mutate(undefined)} />
-          )}
-        </div>
+        {stopped ? (
+          <IconButton icon={Play} label="재개" disabled={resume.isPending} onClick={() => resume.mutate(undefined)} />
+        ) : (
+          <IconButton variant="outline" icon={Pause} label="일시 정지" disabled={pause.isPending} onClick={() => pause.mutate(undefined)} />
+        )}
         {toggleError ? (
           <p role="alert" className="col-span-2 mt-2 text-label text-destructive">
             {toggleError.message}. 잠시 후 다시 시도하세요.
