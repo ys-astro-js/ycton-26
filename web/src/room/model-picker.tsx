@@ -86,6 +86,11 @@ export function ModelPicker({
             <Option
               key={candidate.id}
               selected={candidate.id === providerId}
+              onPreview={() => {
+                if (candidate.id === providerId) return
+                setProviderId(candidate.id)
+                setModel('')
+              }}
               onSelect={() => {
                 setProviderId(candidate.id)
                 setModel('')
@@ -101,6 +106,9 @@ export function ModelPicker({
               key={candidate}
               mono
               selected={candidate === model}
+              onPreview={() => {
+                if (provider.efforts.length > 0) setModel(candidate)
+              }}
               onSelect={() => {
                 if (provider.efforts.length === 0) finish({ provider: provider.id, model: candidate, effort: '' })
                 else setModel(candidate)
@@ -143,14 +151,17 @@ function Column({ title, rows, children }: { title: string; rows: number; childr
   )
 }
 
+/** onPreview는 마우스를 올리거나 키보드로 초점을 옮길 때 다음 열을 미리 엽니다. 클릭은 고르기입니다. */
 function Option({
   selected,
   mono,
+  onPreview,
   onSelect,
   children,
 }: {
   selected: boolean
   mono?: boolean
+  onPreview?: () => void
   onSelect: () => void
   children: ReactNode
 }) {
@@ -159,6 +170,8 @@ function Option({
       type="button"
       variant="ghost"
       aria-pressed={selected}
+      onPointerEnter={onPreview}
+      onFocus={onPreview}
       onClick={onSelect}
       className={cn(
         'h-9 w-full justify-start px-2 text-body font-normal tracking-normal normal-case',
