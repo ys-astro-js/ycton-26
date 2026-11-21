@@ -2,7 +2,6 @@ import { Arc } from 'loading-dev'
 import { Bot, Check, ChevronDown, FolderGit2, GitCommitHorizontal, X } from 'lucide-react'
 import { useId, useMemo, useState } from 'react'
 
-import { IconButton } from '@/components/icon-button'
 import { cn } from '@/lib/utils'
 
 import type { LedgerEntry, LedgerStatus, Project } from './sampleData.ts'
@@ -125,7 +124,6 @@ function timeRange(entry: LedgerEntry) {
 
 function LedgerRow({ entry, open, onToggle }: { entry: LedgerEntry; open: boolean; onToggle: () => void }) {
   const panelId = useId()
-  const titleId = useId()
   const dropped = entry.status === 'dropped'
 
   return (
@@ -140,7 +138,14 @@ function LedgerRow({ entry, open, onToggle }: { entry: LedgerEntry; open: boolea
         className="pointer-events-none absolute start-[calc(1.625rem-1px)] top-[calc(1.625rem+0.5rem)] bottom-0 w-0.5 bg-border group-last/row:hidden"
       />
 
-      <div className={ROW_GRID}>
+      {/* 행 전체가 펼침 버튼의 클릭 영역입니다. 버튼은 제목 글자만 담고, 클릭 영역은 ::after로 행 전체에 넓힙니다. */}
+      <div
+        className={cn(
+          ROW_GRID,
+          'relative cursor-pointer transition-colors hover:bg-muted/40 motion-reduce:transition-none',
+          'has-[[data-row-toggle]:focus-visible]:outline-2 has-[[data-row-toggle]:focus-visible]:-outline-offset-2 has-[[data-row-toggle]:focus-visible]:outline-foreground',
+        )}
+      >
         <span className={cn('flex h-9 items-center justify-center', CELL.node)}>
           <StatusNode status={entry.status} />
           <span className="sr-only">
@@ -158,14 +163,25 @@ function LedgerRow({ entry, open, onToggle }: { entry: LedgerEntry; open: boolea
         </span>
 
         <span
-          id={titleId}
           className={cn(
             'flex min-h-9 min-w-0 items-center text-[0.9375rem] text-pretty break-words',
             dropped && 'text-muted-foreground',
             CELL.title,
           )}
         >
-          <span className={cn(dropped && 'line-through decoration-from-font')}>{entry.title}</span>
+          <button
+            type="button"
+            data-row-toggle=""
+            aria-expanded={open}
+            aria-controls={panelId}
+            onClick={onToggle}
+            className={cn(
+              'cursor-pointer text-start outline-none after:absolute after:inset-0',
+              dropped && 'line-through decoration-from-font',
+            )}
+          >
+            {entry.title}
+          </button>
         </span>
 
         <span className={cn('flex min-w-0 items-center gap-1.5', META_TEXT, WIDE_LINE, CELL.agent)}>
@@ -186,16 +202,14 @@ function LedgerRow({ entry, open, onToggle }: { entry: LedgerEntry; open: boolea
           ) : null}
         </span>
 
-        <span className={CELL.toggle}>
-          <IconButton
-            label={open ? '기록 접기' : '기록 펼치기'}
-            icon={ChevronDown}
-            variant="ghost"
-            aria-expanded={open}
-            aria-controls={panelId}
-            aria-describedby={titleId}
-            onClick={onToggle}
-            className="text-muted-foreground [&_svg]:transition-transform [&_svg]:duration-150 [&_svg]:ease-out aria-expanded:[&_svg]:rotate-180 motion-reduce:[&_svg]:transition-none"
+        {/* 펼침 단서. 버튼이 아니며, 눌러도 행의 펼침 버튼으로 전달됩니다. */}
+        <span aria-hidden="true" className={cn('pointer-events-none flex size-9 items-center justify-center', CELL.toggle)}>
+          <ChevronDown
+            strokeWidth={1.75}
+            className={cn(
+              'size-4 text-muted-foreground transition-transform duration-150 ease-out motion-reduce:transition-none',
+              open && 'rotate-180',
+            )}
           />
         </span>
       </div>

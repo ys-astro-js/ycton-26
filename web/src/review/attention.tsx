@@ -163,7 +163,10 @@ function AttentionRow({ item, open, replying, resolution, onToggle, onReply, onR
 
   return (
     <li className={cn('transition-colors motion-reduce:transition-none', open && 'bg-muted/50')}>
-      <div className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3 gap-y-3 px-4 py-4 sm:grid-cols-[1.25rem_minmax(0,1fr)_auto]">
+      {/* 행 머리 전체가 펼침 버튼의 클릭 영역입니다. 버튼은 제목 글자만 담고, 클릭 영역은 ::after로 행 전체에 넓힙니다. */}
+      <div
+        className="relative grid cursor-pointer grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3 gap-y-3 py-4 ps-4 pe-11 transition-colors hover:bg-muted/40 motion-reduce:transition-none sm:grid-cols-[1.25rem_minmax(0,1fr)_auto] has-[[data-row-toggle]:focus-visible]:outline-2 has-[[data-row-toggle]:focus-visible]:-outline-offset-2 has-[[data-row-toggle]:focus-visible]:outline-foreground"
+      >
         <span className="pt-0.5">
           <Glyph
             icon={isResolved ? CircleCheck : kind.icon}
@@ -182,7 +185,16 @@ function AttentionRow({ item, open, replying, resolution, onToggle, onReply, onR
             </span>
           </p>
           <p className={cn('font-semibold text-pretty', isResolved && 'text-muted-foreground line-through')}>
-            {item.title}
+            <button
+              type="button"
+              data-row-toggle=""
+              aria-expanded={open}
+              aria-controls={panelId}
+              onClick={onToggle}
+              className="cursor-pointer text-start outline-none after:absolute after:inset-0"
+            >
+              {item.title}
+            </button>
           </p>
           {item.detail ? <p className="max-w-[65ch] text-muted-foreground text-pretty">{item.detail}</p> : null}
           {item.agent || item.task ? (
@@ -212,7 +224,10 @@ function AttentionRow({ item, open, replying, resolution, onToggle, onReply, onR
           ) : null}
         </div>
 
-        <div ref={actionsRef} className="col-start-2 flex items-center gap-2 sm:col-start-3 sm:items-start">
+        <div
+          ref={actionsRef}
+          className="pointer-events-none relative z-10 col-start-2 flex items-center gap-2 *:pointer-events-auto sm:col-start-3 sm:items-start"
+        >
           {resolution ? (
             <>
               <span className="text-[0.8125rem] text-muted-foreground">{RESOLUTION_LABEL[resolution]}</span>
@@ -235,21 +250,18 @@ function AttentionRow({ item, open, replying, resolution, onToggle, onReply, onR
                   onClick={onReply}
                 />
               ) : null}
-              <IconButton
-                variant="outline"
-                icon={ChevronDown}
-                label={open ? '기록 접기' : '기록 펼치기'}
-                aria-expanded={open}
-                aria-controls={panelId}
-                onClick={onToggle}
-                className={cn(
-                  '[&_svg]:transition-transform [&_svg]:duration-150 motion-reduce:[&_svg]:transition-none',
-                  open && '[&_svg]:rotate-180',
-                )}
-              />
             </>
           )}
         </div>
+        {/* 펼침 단서. 버튼이 아니며, 눌러도 행 머리의 펼침 버튼으로 전달됩니다. */}
+        <ChevronDown
+          aria-hidden="true"
+          strokeWidth={1.75}
+          className={cn(
+            'pointer-events-none absolute end-4 top-[1.375rem] size-4 text-muted-foreground transition-transform duration-150 ease-out motion-reduce:transition-none',
+            open && 'rotate-180',
+          )}
+        />
       </div>
 
       <DisclosurePanel open={open} id={panelId}>
