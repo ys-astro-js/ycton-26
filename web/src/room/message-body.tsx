@@ -9,7 +9,7 @@ import remarkGfm from 'remark-gfm'
  * 색은 말풍선 글자색(currentColor)에서 섞어, 사람의 테두리 말풍선과 에이전트의 회색 말풍선 모두에서 읽힙니다.
  */
 
-const MENTION = /(@[^\s@]+)/
+const MENTION = /(?<![\p{L}\p{N}_@/\\])(@[\p{L}\p{N}_-]+)(?![\p{L}\p{N}_@/-]|\.[\p{L}\p{N}_])/u
 
 interface MdastNode {
   type: string

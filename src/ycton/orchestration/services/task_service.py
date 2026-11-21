@@ -1,5 +1,6 @@
 """상태 변경의 단일 진입점. 모든 변경·이력·메시지를 같은 트랜잭션에 저장한다."""
 import json
+import re
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -19,6 +20,18 @@ UNKNOWN_REPOSITORY = "서버 설정에 없는 저장소입니다"
 MISSING_FOLDER = "연결한 폴더를 찾을 수 없습니다"
 UNAVAILABLE_VERIFICATION = "이 프로젝트에서 사용할 수 없는 검증 프로필입니다"
 RETRY_REQUIRED = "사용자가 중단한 작업입니다. 다시 실행이 필요합니다"
+
+# 인라인 코드와 코드 블록은 호출이 아니라 예시입니다.
+_MARKDOWN_CODE = re.compile(
+    r"^ {0,3}(?P<fence>`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}(?P=fence)[ \t]*\r?$|\Z)"
+    r"|(?P<ticks>`+)(?!`)[^\n]*?(?<!`)(?P=ticks)(?!`)",
+    re.MULTILINE,
+)
+_HUMAN_MENTION = re.compile(r"(?<![\w@/\\])@human(?![\w@/-]|\.\w)", re.IGNORECASE)
+
+
+def _asks_human(text: str) -> bool:
+    return _HUMAN_MENTION.search(_MARKDOWN_CODE.sub(" ", text)) is not None
 
 
 class DomainError(Exception):
@@ -203,11 +216,11 @@ class TaskService:
                     raise DomainError("다른 방의 에이전트입니다", 403)
                 author = f"agent:{agent_id}"
             if reply_to_message_id is not None:
-                question = c.execute("""SELECT 1 FROM messages WHERE id=? AND room_id=?
-                                        AND author GLOB 'agent:*' AND instr(content,'@')>0""",
+                question = c.execute("""SELECT content FROM messages WHERE id=? AND room_id=?
+                                        AND author GLOB 'agent:*'""",
                                      (reply_to_message_id, room_id)).fetchone()
-                if agent_id is not None or question is None:
-                    raise DomainError("이 프로젝트의 에이전트 질문에만 답장할 수 있습니다", 422)
+                if agent_id is not None or question is None or not _asks_human(question["content"]):
+                    raise DomainError("이 프로젝트에서 사람에게 보낸 질문에만 답장할 수 있습니다", 422)
             self.message(c, room_id, author, content, reply_to_message_id=reply_to_message_id)
             self.wake(c, room_id, reset=agent_id is None)
 
@@ -401,10 +414,11 @@ class TaskService:
                     "SELECT count(*) FROM sessions WHERE kind='work' AND status='running'").fetchone()[0]
                 result["unanswered_questions"] = [dict(row) for row in c.execute("""
                     SELECT question.* FROM messages question
-                    WHERE question.room_id=? AND question.author GLOB 'agent:*' AND instr(question.content,'@')>0
+                    WHERE question.room_id=? AND question.author GLOB 'agent:*'
+                    AND instr(lower(question.content),'@human')>0
                     AND NOT EXISTS (SELECT 1 FROM messages reply WHERE reply.reply_to_message_id=question.id)
                     ORDER BY question.id
-                """, (room_id,))]
+                """, (room_id,)) if _asks_human(row["content"])]
             return result
 
     def recover(self):
