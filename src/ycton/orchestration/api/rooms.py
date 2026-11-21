@@ -69,7 +69,8 @@ async def state(room_id: int, request: Request, svc=Depends(service)):
     del result["running_work"]
     result["jev"] = advise(result["room"]["paused"], load)
     advisor = request.app.state.jev
-    if advisor is not None and result["jev"]["action"] in ("wait", "spawn_suggested"):
+    if (advisor is not None and result["jev"]["action"] in ("wait", "spawn_suggested")
+            and (load["unassigned_tasks"] or load["queued_work"])):
         recommendation = advisor.recommendation(room_id, load)
         if recommendation is not None:
             result["jev"]["recommendation"] = recommendation

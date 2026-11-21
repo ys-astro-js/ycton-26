@@ -555,13 +555,23 @@ class TaskService:
                                                         AND p.status IN ('done','dropped'))) ORDER BY t.id""",
                 (self.settings.max_attempts,))]
 
+    @staticmethod
+    def _waiting_for_predecessor(conn, task):
+        predecessor = task["after_task_id"]
+        return predecessor is not None and conn.execute("""
+            SELECT 1 FROM tasks WHERE id=? AND status IN ('done','dropped')
+        """, (predecessor,)).fetchone() is None
+
     def assignment_context(self, task_id):
         """Jev가 담당과 검증 프로필을 고를 때 보는 내용. 배정할 수 없는 할 일이면 None."""
         with self.db.connect() as c:
             task = require(c, "tasks", task_id)
-            if task["status"] != "open":
+            if (task["status"] != "open" or task["retry_required"] or task["attempts"] >= self.settings.max_attempts
+                    or self._waiting_for_predecessor(c, task)):
                 return None
             room = require(c, "rooms", task["room_id"])
+            if room["paused"]:
+                return None
             agents = [dict(r) for r in c.execute("""
                 SELECT a.*, (SELECT count(*) FROM tasks t WHERE t.owner_id=a.id AND t.status='claimed') AS load
                 FROM agents a WHERE a.room_id=? AND a.removed=0 ORDER BY a.id""", (task["room_id"],))]
@@ -583,6 +593,8 @@ class TaskService:
                 raise DomainError("다른 방의 작업이거나 지운 에이전트입니다", 403)
             if room["paused"]:
                 raise DomainError("자동 진행이 중지된 방입니다")
+            if self._waiting_for_predecessor(c, task):
+                raise DomainError("선행 할 일이 끝난 뒤에 시작할 수 있습니다")
             repo = self.room_repository(room)
             if repo is not None and verify not in repo.verification_profiles:
                 raise DomainError(UNAVAILABLE_VERIFICATION, 422)
@@ -625,6 +637,8 @@ class TaskService:
                 raise DomainError(RETRY_REQUIRED)
             if task["attempts"] >= self.settings.max_attempts:
                 raise DomainError("재시도 한도 도달: 사람이 retry로 재개해야 합니다")
+            if self._waiting_for_predecessor(c, task):
+                raise DomainError("선행 할 일이 끝난 뒤에 시작할 수 있습니다")
             changed = c.execute("""UPDATE tasks SET status='claimed',owner_id=?
                                    WHERE id=? AND status='open' AND retry_required=0""", (agent_id, task_id)).rowcount
             if not changed:
@@ -662,6 +676,8 @@ class TaskService:
                 raise DomainError("claim한 담당자만 위임할 수 있습니다", 403)
             if require(c, "rooms", task["room_id"])["paused"]:
                 raise DomainError("자동 진행이 중지된 방입니다")
+            if self._waiting_for_predecessor(c, task):
+                raise DomainError("선행 할 일이 끝난 뒤에 시작할 수 있습니다")
             if task["active_session_id"]:
                 raise DomainError("이미 대기/실행 중인 작업 세션이 있습니다")
             if task["attempts"] >= self.settings.max_attempts:

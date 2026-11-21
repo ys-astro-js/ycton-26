@@ -557,10 +557,22 @@ def test_task_after_another_waits_until_that_task_finishes(room):
     plan = svc.create_task(rid, "기획", "", "", "unit")["id"]
     build = svc.create_agent_task(rid, "구현 1단계", "", after=plan)["id"]
     assert plan in svc.tasks_to_assign() and build not in svc.tasks_to_assign()
+    assert svc.assignment_context(build) is None
+    for acquire in (lambda: svc.assign(build, ids["Alice"], "unit"), lambda: svc.claim(build, ids["Alice"])):
+        with pytest.raises(DomainError, match="선행 할 일") as conflict:
+            acquire()
+        assert conflict.value.status == 409
+    # 이전 버전의 claim 경로로 이미 잡힌 작업도 위임 단계에서 막는다.
+    with svc.db.connect(write=True) as c:
+        c.execute("UPDATE tasks SET status='claimed', owner_id=? WHERE id=?", (ids["Alice"], build))
+    with pytest.raises(DomainError, match="선행 할 일"):
+        svc.delegate(build, ids["Alice"], "blocked", "")
+    svc.release(build, ids["Alice"], "return blocked task")
     svc.assign(plan, ids["Bob"], "unit")
     with svc.db.connect(write=True) as c:
         c.execute("UPDATE tasks SET status='done', handoff='계획: 1) 저장소 2) 화면' WHERE id=?", (plan,))
     assert build in svc.tasks_to_assign()
+    assert svc.assign(build, ids["Alice"], "unit")["owner_id"] == ids["Alice"]
     tasks = {t["id"]: t for t in svc.idle_context(rid)["tasks"]}
     assert tasks[plan]["result"].startswith("계획") and tasks[build]["after"] == plan
 

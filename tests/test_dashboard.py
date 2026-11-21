@@ -63,3 +63,21 @@ def test_task_scope_reaches_work_prompt(tmp_path):
         svc.claim(task, agent)
         session = svc.delegate(task, agent, "scope", "")
         assert json.loads(build_prompt(svc, session))["scope"] == "src/only.py"
+
+
+def test_room_state_distinguishes_dependency_wait_from_lack_of_agents(tmp_path):
+    app = main.create_app(Settings(db_path=tmp_path / "dependencies.db"), start_scheduler=False)
+    with TestClient(app, base_url="http://localhost", headers=HEADERS) as client:
+        svc = app.state.service
+        room = svc.create_room("project")["id"]
+        agent = svc.create_agent(room, "runner", "demo", [])["id"]
+        plan = svc.create_task(room, "plan", "", "", "unit")["id"]
+        followup = svc.create_agent_task(room, "implementation", "", after=plan)["id"]
+        svc.assign(plan, agent, "unit")
+        path = f"/api/rooms/{room}/state"
+        state = client.get(path).json()
+        assert state["jev"] == {"action": "wait", "reason": "선행 할 일이 끝나기를 기다리는 작업이 있습니다"}
+        assert state["tasks"][-1]["after_task_id"] == plan
+        assert client.post(f"/api/tasks/{plan}/drop", json={"note": "skip prerequisite"}).status_code == 200
+        assert client.get(path).json()["jev"]["action"] == "go"
+        assert svc.tasks_to_assign() == [followup]

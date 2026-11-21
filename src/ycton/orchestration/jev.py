@@ -26,9 +26,19 @@ PAUSED_BY_RESTART = 2
 
 def workload(state, settings):
     work = [s for s in state["sessions"] if s["kind"] == "work"]
+    completed = {task["id"] for task in state["tasks"] if task["status"] in ("done", "dropped")}
+    unassigned = blocked = 0
+    for task in state["tasks"]:
+        if task["status"] != "open" or task["retry_required"] or task["attempts"] >= settings.max_attempts:
+            continue
+        predecessor = task["after_task_id"]
+        if predecessor is None or predecessor in completed:
+            unassigned += 1
+        else:
+            blocked += 1
     return {
-        "unassigned_tasks": sum(t["status"] == "open" and not t["retry_required"]
-                                and t["attempts"] < settings.max_attempts for t in state["tasks"]),
+        "unassigned_tasks": unassigned,
+        "blocked_tasks": blocked,
         "queued_work": sum(s["status"] == "queued" for s in work),
         "agents": len(state["agents"]),
         "busy_agents": len({s["agent_id"] for s in work if s["status"] == "running"}),
@@ -49,6 +59,8 @@ def advise(paused, load):
             return {"action": "wait", "reason": "서버의 작업 실행 자리가 가득 찼습니다"}
         if load["agents"] and load["busy_agents"] == load["agents"]:
             return {"action": "wait", "reason": "모든 에이전트가 작업 중입니다"}
+    if load["blocked_tasks"] and not (load["unassigned_tasks"] or load["queued_work"]):
+        return {"action": "wait", "reason": "선행 할 일이 끝나기를 기다리는 작업이 있습니다"}
     return {"action": "go", "reason": "설정된 한도 안에서 진행할 수 있습니다"}
 
 
