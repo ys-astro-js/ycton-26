@@ -107,6 +107,9 @@ def test_work_adapter_persists_path_and_checks_verification(bridge,monkeypatch):
             assert c.execute('SELECT worktree FROM sessions WHERE id=?',(request.session_id,)).fetchone()[0] == str(kwargs['worktree'])
         kwargs['worktree'].mkdir(parents=True)
         kwargs['on_update']({'update':'progress'})
+        # commit 도구가 남기는 기록을 흉내 낸다.
+        with svc.db.connect(write=True) as c:
+            c.execute("UPDATE sessions SET commit_hash='abc123' WHERE id=?",(request.session_id,))
         return SimpleNamespace(session=SimpleNamespace(session_id='acp-1',stop_reason='end_turn',text='report'))
     monkeypatch.setattr(module,'run_work_session',work)
     result=asyncio.run(AcpRuntime(svc,config,Tokens()).run(request))
@@ -343,3 +346,18 @@ def test_work_prompt_mentions_commit_only_with_room_mcp():
     task = WorkTask(title='t', detail='', scope='', verify='', instructions='')
     assert '`commit` tool' in _work_prompt(task, can_commit=True)
     assert 'Do not commit' in _work_prompt(task)
+
+
+def test_verified_work_without_commit_is_not_done(bridge, monkeypatch):
+    import ycton.orchestration.acp_bridge as module
+    svc, config, request = setup_work(bridge)
+    async def work(*args, **kwargs):
+        kwargs['worktree'].mkdir(parents=True)
+        return SimpleNamespace(session=SimpleNamespace(session_id='acp-1', stop_reason='end_turn', text='report'))
+    monkeypatch.setattr(module, 'run_work_session', work)
+    result = asyncio.run(AcpRuntime(svc, config, Tokens()).run(request))
+    assert not result.succeeded and result.verification == 'passed'
+    assert '커밋 없음' in result.summary
+    svc.finish(request.session_id, result)
+    task = svc.snapshot(request.room_id)['tasks'][0]
+    assert task['status'] == 'open' and '커밋 없음' in task['handoff']

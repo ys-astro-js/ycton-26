@@ -10,6 +10,7 @@ from ycton.room_mcp import room_mcp_server
 from ycton.agent_process import spawn_owned_agent
 from .runtime_port import RuntimeResult
 from .identity import Identity
+from .services.task_service import require
 from .event_log import EventLog
 
 
@@ -89,9 +90,14 @@ class AcpRuntime:
                 return RuntimeResult(False, f"작업 턴 비정상 종료: {result.session.stop_reason}; worktree={worktree}; branch={branch}", log_path=str(log))
             passed, output = await verify_worktree(profile, worktree)
             self.service.execution_metadata(request.session_id, verification_output=output)
+            # 검증을 통과해도 commit 도구로 남긴 커밋이 없으면 done으로 보지 않는다.
+            with self.service.db.connect() as c:
+                committed = require(c, "sessions", request.session_id)["commit_hash"] is not None
             summary = (f"{result.session.text}\n서버 검증: {'passed' if passed else 'failed'}\n"
                        f"{output[:4000]}\nworktree={worktree}; branch={branch}")
-            return RuntimeResult(passed, summary, "passed" if passed else "failed", log_path=str(log))
+            if not committed:
+                summary += "\n커밋 없음: commit 도구로 고른 파일을 커밋해야 완료됩니다"
+            return RuntimeResult(passed and committed, summary, "passed" if passed else "failed", log_path=str(log))
         except TimeoutError:
             return RuntimeResult(False, f"작업 또는 검증 시간 초과; worktree={worktree}; branch={branch}", log_path=str(log))
         except asyncio.CancelledError:

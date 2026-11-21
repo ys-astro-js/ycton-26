@@ -33,6 +33,7 @@ def _work_prompt(task: WorkTask, *, can_commit: bool = False) -> str:
         finish = (
             "When the change is complete and the verification passes, call the room `commit` tool with "
             "the exact worktree-relative paths of the files this task changed and a short commit message. "
+            "The task does not count as done without a commit. "
             "Do not run git commit, merge, or push yourself, and do not start detached processes.\n\n"
         )
     else:
