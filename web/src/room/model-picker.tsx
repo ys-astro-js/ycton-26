@@ -11,12 +11,6 @@ export interface ModelChoice {
   effort: string
 }
 
-/** 고른 값을 한 줄로 씁니다. 제공자 이름, 모델, 추론 수준 순서입니다. */
-export function describeChoice(choice: ModelChoice, providers: ModelProvider[]) {
-  const provider = providers.find((candidate) => candidate.id === choice.provider)
-  return [provider?.label ?? choice.provider, choice.model, choice.effort].filter(Boolean).join(' · ')
-}
-
 /**
  * 모델 제공자, 모델, 추론 수준을 왼쪽에서 오른쪽으로 한 열씩 고릅니다.
  * 앞 열을 고르면 다음 열이 열리고, 마지막 열을 고르면 선택이 끝나 닫힙니다.
@@ -78,7 +72,20 @@ export function ModelPicker({
           />
         }
       >
-        <span className="min-w-0 truncate">{value ? describeChoice(value, providers) : '모델 선택'}</span>
+        {/* 모델과 추론 수준은 가운뎃점으로 잇지 않고 양 끝에 따로 둡니다 */}
+        {value ? (
+          <>
+            <span className="min-w-0 truncate font-mono text-label">{value.model}</span>
+            {value.effort ? (
+              <span className="ms-auto shrink-0 text-label text-muted-foreground">
+                <span className="sr-only">추론 수준 </span>
+                {value.effort}
+              </span>
+            ) : null}
+          </>
+        ) : (
+          <span className="min-w-0 truncate">모델 선택</span>
+        )}
       </PopoverTrigger>
       <PopoverContent side="bottom" align="start" className="w-auto flex-row gap-0 p-0">
         <Column title="제공자" rows={rows}>

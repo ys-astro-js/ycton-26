@@ -1,5 +1,5 @@
 import { Arc } from 'loading-dev'
-import { Ban, Bot, Check, FolderCode, GitCommitHorizontal, History, Plus, RotateCcw, Square } from 'lucide-react'
+import { Ban, Bot, Check, Cpu, FolderCode, Gauge, GitCommitHorizontal, History, Plus, RotateCcw, Square } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 
 import { api, ApiError, type RoomState, type Task } from '@/api/client'
@@ -430,11 +430,20 @@ export function AgentList({ state }: { state: RoomState }) {
           {state.agents.map((agent) => (
             <li key={agent.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 px-4 py-2">
               <div className="min-w-0">
-                <p className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="text-body font-semibold break-words">{agent.name}</span>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {[agent.model || agent.kind, agent.effort].filter(Boolean).join(' · ')}
+                <p className="text-body font-semibold break-words">{agent.name}</p>
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-muted-foreground">
+                  <span className="flex min-w-0 items-center gap-1.5 break-all">
+                    <Glyph icon={Cpu} className="size-3.5" />
+                    <span className="sr-only">모델</span>
+                    <span className="font-mono">{agent.model || agent.kind}</span>
                   </span>
+                  {agent.effort ? (
+                    <span className="flex items-center gap-1.5">
+                      <Glyph icon={Gauge} className="size-3.5" />
+                      <span className="sr-only">추론 수준</span>
+                      {agent.effort}
+                    </span>
+                  ) : null}
                 </p>
                 {agent.good_at.length > 0 ? (
                   <p className="mt-0.5 text-label text-pretty text-muted-foreground">
