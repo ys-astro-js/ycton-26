@@ -171,9 +171,13 @@ class AcpRuntime:
         room_branch = f"ycton/room-{request.room_id}"
         # 경로는 호출 전에 기록해서 런타임 실패 시에도 보존한다.
         self.service.execution_metadata(request.session_id, worktree=str(worktree))
+        instructions = data["instruction"] + "\n이전 인계:\n" + data["handoff"]
+        if decisions := data.get("human_decisions"):
+            instructions += ("\n이 할 일에 대한 사람의 결정(dismissed는 답변 없이 닫았다는 뜻이며 승인으로 읽지 마세요):\n"
+                             + json.dumps(decisions, ensure_ascii=False))
         task = WorkTask(title=data["title"], detail=data["detail"], scope=data["scope"],
                         verify="서버가 재검증할 명령(argv): " + json.dumps(profile.command),
-                        instructions=data["instruction"] + "\n이전 인계:\n" + data["handoff"],
+                        instructions=instructions,
                         agents_md=kind.instructions)
         # 작업 세션은 이 토큰으로 commit 도구만 쓸 수 있다. 끝나면 바로 폐기한다.
         token = self.tokens.issue(Identity(request.session_id, request.room_id, request.agent_id))

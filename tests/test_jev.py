@@ -55,8 +55,9 @@ def test_jev_decisions_are_cached_async_and_do_not_control_the_scheduler(tmp_pat
     payload = json.loads(request.content)
     assert payload["model"] == "typesafe/test-jev"
     assert payload["questions"]["next_action"]["type"] == "choice"
-    assert json.loads(payload["state"]) == {"unassigned_tasks": 1, "blocked_tasks": 0, "queued_work": 0, "agents": 0,
-                                             "busy_agents": 0, "running_work": 0, "max_work": 2}
+    assert json.loads(payload["state"]) == {"unassigned_tasks": 1, "blocked_tasks": 0, "answers_pending": 0,
+                                             "queued_work": 0, "agents": 0, "busy_agents": 0,
+                                             "running_work": 0, "max_work": 2}
 
 
 def test_openrouter_failure_uses_rules_without_retrying_each_poll(tmp_path, monkeypatch):

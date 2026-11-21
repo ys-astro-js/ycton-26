@@ -30,4 +30,5 @@ def build_prompt(service, session):
         }, ensure_ascii=False)
     task = next(t for t in state["tasks"] if t["id"] == session["task_id"])
     return json.dumps({key: task[key] for key in ("title", "detail", "scope", "verify", "handoff")}
-                      | {"instruction": session["instruction"]}, ensure_ascii=False)
+                      | {"instruction": session["instruction"], "human_decisions": service.work_decisions(task["id"])},
+                      ensure_ascii=False)
