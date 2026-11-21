@@ -103,6 +103,40 @@ async def ensure_branch(repo: Path, branch: str) -> None:
             raise
 
 
+async def _common_dir(path: Path) -> Path:
+    return Path(await _git(path, "rev-parse", "--path-format=absolute", "--git-common-dir")).resolve()
+
+
+async def checkout_branch_snapshot(repo: Path, branch: str, path: Path) -> Path:
+    """Show ``branch``'s current tip at ``path`` as a detached, server-owned worktree and return it.
+
+    The branch is created first if missing (see ``ensure_branch``). An existing worktree at ``path`` is
+    force-reset to the tip and cleaned, so anything left there is discarded. The user's checkout,
+    its branch and its working tree are never touched.
+    """
+    repo_root = Path(await _git(repo.resolve(), "rev-parse", "--show-toplevel")).resolve()
+    workdir = path.resolve()
+    if workdir.is_relative_to(repo_root):
+        raise ValueError("Worktree must be outside the source checkout")
+    await ensure_branch(repo_root, branch)
+    tip = await _branch_tip(repo_root, branch)
+    if tip is None:
+        raise RuntimeError(f"branch {branch} is missing in {repo_root}")
+    if workdir.exists():
+        # 다른 저장소의 worktree이거나 worktree가 아닌 폴더면 건드리지 않는다.
+        if (Path(await _git(workdir, "rev-parse", "--show-toplevel")).resolve() != workdir
+                or await _common_dir(workdir) != await _common_dir(repo_root)):
+            raise RuntimeError(f"{workdir} is not a worktree of {repo_root}")
+        await _git(workdir, "checkout", "--quiet", "--detach", "--force", tip)
+        await _git(workdir, "clean", "-ffdxq")
+    else:
+        # 폴더만 지워진 worktree 기록이 남아 있으면 add가 실패하므로 먼저 정리한다.
+        await _git(repo_root, "worktree", "prune")
+        workdir.parent.mkdir(parents=True, exist_ok=True)
+        await _git(repo_root, "worktree", "add", "--quiet", "--detach", "--", str(workdir), tip)
+    return workdir
+
+
 async def worktree_clean(worktree: Path) -> bool:
     """커밋하지 않은 변경이 없으면 True."""
     try:
