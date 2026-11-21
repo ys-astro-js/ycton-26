@@ -44,8 +44,7 @@ export function AppShell() {
     <div className="mx-auto max-w-7xl px-4 sm:px-8 lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:gap-8">
       <Rail />
       <MobileBar />
-      {/* 아래 여백을 본문 열에 두어야 짧은 화면에서도 레일이 끝까지 위에 붙어 있습니다 */}
-      <div className="min-w-0 pb-16">
+      <div className="min-w-0">
         <Outlet />
       </div>
     </div>

@@ -95,7 +95,7 @@ export function ReviewPage() {
 
   return (
     <Shell report={report} project={project}>
-      <div className="grid min-w-0 content-start gap-10 pt-6">
+      <div className="grid min-w-0 content-start gap-10 pt-6 pb-16">
           <section aria-labelledby="compose-heading" className="grid gap-3">
             <h2 id="compose-heading" className="text-lg font-semibold">
               새 할 일

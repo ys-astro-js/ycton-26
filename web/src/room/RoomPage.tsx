@@ -118,7 +118,8 @@ export function RoomPage() {
   )
 
   return (
-    <main id="main">
+    // 화면 높이를 채워, 대화가 짧아도 입력 바가 화면 맨 아래에 붙어 있게 합니다
+    <main id="main" className="flex min-h-dvh flex-col">
       <PageHeader title={room.name}>
         {stopped ? null : (
           <IconButton variant="outline" icon={Pause} label="자동 진행 멈추기" disabled={pause.isPending} onClick={() => pause.mutate(undefined)} />
@@ -141,7 +142,7 @@ export function RoomPage() {
         </p>
       ) : null}
 
-      <div className="grid gap-8 pt-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-8 pt-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:grid-rows-1">
         {wide ? null : (
           <section className="border bg-card">
             <div className="flex items-center justify-between gap-3 py-1 ps-4 pe-1">
@@ -171,7 +172,7 @@ export function RoomPage() {
           ) : (
             <Timeline state={state} focus={focus} />
           )}
-          <div className="sticky bottom-0 z-10 mt-2 border-t bg-background px-4 pt-3 pb-5">
+          <div className="sticky bottom-0 z-10 mt-auto border-t bg-background px-4 pt-3 pb-5">
             <Composer
               roomId={room.id}
               onAssigned={(taskId) =>
