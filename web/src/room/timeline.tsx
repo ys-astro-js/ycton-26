@@ -2,6 +2,8 @@ import { Bot, GitCommitHorizontal, ListTodo } from 'lucide-react'
 import { useId, useState } from 'react'
 
 import type { Agent, RoomState, Task } from '@/api/client'
+import { Bubble, BubbleContent } from '@/components/ui/bubble'
+import { Message, MessageContent, MessageFooter, MessageHeader } from '@/components/ui/message'
 import { cn } from '@/lib/utils'
 
 import { StatusNode } from '../review/ledger.tsx'
@@ -11,8 +13,9 @@ import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
 
 /*
  * 대화 타임라인
- * 말풍선이 아니라 원장 행입니다: [시각] [작성자 / 본문]
- * 같은 작성자가 이어 말하면 작성자 줄을 생략합니다.
+ * 사람과 에이전트의 말은 shadcn Message·Bubble 말풍선입니다. 사람은 오른쪽, 에이전트는 왼쪽에 섭니다.
+ * 같은 작성자가 이어 말하면 이름은 첫 말풍선에만, 시각은 마지막 말풍선 아래에만 씁니다.
+ * 실행 실패 같은 시스템 알림은 말풍선이 아니라 [시각] [내용] 행으로 둡니다.
  * 작업 결과("할 일 #n <status>: …" system 메시지)는 접힌 결과 행으로 두고, 펼치면 요약 전문과 검증 출력이 열립니다.
  */
 
@@ -69,20 +72,30 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
         }
 
         const agent = entry.type === 'agent' ? agents.get(entry.agentId) : undefined
+        const human = entry.type === 'human'
+        const next = entries[index + 1]
+        const last = next === undefined || authorKey(next) !== key
         return (
-          <li key={entry.message.id} className={cn(ROW, continued ? 'pt-0.5 pb-1.5' : 'pt-3 pb-1.5')}>
-            <time className={cn(TIME, 'leading-6', continued && 'sr-only')}>{at}</time>
-            <div className="min-w-0">
-              {continued ? null : (
-                <p className="flex flex-wrap items-baseline gap-x-2 leading-6">
-                  <span className="text-body font-semibold">{entry.type === 'human' ? '나' : (agent?.name ?? '에이전트')}</span>
-                  {agent ? <span className="text-xs text-muted-foreground">{agent.kind}</span> : null}
-                </p>
-              )}
-              <p className="max-w-[65ch] text-body whitespace-pre-line text-pretty break-words">
-                <MessageText text={entry.message.content} />
-              </p>
-            </div>
+          <li key={entry.message.id} className={cn('px-4', continued ? 'pt-1' : 'pt-4')}>
+            <Message align={human ? 'end' : 'start'}>
+              <MessageContent className="gap-1">
+                {continued || human ? null : (
+                  <MessageHeader className="gap-2 text-label font-normal tracking-normal normal-case">
+                    <span className="font-semibold text-foreground">{agent?.name ?? '에이전트'}</span>
+                    {agent ? <span>{agent.kind}</span> : null}
+                  </MessageHeader>
+                )}
+                <Bubble variant={human ? 'default' : 'muted'}>
+                  <BubbleContent className="text-body whitespace-pre-line">
+                    {human ? <span className="sr-only">나: </span> : null}
+                    <MessageText text={entry.message.content} calls={!human} />
+                  </BubbleContent>
+                </Bubble>
+                <MessageFooter className={cn('font-normal tracking-normal normal-case', !last && 'sr-only')}>
+                  <time className={TIME}>{at}</time>
+                </MessageFooter>
+              </MessageContent>
+            </Message>
           </li>
         )
       })}
@@ -90,11 +103,11 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
   )
 }
 
-/** @멘션을 굵게 구분합니다. 에이전트가 사람을 부른 것은 사람이 답할 것이므로 attention 글자색입니다. */
-function MessageText({ text }: { text: string }) {
+/** @멘션을 굵게 구분합니다. 에이전트가 부른 것은 사람이 답할 것이므로 attention 글자색입니다. 사람의 잉크색 말풍선에서는 굵게만 씁니다. */
+function MessageText({ text, calls }: { text: string; calls: boolean }) {
   return text.split(/(@\S+)/).map((part, index) =>
     part.startsWith('@') ? (
-      <span key={index} className="font-semibold text-attention-foreground">
+      <span key={index} className={cn('font-semibold', calls && 'text-attention-foreground')}>
         {part}
       </span>
     ) : (
