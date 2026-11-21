@@ -64,7 +64,7 @@ def test_mcp_tools_reach_real_api(bridge):
                                     headers={'Authorization':f'Bearer {token}'}) as http:
             mcp = build_room_server(http, **{'room_id':actor['room_id'],'participant_id':actor['participant_id']})
             names = {t.name for t in await mcp.list_tools()}
-            assert names == {'send','ask_human','list_tasks','create_task','claim','delegate'}
+            assert names == {'send','ask_human','list_tasks','create_task','merge_to_project','claim','delegate'}
             await mcp.call_tool('send', {'text':'MCP 왕복'})
             await mcp.call_tool('list_tasks', {})
             await mcp.call_tool('create_task', {'title':'채팅 요청','detail':'자동 스크롤'})
@@ -648,3 +648,25 @@ def test_room_branch_that_moved_meanwhile_fails_attempt_without_merge(bridge, mo
     assert git_out(checkout, 'rev-parse', room_branch).strip() == other['commit']
     task = svc.snapshot(request.room_id)['tasks'][0]
     assert task['status'] == 'open' and task['commit_hash'] is None
+
+
+def test_merge_to_project_merges_room_branch_into_checked_out_branch(bridge, tmp_path):
+    app, client, actor, token, sid, tid, root = bridge
+    svc = app.state.service
+    repo = tmp_path / 'project'
+    repo.mkdir()
+    git_out(repo, 'init', '-q', '-b', 'main')
+    git_out(repo, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'init')
+    git_out(repo, 'branch', f"ycton/room-{actor['room_id']}")
+    wt = tmp_path / 'wt'
+    git_out(repo, 'worktree', 'add', '-q', str(wt), f"ycton/room-{actor['room_id']}")
+    (wt / 'done.txt').write_text('done\n')
+    git_out(wt, 'add', 'done.txt')
+    git_out(wt, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'done')
+    svc.room_repository = lambda room: SimpleNamespace(path=repo)
+    headers = {'Authorization': f'Bearer {token}'}
+    merged = client.post('/api/agent/merge', headers=headers, json=actor)
+    assert merged.status_code == 200 and merged.json()['branch'] == 'main' and merged.json()['changed']
+    assert (repo / 'done.txt').read_text() == 'done\n'
+    again = client.post('/api/agent/merge', headers=headers, json=actor).json()
+    assert again['changed'] is False

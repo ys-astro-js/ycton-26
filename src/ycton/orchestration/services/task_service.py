@@ -355,6 +355,43 @@ class TaskService:
             self.wake(c, room_id, agent_id=agent_id, reset=True)
             return True
 
+    def merge_room_branch(self, room_id, agent_id):
+        """방 통합 브랜치(ycton/room-<id>)를 프로젝트 저장소에 체크아웃된 브랜치로 병합한다.
+        사람이 반영을 요청했을 때 채팅 에이전트가 부른다. 충돌하면 되돌리고 충돌 파일을 알려 준다."""
+        with self.db.connect() as c:
+            room = require(c, "rooms", room_id)
+            agent = require(c, "agents", agent_id)
+        repo = self.room_repository(room)
+        if repo is None:
+            raise DomainError("실제 저장소가 연결된 프로젝트에서만 병합할 수 있습니다", 422)
+        branch = f"ycton/room-{room_id}"
+
+        def git(*args, check=True):
+            done = subprocess.run(["git", "-C", str(repo.path), *args], capture_output=True, text=True,
+                                  timeout=60, env=child_environment())
+            if check and done.returncode != 0:
+                raise DomainError((done.stderr or done.stdout).strip()[-500:] or "git 실행 실패", 409)
+            return done
+
+        if git("rev-parse", "--verify", "--quiet", f"refs/heads/{branch}", check=False).returncode != 0:
+            raise DomainError(f"{branch}가 아직 없습니다. 완료된 할 일이 없습니다", 409)
+        target = git("branch", "--show-current").stdout.strip()
+        if not target:
+            raise DomainError("프로젝트 저장소가 브랜치가 아닌 커밋에 체크아웃되어 있습니다", 409)
+        before = git("rev-parse", "HEAD").stdout.strip()
+        merged = git("merge", "--no-edit", branch, check=False)
+        if merged.returncode != 0:
+            conflicts = git("diff", "--name-only", "--diff-filter=U", check=False).stdout.split()
+            git("merge", "--abort", check=False)
+            detail = f"충돌 파일: {', '.join(conflicts)}" if conflicts else (merged.stderr or merged.stdout).strip()[-500:]
+            raise DomainError(f"{branch}를 {target}에 병합하지 못했습니다. {detail}", 409)
+        after = git("rev-parse", "HEAD").stdout.strip()
+        with self.db.connect(write=True) as c:
+            note = (f"{agent['name']}이 {branch}를 {target}에 병합했습니다 ({after[:7]})" if after != before
+                    else f"{branch}의 내용은 이미 {target}에 들어 있습니다")
+            self.message(c, room_id, "system", note)
+        return {"branch": target, "commit": after, "changed": after != before}
+
     def tasks_to_assign(self):
         """멈추지 않은 방에서 에이전트가 있고 담당이 없는 할 일."""
         with self.db.connect() as c:

@@ -107,6 +107,12 @@ def create_task(body: NewTask, actor=Depends(identity), svc=Depends(service)):
     return {**task, "id": str(task["id"])}
 
 
+@router.post("/merge")
+def merge(body: Actor, actor=Depends(identity), svc=Depends(service)):
+    validate(svc, actor, body)
+    return svc.merge_room_branch(actor.room_id, actor.agent_id)
+
+
 @router.post("/tasks/claim")
 def claim(body: Assignment, actor=Depends(identity), svc=Depends(service)):
     validate(svc, actor, body)

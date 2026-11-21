@@ -16,7 +16,7 @@ _ROOM_ID = "YCTON_ROOM_ID"
 _PARTICIPANT_ID = "YCTON_PARTICIPANT_ID"
 ROOM_MCP_NAME = "room"
 ROOM_WORK_TOOLS = ("commit",)
-ROOM_CHAT_TOOLS = ("send", "ask_human", "list_tasks", "create_task", "claim", "delegate")
+ROOM_CHAT_TOOLS = ("send", "ask_human", "list_tasks", "create_task", "merge_to_project", "claim", "delegate")
 _STDIO_ARGS = ("-I", "-m", "ycton.room_mcp")
 
 
@@ -98,6 +98,15 @@ def build_room_server(client: httpx.AsyncClient, *, room_id: str, participant_id
     async def create_task(title: str, detail: str = "") -> dict:
         """Register a task for work a person asked for in chat. Jev then picks its owner and verification."""
         return (await post("/api/agent/tasks/create", title=title, detail=detail)).json()
+
+    @server.tool()
+    async def merge_to_project() -> dict:
+        """Merge this room's results branch (ycton/room-<id>) into the project's checked-out branch, such as main.
+
+        Call it when the person asks to apply or merge finished work. On conflict nothing is changed and the
+        conflicting files are reported; then create a task to resolve them on the room branch and try again.
+        """
+        return (await post("/api/agent/merge")).json()
 
     @server.tool()
     async def claim(task_id: str | int) -> dict:
