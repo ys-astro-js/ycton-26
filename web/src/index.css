@@ -133,7 +133,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-foreground;
     }
   body {
     @apply bg-background text-foreground;
@@ -141,7 +141,11 @@
   html {
     @apply font-sans antialiased;
     /* 위에 붙는 화면 머리 높이만큼, 앵커와 포커스가 머리 밑에 숨지 않게 띄웁니다 */
-    scroll-padding-block-start: calc(var(--page-header-height) + 1rem);
+    scroll-padding-block-start: 1rem;
+    /* 머리가 고정 높이로 붙는 넓은 화면에서만 그 높이만큼 띄웁니다 */
+    @media (width >= 64rem) {
+      scroll-padding-block-start: calc(var(--page-header-height) + 1rem);
+    }
     }
 }
 /* 처리할 일이 0이 된 순간 한 번만 원과 체크를 긋습니다 */
