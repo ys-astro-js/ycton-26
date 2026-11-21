@@ -75,6 +75,7 @@ export interface Task {
   owner_id: number | null
   active_session_id: string | null
   attempts: number
+  retry_required: 0 | 1
   handoff: string
   commit_hash: string | null
 }

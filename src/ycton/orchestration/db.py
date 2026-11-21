@@ -3,10 +3,13 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
-SCHEMA = """
+ROOM_REPOSITORY = "repository_id TEXT NOT NULL DEFAULT 'default'"
+TASK_RETRY = "retry_required INTEGER NOT NULL DEFAULT 0 CHECK(retry_required IN (0,1))"
+
+SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS rooms (
  id INTEGER PRIMARY KEY, name TEXT NOT NULL, paused INTEGER NOT NULL DEFAULT 0,
- chat_rounds INTEGER NOT NULL DEFAULT 0
+ chat_rounds INTEGER NOT NULL DEFAULT 0, {ROOM_REPOSITORY}
 );
 CREATE TABLE IF NOT EXISTS agents (
  id INTEGER PRIMARY KEY, room_id INTEGER NOT NULL REFERENCES rooms(id),
@@ -24,6 +27,7 @@ CREATE TABLE IF NOT EXISTS tasks (
  status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','claimed','done','dropped')),
  owner_id INTEGER REFERENCES agents(id), active_session_id TEXT,
  attempts INTEGER NOT NULL DEFAULT 0, handoff TEXT NOT NULL DEFAULT '', commit_hash TEXT,
+ {TASK_RETRY},
  CHECK((status='claimed' AND owner_id IS NOT NULL) OR status!='claimed')
 );
 CREATE TABLE IF NOT EXISTS sessions (
@@ -67,6 +71,11 @@ class Database:
             conn.commit()
         finally:
             conn.close()
+        with self.connect(write=True) as conn:
+            for table, column in (("rooms", ROOM_REPOSITORY), ("tasks", TASK_RETRY)):
+                if not any(row["name"] == column.split(" ", 1)[0]
+                           for row in conn.execute(f"PRAGMA table_info({table})")):
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column}")
 
     @contextmanager
     def connect(self, write=False):

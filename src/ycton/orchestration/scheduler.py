@@ -12,6 +12,7 @@ class Scheduler:
     def __init__(self, service, runtime, settings):
         self.service, self.runtime, self.settings = service, runtime, settings
         self.running = {}
+        self.manual_cancels: dict[str, asyncio.Task[None]] = {}
         self.loop_task = None
 
     def start(self):
@@ -22,9 +23,10 @@ class Scheduler:
             self.loop_task.cancel()
             await asyncio.gather(self.loop_task, return_exceptions=True)
         tasks = list(self.running.values())
-        for task in tasks:
-            task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
+        for session_id, task in self.running.items():
+            if session_id not in self.manual_cancels:
+                task.cancel()
+        await asyncio.gather(*tasks, *self.manual_cancels.values(), return_exceptions=True)
 
     async def loop(self):
         while True:
@@ -60,6 +62,7 @@ class Scheduler:
             task.add_done_callback(lambda finished, sid=s["id"]: self.running.pop(sid, None))
 
     async def execute(self, session):
+        session_id = session["id"]
         try:
             with self.service.db.connect() as c:
                 agent = require(c, "agents", session["agent_id"])
@@ -69,19 +72,40 @@ class Scheduler:
             async with asyncio.timeout(self.settings.timeout_seconds):
                 result = await self.runtime.run(request)
         except asyncio.CancelledError:
-            self.service.finish(session["id"], RuntimeResult(False, "사용자 취소 또는 서버 종료"), cancelled=True)
+            if session_id not in self.manual_cancels:
+                self.service.finish(session_id, RuntimeResult(False, "서버 종료로 실행 중단"), cancelled=True)
             raise
         except TimeoutError:
             result = RuntimeResult(False, "실행 시간 제한 초과")
         except Exception as exc:
             logger.exception("실행 실패: %s", session["id"])
             result = RuntimeResult(False, f"실행기 오류: {type(exc).__name__}")
-        self.service.finish(session["id"], result)
+        if session_id not in self.manual_cancels:
+            self.service.finish(session_id, result)
 
     async def cancel(self, session_id):
-        task = self.running.get(session_id)
-        if task:
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
-        # 시작 전 취소되었거나 대기 상태여도 상태를 마무리한다.
-        self.service.finish(session_id, RuntimeResult(False, "사용자가 실행을 취소했습니다"), cancelled=True)
+        with self.service.db.connect() as c:
+            session = require(c, "sessions", session_id)
+        if session["status"] not in ("queued", "running"):
+            return
+        completion = self.manual_cancels.get(session_id)
+        if completion is None:
+            execution = self.running.get(session_id)
+            if execution is None:
+                self._finish_manual_cancel(session)
+                return
+            execution.cancel()
+            completion = asyncio.create_task(self._join_manual_cancel(session, execution))
+            self.manual_cancels[session_id] = completion
+        await asyncio.shield(completion)
+
+    async def _join_manual_cancel(self, session, execution: asyncio.Task):
+        try:
+            await asyncio.gather(execution, return_exceptions=True)
+            self._finish_manual_cancel(session)
+        finally:
+            self.manual_cancels.pop(session["id"])
+
+    def _finish_manual_cancel(self, session):
+        self.service.finish(session["id"], RuntimeResult(False, "사용자가 실행을 취소했습니다"),
+                            cancelled=True, hold_for_retry=session["kind"] == "work")

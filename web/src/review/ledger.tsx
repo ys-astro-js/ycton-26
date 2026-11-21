@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { Arc } from 'loading-dev'
-import { Bot, ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleX, FolderGit2, GitCommitHorizontal } from 'lucide-react'
+import { Bot, ChevronDown, CircleAlert, CircleCheck, CircleDashed, CirclePause, CircleX, FolderGit2, GitCommitHorizontal } from 'lucide-react'
 import { useId, useMemo, useState } from 'react'
 
 import { cn } from '@/lib/utils'
@@ -37,11 +37,8 @@ const WIDE_LINE = '@min-[52rem]:min-h-9'
 
 const META_TEXT = 'text-label text-muted-foreground'
 
-/**
- * 상태 표식. 네 상태 모두 같은 16px 원 하나로 그립니다.
- * 완료는 체크 원, 진행 중은 같은 지름으로 도는 호, 대기는 점선 원, 실패는 느낌표 원, 제외는 X 원. 뜻은 sr-only 글자가 전합니다.
- */
-const NODE_ICON = { done: CircleCheck, waiting: CircleDashed, failed: CircleAlert, dropped: CircleX } as const
+/** 상태 표식은 같은 크기의 원으로 그립니다. 뜻은 sr-only 글자가 전합니다. */
+const NODE_ICON = { done: CircleCheck, waiting: CircleDashed, failed: CircleAlert, held: CirclePause, dropped: CircleX } as const
 
 export function StatusNode({ status }: { status: LedgerStatus }) {
   if (status === 'running') {

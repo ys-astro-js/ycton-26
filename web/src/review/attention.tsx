@@ -3,6 +3,7 @@ import {
   Bot,
   ChevronDown,
   CircleCheck,
+  CirclePause,
   FolderGit2,
   ListTodo,
   MessageCircleQuestionMark,
@@ -39,6 +40,7 @@ const KIND: Record<AttentionKind, { icon: LucideIcon; label: string }> = {
   'jev-stop': { icon: OctagonPause, label: '멈춤' },
   timeout: { icon: TimerOff, label: '시간 초과' },
   failed: { icon: TriangleAlert, label: '실패' },
+  held: { icon: CirclePause, label: '중단됨' },
   question: { icon: MessageCircleQuestionMark, label: '질문' },
 }
 
@@ -312,7 +314,7 @@ function AttentionRow({
               {item.kind === 'jev-stop' ? (
                 <IconButton icon={Play} label="재개하기" disabled={busy} onClick={() => handleResolve('resumed')} />
               ) : null}
-              {item.kind === 'timeout' || item.kind === 'failed' ? (
+              {item.kind === 'timeout' || item.kind === 'failed' || item.kind === 'held' ? (
                 <IconButton
                   icon={RotateCcw}
                   label="다시 실행"

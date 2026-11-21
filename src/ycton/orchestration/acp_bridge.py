@@ -55,6 +55,7 @@ class AcpRuntime:
                                   room_id=str(request.room_id), participant_id=str(request.agent_id))
             prompt = ("방의 협업 에이전트입니다. list_tasks로 할 일을 확인하고 send로 의견을 공유하세요. "
                       "자신의 강점을 고려해 claim(task_id)을 호출하고 성공한 일만 delegate 하세요. "
+                      "보류 중인 할 일은 목록에 나오지 않습니다. 이전 중단 기록이 있어도 사람이 다시 실행해 열린 할 일은 맡을 수 있습니다. "
                       "delegate에는 고유 request_id와 instructions를 넣으세요. 409 충돌이면 상태를 다시 확인하세요. "
                       "위임했으면 턴을 끝내세요. 직접 파일을 수정하거나 명령을 실행하지 마세요. "
                       "할 일이 없으면 불필요한 메시지 없이 턴을 끝내세요.\n" + kind.instructions + "\n" + request.prompt)

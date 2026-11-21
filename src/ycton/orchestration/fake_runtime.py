@@ -13,7 +13,8 @@ class FakeRuntime:
             await asyncio.sleep(self.settings.chat_delay_seconds)
             state = self.service.snapshot(request.room_id)
             for task in state["tasks"]:
-                if task["status"] != "open" or task["attempts"] >= self.settings.max_attempts:
+                if (task["status"] != "open" or task["retry_required"]
+                        or task["attempts"] >= self.settings.max_attempts):
                     continue
                 try:
                     # 선택은 가짜 에이전트 내부에서 한다. 서버 스케줄러는 담당자를 고르지 않는다.

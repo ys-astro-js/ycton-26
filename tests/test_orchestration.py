@@ -1,5 +1,6 @@
 """중복 요청·경합·실패·재시작 등 실제 상태 손상 위험을 검증한다."""
 import asyncio
+import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
@@ -9,7 +10,7 @@ from fastapi.testclient import TestClient
 from ycton.orchestration.config import Settings
 from ycton.orchestration.db import Database
 from ycton.orchestration.main import create_app
-from ycton.orchestration.runtime_port import RuntimeResult
+from ycton.orchestration.runtime_port import RuntimeRequest, RuntimeResult
 from ycton.orchestration.services.task_service import TaskService, DomainError
 
 
@@ -230,3 +231,148 @@ def test_session_config_sets_matching_options_and_rejects_unknown_values():
     assert calls == [{"config_id": "m", "session_id": "s", "value": "b"}, {"config_id": "t", "session_id": "s", "value": "high"}]
     with pytest.raises(RuntimeError):
         asyncio.run(apply_session_config(Connection(), session, {"model": "c"}))
+
+
+def test_additive_migration_preserves_old_rooms_tasks_and_history(tmp_path):
+    db = Database(tmp_path / "old.db")
+    with sqlite3.connect(db.path) as conn:
+        conn.executescript("""
+            CREATE TABLE rooms (id INTEGER PRIMARY KEY, name TEXT NOT NULL, paused INTEGER NOT NULL DEFAULT 0,
+                                chat_rounds INTEGER NOT NULL DEFAULT 0);
+            CREATE TABLE tasks (id INTEGER PRIMARY KEY, room_id INTEGER NOT NULL REFERENCES rooms(id),
+                                title TEXT NOT NULL, detail TEXT NOT NULL, scope TEXT NOT NULL, verify TEXT NOT NULL,
+                                status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','claimed','done','dropped')),
+                                owner_id INTEGER REFERENCES agents(id), active_session_id TEXT,
+                                attempts INTEGER NOT NULL DEFAULT 0, handoff TEXT NOT NULL DEFAULT '', commit_hash TEXT,
+                                CHECK((status='claimed' AND owner_id IS NOT NULL) OR status!='claimed'));
+            CREATE TABLE task_events (id INTEGER PRIMARY KEY, task_id INTEGER NOT NULL REFERENCES tasks(id),
+                                      event TEXT NOT NULL, detail TEXT NOT NULL,
+                                      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+            INSERT INTO rooms VALUES(7,'old project',1,3);
+            INSERT INTO tasks VALUES(9,7,'old task','detail','src/','unit','done',NULL,NULL,1,'verified','abc');
+            INSERT INTO task_events(task_id,event,detail) VALUES(9,'succeeded','verified');
+        """)
+    db.initialize()
+    db.initialize()
+    state = TaskService(db, Settings(db_path=db.path)).snapshot(7)
+    assert state["room"] == {"id": 7, "name": "old project", "paused": 1, "chat_rounds": 3, "repository_id": "default"}
+    task = state["tasks"][0]
+    assert (task["id"], task["status"], task["attempts"], task["retry_required"], task["commit_hash"]) == (9, "done", 1, 0, "abc")
+    with db.connect() as conn:
+        assert tuple(conn.execute("SELECT task_id,event,detail FROM task_events").fetchone()) == (9, "succeeded", "verified")
+
+
+def test_manual_cancel_waits_for_cleanup_and_cannot_be_overwritten(service):
+    from ycton.orchestration.scheduler import Scheduler
+
+    svc, room, a, _, task = service
+    svc.claim(task, a)
+    sid = svc.delegate(task, a, "running", "")["id"]
+    svc.execution_metadata(sid, worktree="previous-worktree")
+
+    async def exercise():
+        running, cleanup, finish_cleanup = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        duplicate_entered, stopping = asyncio.Event(), asyncio.Event()
+
+        class Runtime:
+            async def run(self, request):
+                if request.kind == "chat":
+                    return RuntimeResult(True, "chat")
+                running.set()
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    cleanup.set()
+                    await finish_cleanup.wait()
+                    return RuntimeResult(True, "result that raced with cancel", "passed")
+
+        scheduler = Scheduler(svc, Runtime(), svc.settings)
+        scheduler.dispatch()
+        await asyncio.wait_for(running.wait(), 2)
+        first = asyncio.create_task(scheduler.cancel(sid))
+        await asyncio.wait_for(cleanup.wait(), 2)
+
+        async def duplicate():
+            duplicate_entered.set()
+            await scheduler.cancel(sid)
+
+        async def stop():
+            stopping.set()
+            await scheduler.stop()
+
+        second = asyncio.create_task(duplicate())
+        shutdown = asyncio.create_task(stop())
+        await duplicate_entered.wait()
+        await stopping.wait()
+        first.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await first
+        try:
+            assert not second.done() and not shutdown.done()
+            with pytest.raises(DomainError, match="활성 실행"):
+                svc.manual_task_action(task, "retry", "")
+            assert svc.snapshot(room)["tasks"][0]["active_session_id"] == sid
+        finally:
+            finish_cleanup.set()
+            await asyncio.wait_for(asyncio.gather(second, shutdown), 2)
+        await scheduler.cancel(sid)
+
+    asyncio.run(exercise())
+    state = svc.snapshot(room)
+    held = state["tasks"][0]
+    assert (held["status"], held["owner_id"], held["active_session_id"], held["retry_required"]) == ("open", None, None, 1)
+    assert "다시 실행할 때까지 대기합니다" in held["handoff"] and "worktree=previous-worktree" in held["handoff"]
+    assert all(s["status"] != "queued" for s in state["sessions"])
+    assert svc.delegate(task, a, "running", "")["status"] == "cancelled"
+    with svc.db.connect() as conn:
+        assert conn.execute("SELECT count(*) FROM task_events WHERE event='cancelled'").fetchone()[0] == 1
+
+
+def test_queued_manual_cancel_survives_resume_and_recovery_until_retry(service):
+    from ycton.orchestration.fake_runtime import FakeRuntime
+    from ycton.orchestration.scheduler import Scheduler
+
+    svc, room, a, b, task = service
+    svc.claim(task, a)
+    sid = svc.delegate(task, a, "queued", "")["id"]
+
+    async def exercise():
+        svc.settings.chat_delay_seconds = 0
+        runtime = FakeRuntime(svc, svc.settings)
+        seen_work = []
+
+        class ObservedRuntime:
+            async def run(self, request: RuntimeRequest):
+                if request.kind == "work":
+                    seen_work.append(request.session_id)
+                return await runtime.run(request)
+
+        scheduler = Scheduler(svc, ObservedRuntime(), svc.settings)
+        await scheduler.cancel(sid)
+        scheduler.dispatch()
+        await asyncio.gather(*scheduler.running.values())
+        assert seen_work == []
+        await scheduler.stop()
+
+        reopened = TaskService(Database(svc.db.path), svc.settings)
+        reopened.recover()
+        reopened.pause(room, False)
+        with pytest.raises(DomainError, match="사용자가 중단한") as claim:
+            reopened.claim(task, b)
+        assert claim.value.status == 409
+        with pytest.raises(DomainError, match="사용자가 중단한") as delegate:
+            reopened.delegate(task, b, "new", "")
+        assert delegate.value.status == 409
+        scheduler = Scheduler(reopened, ObservedRuntime(), svc.settings)
+        scheduler.dispatch()
+        await asyncio.gather(*scheduler.running.values())
+        state = reopened.snapshot(room)
+        assert state["tasks"][0]["retry_required"] == 1
+        assert [s["id"] for s in state["sessions"] if s["kind"] == "work"] == [sid]
+        assert reopened.manual_task_action(task, "retry", "")["retry_required"] == 0
+        assert reopened.snapshot(room)["messages"][-1]["content"].startswith(f"사용자가 할 일 #{task}의 다시 실행")
+        reopened.claim(task, b)
+        assert reopened.delegate(task, b, "new", "")["id"] != sid
+        await scheduler.stop()
+
+    asyncio.run(exercise())

@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api, type Message, type RoomState, type Session, type Task, type TaskEvent } from '@/api/client'
 
+import type { LedgerStatus } from '../review/model.ts'
+
 export const ROOMS_KEY = ['rooms'] as const
 export const roomKey = (roomId: number) => ['room', roomId] as const
 const eventsKey = (taskId: number) => ['task-events', taskId] as const
@@ -69,8 +71,7 @@ export const clock = (value: string | null | undefined) => {
   return date ? clockFormat.format(date) : ''
 }
 
-/** 할 일 상태 어휘: 완료 / 진행 중 / 대기 / 실패 / 제외 (review/shared.tsx의 STATUS와 같은 이름) */
-export type TaskPhase = 'done' | 'running' | 'waiting' | 'failed' | 'dropped'
+export type TaskPhase = LedgerStatus
 
 export function workSessions(state: RoomState, taskId: number) {
   return state.sessions
@@ -82,9 +83,13 @@ export function taskPhase(task: Task, state: RoomState): TaskPhase {
   if (task.status === 'done') return 'done'
   if (task.status === 'dropped') return 'dropped'
   if (task.active_session_id) return 'running'
-  // 서버는 실패한 할 일을 open으로 되돌립니다. 마지막 작업 세션이 실패했으면 실패로 부릅니다.
-  const last = workSessions(state, task.id).at(-1)
-  if (task.status === 'open' && last && (last.status === 'failed' || last.status === 'cancelled')) return 'failed'
+  if (task.status === 'open') {
+    if (task.retry_required) return 'held'
+    if (task.attempts > 0) {
+      const last = workSessions(state, task.id).at(-1)
+      if (last?.status === 'failed' || last?.status === 'cancelled') return 'failed'
+    }
+  }
   return 'waiting'
 }
 

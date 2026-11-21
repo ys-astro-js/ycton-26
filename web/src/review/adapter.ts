@@ -63,8 +63,8 @@ function ledgerStatus(task: Task, last?: Session): LedgerStatus {
   if (task.status === 'done') return 'done'
   if (task.status === 'dropped') return 'dropped'
   if (task.status === 'claimed' || task.active_session_id) return 'running'
-  // 서버는 실패한 할 일을 open으로 되돌립니다. 마지막 작업 세션이 실패했으면 대기가 아니라 실패로 부릅니다.
-  if (last && (last.status === 'failed' || last.status === 'cancelled')) return 'failed'
+  if (task.retry_required) return 'held'
+  if (task.attempts > 0 && (last?.status === 'failed' || last?.status === 'cancelled')) return 'failed'
   return 'waiting'
 }
 
@@ -103,18 +103,18 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
       const last = latest(sessions)
       const events = eventsByTask.get(task.id) ?? []
 
-      // 실패하거나 시간 초과로 다시 열린 할 일
-      if (task.status === 'open' && last && (last.status === 'failed' || last.status === 'cancelled')) {
+      const status = ledgerStatus(task, last)
+      if (last && (status === 'held' || status === 'failed')) {
         const finished = parse(last.finished_at) ?? parse(last.created_at)
-        const timedOut = /timeout|시간 초과/i.test(`${last.stop_reason ?? ''} ${last.summary}`)
+        const timedOut = status === 'failed' && /timeout|시간 초과/i.test(`${last.stop_reason ?? ''} ${last.summary}`)
         attention.push({
           sortKey: finished?.getTime() ?? 0,
           item: {
             id: `session-${last.id}`,
             at: hm(finished) ?? '',
             projectId,
-            kind: timedOut ? 'timeout' : 'failed',
-            title: timedOut ? '작업 시간 초과' : '작업 실패',
+            kind: status === 'held' ? 'held' : timedOut ? 'timeout' : 'failed',
+            title: status === 'held' ? '사용자가 중단한 작업' : timedOut ? '작업 시간 초과' : '작업 실패',
             detail: lines(last.summary)[0],
             agent: agentLabel(agents.get(last.agent_id)),
             task: { id: `#${task.id}`, title: task.title },
@@ -127,12 +127,11 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
 
       const first = [...sessions].sort((a, b) => a.created_at.localeCompare(b.created_at))[0]
       const owner = agents.get(task.owner_id ?? last?.agent_id ?? -1)
-      const status = ledgerStatus(task, last)
       ledger.push({
         taskId: `#${task.id}`,
         projectId,
         start: hm(parse(first?.created_at)),
-        end: status === 'done' || status === 'failed' ? hm(parse(last?.finished_at)) : undefined,
+        end: status === 'done' || status === 'failed' || status === 'held' ? hm(parse(last?.finished_at)) : undefined,
         commit: task.commit_hash?.slice(0, 7) ?? undefined,
         title: task.title,
         agent: agentLabel(owner),

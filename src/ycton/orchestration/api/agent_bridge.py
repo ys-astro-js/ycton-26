@@ -76,7 +76,8 @@ def send(body: Message, actor=Depends(identity), svc=Depends(service)):
 def tasks(body: Actor, actor=Depends(identity), svc=Depends(service)):
     validate(svc, actor, body)
     state = svc.snapshot(actor.room_id)
-    return {"tasks": [{**t, "id": str(t["id"])} for t in state["tasks"]], "agents": state["agents"]}
+    return {"tasks": [{**t, "id": str(t["id"])} for t in state["tasks"] if not t["retry_required"]],
+            "agents": state["agents"]}
 
 
 @router.post("/tasks/claim")

@@ -15,7 +15,7 @@ export interface LogLine {
   alarming?: boolean
 }
 
-export type AttentionKind = 'jev-stop' | 'timeout' | 'failed' | 'question'
+export type AttentionKind = 'jev-stop' | 'timeout' | 'failed' | 'held' | 'question'
 
 export interface AttentionItem {
   id: string
@@ -32,7 +32,7 @@ export interface AttentionItem {
   target: { roomId: number; taskId?: number }
 }
 
-export type LedgerStatus = 'done' | 'running' | 'waiting' | 'failed' | 'dropped'
+export type LedgerStatus = 'done' | 'running' | 'waiting' | 'failed' | 'held' | 'dropped'
 
 export interface LedgerEntry {
   taskId: string

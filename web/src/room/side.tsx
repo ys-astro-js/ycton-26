@@ -56,7 +56,7 @@ function describeEvent(event: string, detail: string, state: RoomState): { what:
   }
 }
 
-const PHASE_ORDER: Record<TaskPhase, number> = { running: 0, failed: 1, waiting: 2, done: 3, dropped: 4 }
+const PHASE_ORDER: Record<TaskPhase, number> = { running: 0, failed: 1, held: 2, waiting: 3, done: 4, dropped: 5 }
 
 function CountBadge({ count, unit }: { count: number; unit: string }) {
   return (
@@ -290,7 +290,7 @@ function TaskRow({
       <div className={cn('grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-start gap-x-3 ps-4 pe-1 py-2', ROW_HEAD)}>
         <span className="flex h-9 items-center justify-center">
           <StatusNode status={phase} />
-          <span className="sr-only">{STATUS[phase].label}</span>
+          {phase !== 'held' ? <span className="sr-only">{STATUS[phase].label}</span> : null}
         </span>
         <div className="min-w-0 py-1.5">
           <p className="flex items-baseline gap-2">
@@ -301,6 +301,7 @@ function TaskRow({
               </RowToggle>
             </span>
           </p>
+          {phase === 'held' ? <p className="text-label text-muted-foreground">{STATUS.held.label}</p> : null}
           {owner ? (
             <p className="mt-0.5 flex items-center gap-1.5 text-label text-muted-foreground">
               <Glyph icon={Bot} className="size-3.5" />
@@ -381,7 +382,7 @@ function TaskRow({
                   {phase === 'running' && task.active_session_id ? (
                     <IconButton variant="outline" icon={Square} label="실행 중단하기" disabled={busy} onClick={() => setConfirming('cancel')} />
                   ) : null}
-                  {phase === 'failed' ? (
+                  {phase === 'failed' || phase === 'held' ? (
                     <IconButton icon={RotateCcw} label="다시 실행" disabled={busy} onClick={() => retry.mutate(undefined)} />
                   ) : null}
                   {phase === 'running' ? null : (

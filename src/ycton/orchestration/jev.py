@@ -4,7 +4,8 @@
 def advise(state, settings):
     if state["room"]["paused"]:
         return {"action": "stop", "reason": "사용자가 자동 진행을 중지했습니다"}
-    opened = [t for t in state["tasks"] if t["status"] == "open" and t["attempts"] < settings.max_attempts]
+    opened = any(t["status"] == "open" and not t["retry_required"] and t["attempts"] < settings.max_attempts
+                 for t in state["tasks"])
     if opened and not state["agents"]:
         return {"action": "spawn_suggested", "reason": "열린 작업이 있지만 참여 에이전트가 없습니다"}
     running = sum(s["kind"] == "work" and s["status"] == "running" for s in state["sessions"])

@@ -10,7 +10,7 @@ def build_prompt(service, session):
             "agent_id": session["agent_id"],
             "agents": state["agents"],
             "messages": state["messages"][-40:],
-            "tasks": [t for t in state["tasks"] if t["status"] in ("open", "claimed")],
+            "tasks": [t for t in state["tasks"] if t["status"] in ("open", "claimed") and not t["retry_required"]],
             "recent_sessions": state["sessions"][-10:],
         }, ensure_ascii=False)
     task = next(t for t in state["tasks"] if t["id"] == session["task_id"])

@@ -11,6 +11,10 @@ from ycton.orchestration.runtime_port import RuntimeResult
 # mock 모드에 runtime.toml이 없을 때 고를 모델을 저장소의 예시 설정에서 가져온다.
 EXAMPLE_RUNTIME_CONFIG = Path(__file__).resolve().parents[4] / "runtime.example.toml"
 
+UNKNOWN_REPOSITORY = "서버 설정에 없는 저장소입니다"
+UNAVAILABLE_VERIFICATION = "이 프로젝트에서 사용할 수 없는 검증 프로필입니다"
+RETRY_REQUIRED = "사용자가 중단한 작업입니다. 다시 실행이 필요합니다"
+
 
 class DomainError(Exception):
     def __init__(self, message, status=409):
@@ -118,10 +122,12 @@ class TaskService:
                 raise DomainError("다른 방의 작업입니다", 403)
             if room["paused"]:
                 raise DomainError("자동 진행이 중지된 방입니다")
+            if task["retry_required"]:
+                raise DomainError(RETRY_REQUIRED)
             if task["attempts"] >= self.settings.max_attempts:
                 raise DomainError("재시도 한도 도달: 사람이 retry로 재개해야 합니다")
-            changed = c.execute("UPDATE tasks SET status='claimed',owner_id=? WHERE id=? AND status='open'",
-                                (agent_id, task_id)).rowcount
+            changed = c.execute("""UPDATE tasks SET status='claimed',owner_id=?
+                                   WHERE id=? AND status='open' AND retry_required=0""", (agent_id, task_id)).rowcount
             if not changed:
                 raise DomainError("이미 담당자가 있거나 종료된 작업입니다")
             self.event(c, task_id, "claimed", f"agent:{agent_id}")
@@ -152,6 +158,8 @@ class TaskService:
                 if old["task_id"] != task_id or old["instruction"] != instruction:
                     raise DomainError("같은 request_id를 다른 요청에 사용할 수 없습니다")
                 return dict(old)
+            if task["retry_required"]:
+                raise DomainError(RETRY_REQUIRED)
             if task["status"] != "claimed" or task["owner_id"] != agent_id:
                 raise DomainError("claim한 담당자만 위임할 수 있습니다", 403)
             if require(c, "rooms", task["room_id"])["paused"]:
@@ -192,13 +200,16 @@ class TaskService:
             self.event(c, task["id"], "committed", f"{commit} {message.splitlines()[0]}")
         return commit
 
-    def finish(self, session_id, result: RuntimeResult, cancelled=False):
+    def finish(self, session_id, result: RuntimeResult, *, cancelled=False, hold_for_retry=False):
         """중복 종료는 무시. 활성 실행 ID를 확인하여 오래된 결과의 덮어쓰기를 차단한다."""
         with self.db.connect(write=True) as c:
             s = require(c, "sessions", session_id)
             if s["status"] not in ("queued", "running"):
                 return False
             summary = result.summary
+            held = cancelled and hold_for_retry and s["kind"] == "work"
+            if held:
+                summary = "사용자가 실행을 중단했습니다. 다시 실행할 때까지 대기합니다."
             if s.get("worktree") and s["worktree"] not in summary:
                 summary += f"\nworktree={s['worktree']}"
             success = result.succeeded and (s["kind"] == "chat" or result.verification == "passed")
@@ -217,12 +228,13 @@ class TaskService:
                 done = status == "succeeded"
                 # 실패한 시도의 커밋은 인계 노트에만 남기고, 할 일에는 완료된 커밋만 연결한다.
                 c.execute("""UPDATE tasks SET status=?,owner_id=?,active_session_id=NULL,handoff=?,
-                             commit_hash=COALESCE(?,commit_hash) WHERE id=?""",
+                             commit_hash=COALESCE(?,commit_hash),retry_required=? WHERE id=?""",
                           ("done" if done else "open", s["agent_id"] if done else None,
-                           summary, commit if done else None, task["id"]))
+                           summary, commit if done else None, int(held), task["id"]))
                 self.event(c, task["id"], status, summary)
                 self.message(c, s["room_id"], "system", f"할 일 #{task['id']} {status}: {summary}")
-                self.wake(c, s["room_id"], agent_id=s["agent_id"], reset=True)
+                if not held:
+                    self.wake(c, s["room_id"], agent_id=s["agent_id"], reset=True)
             else:
                 # claim 이후 위임 전에 채팅이 실패하면 작업을 영구 점유하지 않게 반환한다.
                 pending = c.execute("SELECT id FROM tasks WHERE owner_id=? AND status='claimed' AND active_session_id IS NULL", (s["agent_id"],)).fetchall()
@@ -249,9 +261,13 @@ class TaskService:
             if task["active_session_id"] or task["status"] not in ("open", "claimed"):
                 raise DomainError("활성 실행이 없고 종료되지 않은 작업에만 가능합니다")
             if action == "retry":
-                c.execute("UPDATE tasks SET status='open',owner_id=NULL,attempts=0,handoff=? WHERE id=?", (note, task_id))
+                c.execute("""UPDATE tasks SET status='open',owner_id=NULL,attempts=0,retry_required=0,handoff=?
+                             WHERE id=?""", (note, task_id))
+                self.message(c, task["room_id"], "system",
+                             f"사용자가 할 일 #{task_id}의 다시 실행을 요청했습니다. 이 할 일을 다시 맡을 수 있습니다.")
             else:
-                c.execute("UPDATE tasks SET status='dropped',owner_id=NULL,handoff=? WHERE id=?", (note, task_id))
+                c.execute("""UPDATE tasks SET status='dropped',owner_id=NULL,retry_required=0,handoff=?
+                             WHERE id=?""", (note, task_id))
             self.event(c, task_id, action, note)
             self.wake(c, task["room_id"], reset=True)
             return require(c, "tasks", task_id)
