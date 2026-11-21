@@ -327,8 +327,8 @@ function AttentionRow({
                   onClick={onReply}
                 />
               ) : null}
-              {/* 채팅에서 이미 정리된 질문은 답장 없이 닫습니다 */}
-              {item.kind === 'question' ? (
+              {/* 다시 실행하지 않을 할 일과 채팅에서 이미 정리된 질문은 그대로 닫습니다 */}
+              {item.kind !== 'jev-stop' ? (
                 <IconButton
                   variant="outline"
                   icon={Check}

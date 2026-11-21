@@ -51,6 +51,7 @@ export function ReviewPage() {
     if (resolution === 'reassigned' && taskId !== undefined) await api.retry(taskId, '사람이 아침 리뷰에서 다시 실행')
     if (resolution === 'answered' && text && messageId !== undefined) await api.postMessage(roomId, text, messageId)
     if (resolution === 'done' && messageId !== undefined) await api.resolveMessage(messageId)
+    if (resolution === 'done' && taskId !== undefined) await api.drop(taskId, '사람이 다시 실행하지 않고 닫음')
     await refresh()
   }
 
