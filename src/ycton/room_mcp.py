@@ -71,9 +71,10 @@ def build_room_server(client: httpx.AsyncClient, *, room_id: str, participant_id
 
         @server.tool()
         async def no_changes(reason: str) -> dict:
-            """Finish a task that needs no file changes, such as a review, with the findings or the reason.
+            """Finish a task that by its nature needs no file changes, such as a review, with the findings.
 
-            Use it only when nothing should be committed; leave the worktree without uncommitted edits.
+            Never use it to report that you could not do the task; then end without committing so the task fails.
+            Leave the worktree without uncommitted edits.
             """
             return (await post("/api/agent/no-changes", reason=reason)).json()
 

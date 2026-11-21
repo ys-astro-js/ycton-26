@@ -34,8 +34,9 @@ def _work_prompt(task: WorkTask, *, can_commit: bool = False, base: str = "HEAD"
         finish = (
             "When the change is complete and the verification passes, call the room `commit` tool with "
             "the exact worktree-relative paths of the files this task changed and a short commit message. "
-            "The task does not count as done without a commit. If the task needs no file changes (for example "
-            "a review), call the room `no_changes` tool with your findings instead of committing. "
+            "The task does not count as done without a commit. If the task by its nature needs no file changes (for "
+            "example a review), call the room `no_changes` tool with your findings instead of committing. Never use "
+            "`no_changes` to report that you could not do the task; then end without committing so the task fails. "
             "Do not run git commit, merge, or push yourself, and do not start detached processes.\n\n"
         )
     else:
