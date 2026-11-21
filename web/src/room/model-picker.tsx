@@ -12,6 +12,8 @@ export interface ModelChoice {
   effort: string
 }
 
+const ADAPTER_DEFAULT = '__adapter_default__'
+
 interface Point {
   x: number
   y: number
@@ -130,7 +132,7 @@ export function ModelPicker({
         {/* 모델과 추론 수준은 가운뎃점으로 잇지 않고 양 끝에 따로 둡니다 */}
         {value ? (
           <>
-            <span className="min-w-0 truncate font-mono text-label">{value.model}</span>
+            <span className="min-w-0 truncate font-mono text-label">{value.model || '기본 모델'}</span>
             {value.effort ? (
               <span className="ms-auto shrink-0 text-label text-muted-foreground">
                 <span className="sr-only">추론 수준 </span>
@@ -182,10 +184,12 @@ export function ModelPicker({
           }}
           onValueChange={(next) => {
             if (!provider) return
-            if (provider.efforts.length === 0) finish({ provider: provider.id, model: next, effort: '' })
-            else setModel(next)
+            if (provider.efforts.length === 0) {
+              finish({ provider: provider.id, model: provider.models.length === 0 ? '' : next, effort: '' })
+            } else setModel(next)
           }}
         >
+          {provider && provider.models.length === 0 ? <Option value={ADAPTER_DEFAULT}>기본 모델</Option> : null}
           {provider?.models.map((candidate) => (
             <Option
               key={candidate}
@@ -211,7 +215,9 @@ export function ModelPicker({
             aim.columns.current[2] = node
           }}
           onValueChange={(next) => {
-            if (provider && model) finish({ provider: provider.id, model, effort: next })
+            if (provider && model) {
+              finish({ provider: provider.id, model: provider.models.length === 0 ? '' : model, effort: next })
+            }
           }}
         >
           {provider && model
