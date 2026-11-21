@@ -48,6 +48,8 @@ def _work_prompt(task: WorkTask, *, can_commit: bool = False, base: str = "HEAD"
         "Run the requested verification here and report the exact command and observed outcome. "
         "Before you start, check the skills available to you and load every one that fits this task "
         "(for example UI, accessibility or writing skills for interface work), then follow them. "
+        "If this task produces a plan or design, end your report with its implementation steps as a numbered list "
+        "so the team can register each step as a task. "
         "Write your final report in Korean, short: what changed, the commit, and the verification result. "
         + finish +
         f"Title: {task.title}\n\nDetail:\n{task.detail}\n\nScope:\n{task.scope}\n\n"

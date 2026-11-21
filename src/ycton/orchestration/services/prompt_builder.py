@@ -20,6 +20,10 @@ def build_prompt(service, session):
             "agents": state["agents"],
             "messages": [chat_message(m, session["agent_id"]) for m in state["messages"][-40:]],
             "tasks": [t for t in state["tasks"] if t["status"] in ("open", "claimed") and not t["retry_required"]],
+            # 무엇이 이미 끝났는지 알아야 다음 단계를 정할 수 있다. 결과 요약은 짧게 자른다.
+            "done_tasks": [{"id": t["id"], "title": t["title"], "status": t["status"],
+                            "result": (t["handoff"] or "")[:500]}
+                           for t in state["tasks"] if t["status"] in ("done", "dropped")][-10:],
             "recent_sessions": state["sessions"][-10:],
         }, ensure_ascii=False)
     task = next(t for t in state["tasks"] if t["id"] == session["task_id"])

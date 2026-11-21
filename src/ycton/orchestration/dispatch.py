@@ -83,7 +83,8 @@ class Dispatcher:
                                 "is still left and the agents should continue without asking the human.",
                 "criteria": {
                     "continue": "Steps the agents proposed, follow-ups, fixes or reviews are still left and "
-                                "need no human decision.",
+                                "need no human decision, or a plan or design task finished but its review or "
+                                "implementation steps are not registered as tasks yet.",
                     "wait": "The request is done, or the next step needs the human's decision or answer.",
                 }},
              "agent": {

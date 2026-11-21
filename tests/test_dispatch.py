@@ -472,3 +472,14 @@ def test_after_must_be_a_task_of_the_same_room(room):
     with pytest.raises(DomainError):
         svc.create_agent_task(rid, "구현", "", after=foreign)
 
+
+def test_chat_prompt_lists_finished_tasks_with_results(room):
+    from ycton.orchestration.services.prompt_builder import build_prompt
+    svc, rid, ids = room
+    done = svc.create_task(rid, "기획", "", "", "unit")["id"]
+    svc.create_task(rid, "구현", "", "", "unit")
+    with svc.db.connect(write=True) as c:
+        c.execute("UPDATE tasks SET status='done', handoff='계획을 PLAN.md에 썼습니다' WHERE id=?", (done,))
+    prompt = json.loads(build_prompt(svc, {"room_id": rid, "agent_id": ids["Al"], "kind": "chat"}))
+    assert [(t["title"], t["result"]) for t in prompt["done_tasks"]] == [("기획", "계획을 PLAN.md에 썼습니다")]
+    assert [t["title"] for t in prompt["tasks"]] == ["구현"]
