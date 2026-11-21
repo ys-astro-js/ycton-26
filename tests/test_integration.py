@@ -207,3 +207,29 @@ def test_teammate_numeric_id_and_delegate_without_request_id(bridge):
     first = client.post("/api/agent/tasks/delegate", headers=headers, json=body)
     second = client.post("/api/agent/tasks/delegate", headers=headers, json=body)
     assert first.status_code == 202 and second.json()["id"] == first.json()["id"]
+
+
+def git_repo(path):
+    import subprocess
+    path.mkdir()
+    for args in (('init', '-q'), ('config', 'user.name', 'test'), ('config', 'user.email', 'test@example.com')):
+        subprocess.run(('git', '-C', str(path), *args), check=True)
+    (path / 'app.txt').write_text('before\n')
+    subprocess.run(('git', '-C', str(path), 'add', 'app.txt'), check=True)
+    subprocess.run(('git', '-C', str(path), 'commit', '-qm', 'init'), check=True)
+    return path
+
+
+def test_work_session_starts_worktree_on_requested_branch(tmp_path, monkeypatch):
+    import subprocess
+    import ycton.work_session as module
+    repo = git_repo(tmp_path / 'repo')
+    async def session(*args, **kwargs):
+        return SimpleNamespace(session_id='s', stop_reason='end_turn', text='')
+    monkeypatch.setattr(module, '_run_session', session)
+    task = module.WorkTask(title='t', detail='', scope='', verify='', instructions='')
+    result = asyncio.run(module.run_work_session('fake', repo=repo, worktree=tmp_path / 'wt', task=task,
+                                                 branch='ycton/task-1-abc'))
+    current = subprocess.run(('git', '-C', str(result.worktree), 'branch', '--show-current'),
+                             check=True, capture_output=True, text=True).stdout.strip()
+    assert current == 'ycton/task-1-abc'

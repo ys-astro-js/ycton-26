@@ -64,14 +64,20 @@ async def run_work_session(
     timeout: float = 600,
     mcp_servers: list[McpServerStdio] | None = None,
     on_update: Callable[[SessionNotification], None] | None = None,
+    branch: str | None = None,
 ) -> WorkSessionResult:
-    """Run Codex at a new worktree path. Keep the checkout for review or handoff."""
+    """Run Codex at a new worktree path. Keep the checkout for review or handoff.
+
+    With ``branch``, the worktree starts on that new branch so later commits stay reachable
+    after the worktree is removed; without it, the checkout is detached.
+    """
     repo_root = Path(await _git(repo.resolve(), "rev-parse", "--show-toplevel")).resolve()
     workdir = worktree.resolve()
     if workdir.is_relative_to(repo_root):
         raise ValueError("Worktree must be outside the source checkout")
     workdir.mkdir(parents=True)
-    await _git(repo_root, "worktree", "add", "--detach", "--", str(workdir), "HEAD")
+    start = ("-b", branch) if branch else ("--detach",)
+    await _git(repo_root, "worktree", "add", *start, "--", str(workdir), "HEAD")
 
     session = await _run_session(
         executable, *args, cwd=workdir, prompt=_work_prompt(task), timeout=timeout,

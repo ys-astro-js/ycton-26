@@ -66,6 +66,8 @@ class AcpRuntime:
         data = json.loads(request.prompt)
         profile = self.config.verifiers[data["verify"]]
         worktree = self.config.worktrees / f"task-{request.task_id}" / request.session_id
+        # 시도마다 새 브랜치를 만들어, worktree를 지워도 커밋을 찾을 수 있게 한다.
+        branch = f"ycton/task-{request.task_id}-{request.session_id[:8]}"
         # 경로는 호출 전에 기록해서 런타임 실패 시에도 보존한다.
         self.service.execution_metadata(request.session_id, worktree=str(worktree))
         task = WorkTask(title=data["title"], detail=data["detail"], scope=data["scope"],
@@ -75,19 +77,20 @@ class AcpRuntime:
         try:
             async with EventLog(log, self.service, request.session_id) as events:
                 result = await run_work_session(*kind.command, repo=self.config.repo, worktree=worktree,
-                                               task=task, timeout=self.config.timeout, on_update=events.on_update)
+                                               task=task, timeout=self.config.timeout, on_update=events.on_update,
+                                               branch=branch)
             self.service.execution_metadata(request.session_id, acp_session_id=result.session.session_id,
                                             stop_reason=str(result.session.stop_reason))
             if result.session.stop_reason != "end_turn":
-                return RuntimeResult(False, f"작업 턴 비정상 종료: {result.session.stop_reason}; worktree={worktree}", log_path=str(log))
+                return RuntimeResult(False, f"작업 턴 비정상 종료: {result.session.stop_reason}; worktree={worktree}; branch={branch}", log_path=str(log))
             passed, output = await verify_worktree(profile, worktree)
             self.service.execution_metadata(request.session_id, verification_output=output)
             summary = (f"{result.session.text}\n서버 검증: {'passed' if passed else 'failed'}\n"
-                       f"{output[:4000]}\nworktree={worktree}")
+                       f"{output[:4000]}\nworktree={worktree}; branch={branch}")
             return RuntimeResult(passed, summary, "passed" if passed else "failed", log_path=str(log))
         except TimeoutError:
-            return RuntimeResult(False, f"작업 또는 검증 시간 초과; worktree={worktree}", log_path=str(log))
+            return RuntimeResult(False, f"작업 또는 검증 시간 초과; worktree={worktree}; branch={branch}", log_path=str(log))
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            return RuntimeResult(False, f"작업 실행 오류: {type(exc).__name__}; worktree={worktree}", log_path=str(log))
+            return RuntimeResult(False, f"작업 실행 오류: {type(exc).__name__}; worktree={worktree}; branch={branch}", log_path=str(log))
