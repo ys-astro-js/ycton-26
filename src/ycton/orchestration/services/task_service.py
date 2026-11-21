@@ -35,6 +35,8 @@ def require(conn, table, identifier):
 class TaskService:
     def __init__(self, db, settings):
         self.db, self.settings = db, settings
+        # 어댑터가 알려 준 모델 표시 이름. 별칭(opus)이 가리키는 실제 버전(Opus 5.5)을 보여 주려고 쓴다.
+        self.model_names = {}
 
     @staticmethod
     def message(conn, room, author, content):
@@ -145,7 +147,8 @@ class TaskService:
     def agent_models(self):
         """사람이 고를 수 있는 제공자, 모델, 추론 수준. 실행 명령은 내보내지 않는다."""
         if self.settings.mode == "acp":
-            return [{"id": name, "label": kind.label or name, "models": kind.models, "efforts": kind.efforts}
+            return [{"id": name, "label": kind.label or name, "models": kind.models, "efforts": kind.efforts,
+                     "model_labels": {m: n for m, n in self.model_names.get(name, {}).items() if m in kind.models}}
                     for name, kind in self.runtime_config.kinds.items()]
         for path in (Path(self.settings.runtime_config), EXAMPLE_RUNTIME_CONFIG):
             if path.is_file():

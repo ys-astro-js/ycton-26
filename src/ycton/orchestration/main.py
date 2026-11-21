@@ -1,5 +1,7 @@
 """앱 조립 지점. DB·서비스·실행기·스케줄러를 연결하고 생명주기를 관리한다."""
-from contextlib import asynccontextmanager
+import asyncio
+import logging
+from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +15,23 @@ from ycton.orchestration.api import rooms, tasks, sessions, agent_bridge
 from ycton.orchestration.identity import Tokens
 from ycton.orchestration.runtime_config import RuntimeConfig
 from ycton.orchestration.folders import FolderPicker
+
+
+async def load_model_names(svc):
+    """어댑터마다 세션을 한 번 열어 모델 표시 이름을 받는다. 설정에 적었지만 어댑터가 모르는 모델은 경고한다."""
+    from ycton.acp_runtime import describe_session
+    config = svc.runtime_config
+    config.worktrees.mkdir(parents=True, exist_ok=True)
+    for name, kind in config.kinds.items():
+        try:
+            options = await describe_session(*kind.command, cwd=config.worktrees, timeout=60)
+        except Exception as exc:
+            logging.warning("%s 어댑터에서 모델 목록을 받지 못했습니다: %s", name, exc)
+            continue
+        svc.model_names[name] = options.get("model", {})
+        unknown = [m for m in kind.models if m not in svc.model_names[name]]
+        if unknown:
+            logging.warning("%s 어댑터가 제공하지 않는 모델이 설정에 있습니다: %s", name, ", ".join(unknown))
 
 
 def create_app(settings=None, runtime_factory=None, start_scheduler=True, folder_picker=None):
@@ -35,6 +54,7 @@ def create_app(settings=None, runtime_factory=None, start_scheduler=True, folder
             runtime = AcpRuntime(svc, svc.runtime_config, app.state.tokens)
         else:
             runtime = (runtime_factory or FakeRuntime)(svc, config)
+        names = asyncio.create_task(load_model_names(svc)) if runtime_config is not None else None
         scheduler = Scheduler(svc, runtime, config)
         app.state.service, app.state.scheduler = svc, scheduler
         if start_scheduler:
@@ -42,6 +62,10 @@ def create_app(settings=None, runtime_factory=None, start_scheduler=True, folder
         try:
             yield
         finally:
+            if names is not None:
+                names.cancel()
+                with suppress(asyncio.CancelledError):
+                    await names
             await scheduler.stop()
 
     app = FastAPI(title="Ycton orchestration", version="0.1.0", lifespan=lifespan)

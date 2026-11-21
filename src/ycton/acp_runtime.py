@@ -101,6 +101,36 @@ async def run_session(
     )
 
 
+async def describe_session(executable: str, *args: str, cwd: Path, timeout: float = 60) -> dict[str, dict[str, str]]:
+    """Open a read-only session without a prompt and report each config option's values and display names.
+
+    Returns {category: {value: name}}, e.g. {"model": {"opus": "Opus 5.5"}}.
+    """
+    env = {**os.environ, "INITIAL_AGENT_MODE": "read-only"}
+    async with spawn_owned_agent(executable, *args, cwd=cwd.resolve(), env=env) as process:
+        assert process.stdin is not None and process.stdout is not None
+        connection = connect_to_agent(_SessionClient(None, room_tools=()), process.stdin, process.stdout)
+        try:
+            async with asyncio.timeout(timeout):
+                await connection.initialize(protocol_version=PROTOCOL_VERSION)
+                session = await connection.new_session(cwd=str(cwd.resolve()), mcp_servers=[])
+        finally:
+            with suppress(TimeoutError):
+                async with asyncio.timeout(2):
+                    await connection.close()
+    described = {}
+    for option in getattr(session, "config_options", None) or []:
+        category = getattr(option, "category", None)
+        if not category:
+            continue
+        names = {}
+        for item in getattr(option, "options", None) or []:
+            for value in getattr(item, "options", None) or [item]:
+                names[value.value] = getattr(value, "name", None) or value.value
+        described[category] = names
+    return described
+
+
 def _select_values(option: Any) -> set[str]:
     values = set()
     for item in getattr(option, "options", None) or []:
