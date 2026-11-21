@@ -163,7 +163,8 @@ function NewRoom() {
   const client = useQueryClient()
   const options = useRuntimeOptions(open)
   const catalog = options.isError ? undefined : options.data
-  const configured = catalog?.repositories ?? []
+  // mock 모드의 설정 저장소는 실제 폴더가 없는 자리표시라 목록에 보이지 않고, 폴더를 고르지 않으면 기본값으로만 씁니다
+  const configured = catalog?.mode === 'mock' ? [] : (catalog?.repositories ?? [])
   // 사람이 고른 값, 없으면 방금 고른 폴더, 없으면 서버의 기본 저장소
   const selection =
     repositoryId === PICKED_FOLDER && folder ? PICKED_FOLDER

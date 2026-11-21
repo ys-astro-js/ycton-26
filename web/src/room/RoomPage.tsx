@@ -133,7 +133,9 @@ export function RoomPage() {
   }
 
   const { room } = state
-  const repositoryLabel = runtimeOptions?.repositories.find(({ id }) => id === room.repository_id)?.label ?? room.repository_id
+  // mock 모드의 설정 저장소는 실제 폴더가 없는 자리표시라 이름을 보이지 않습니다
+  const repositoryLabel = runtimeOptions?.mode === 'mock' ? null
+    : (runtimeOptions?.repositories.find(({ id }) => id === room.repository_id)?.label ?? room.repository_id)
   const stopped = Boolean(room.paused) || state.jev.action === 'stop'
   const toggleError = pause.error ?? resume.error
 
@@ -230,19 +232,22 @@ export function RoomPage() {
  * 이 프로젝트가 연결된 폴더와 그 Git 저장소. 폴더 한 줄, 저장소 한 줄이고, 브랜치는 저장소에 딸린 값이라 같은 줄의 배지로 붙입니다.
  * 고른 폴더는 경로를, 설정 저장소는 설정의 이름을 씁니다. 경로와 원격은 기계가 만든 값이라 고정폭입니다.
  */
-function ProjectSource({ state, repositoryLabel }: { state: RoomState; repositoryLabel: string }) {
+function ProjectSource({ state, repositoryLabel }: { state: RoomState; repositoryLabel: string | null }) {
   const { repo } = state.room
   const { branch, remote } = state.git ?? { branch: null, remote: null }
+  const source = repo ?? repositoryLabel
 
   return (
     <dl className="grid min-w-0 gap-1 text-label text-muted-foreground">
-      <div className="flex min-w-0 items-start gap-1.5">
-        <dt className="contents">
-          <Glyph icon={Folder} className="mt-0.5 size-3.5" />
-          <span className="sr-only">폴더</span>
-        </dt>
-        <dd className={cn('min-w-0 break-all', repo && 'font-mono')}>{repo ?? repositoryLabel}</dd>
-      </div>
+      {source ? (
+        <div className="flex min-w-0 items-start gap-1.5">
+          <dt className="contents">
+            <Glyph icon={Folder} className="mt-0.5 size-3.5" />
+            <span className="sr-only">폴더</span>
+          </dt>
+          <dd className={cn('min-w-0 break-all', repo && 'font-mono')}>{source}</dd>
+        </div>
+      ) : null}
       {remote || branch ? (
         <div className="flex min-w-0 items-start gap-1.5">
           <dt className="contents">
