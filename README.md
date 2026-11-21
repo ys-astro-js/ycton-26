@@ -39,9 +39,9 @@ Claude Code, Codex, Gemini CLI 같은 코딩 에이전트를 여러 개 동시�
 - name: frontend
   cli: claude                       # claude | codex | gemini
   command: null                     # 비우면 CLI별 기본 ACP 실행 명령
-  chat: claude-sonnet-5-5:medium    # 채팅 턴 모델:effort
-  work: claude-opus-5-5:medium      # 서브세션 모델:effort
-  think: claude-opus-5-5:high       # think 턴 모델:effort
+  chat: claude-sonnet-5:medium      # 채팅 턴 모델:effort
+  work: claude-opus-5:medium        # 서브세션 모델:effort
+  think: claude-opus-5:high         # think 턴 모델:effort
   good_at: [프론트엔드, UI 구현]
   agents_md: types/frontend.md
 ```

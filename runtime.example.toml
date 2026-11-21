@@ -13,19 +13,20 @@ timeout = 600
 
 # 모델 제공자마다 ACP 어댑터 실행 명령과 고를 수 있는 모델, 추론 수준을 적습니다.
 # 웹 UI는 이 목록에서만 고르고, 실행할 때 ACP 세션의 model·thought_level 설정으로 넘깁니다.
-# 값은 어댑터가 세션 설정으로 내주는 값과 같아야 합니다. 추론 수준이 없는 제공자는 efforts를 비웁니다.
+# 값은 어댑터가 세션 설정으로 내주는 값과 같아야 합니다. 아래 값은 claude-agent-acp 0.109.0, codex-acp 2.8.0에서 확인했습니다.
 [kinds.claude]
 label = "Claude"
-command = ["/absolute/path/to/claude-agent-acp"]
-models = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]
-efforts = ["low", "medium", "high"]
+# claude-agent-acp도 "node"와 dist/index.js 경로를 별도 인자로 넣습니다. claude CLI 로그인이 필요합니다.
+command = ["node", "/absolute/path/to/claude-agent-acp/dist/index.js"]
+models = ["claude-opus-5", "claude-sonnet-5", "claude-fable-5-1", "claude-haiku-4-5-20251001"]
+efforts = ["low", "medium", "high", "xhigh", "max"]
 
 [kinds.gpt]
 label = "GPT"
 # Codex 어댑터는 "node"와 dist/index.js 경로를 별도 인자로 넣습니다.
 command = ["node", "/absolute/path/to/codex-acp/dist/index.js"]
-models = ["gpt-6.2-sol"]
-efforts = ["low", "medium", "high"]
+models = ["gpt-6.2-sol", "gpt-6.2-astra", "gpt-6.1-sol"]
+efforts = ["low", "medium", "high", "xhigh", "max"]
 
 [kinds.gemini]
 label = "Gemini"

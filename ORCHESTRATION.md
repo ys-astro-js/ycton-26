@@ -129,7 +129,7 @@ API 문서 또는 프론트에서 아래 순서로 요청합니다.
 에이전트 예시:
 
 ```json
-{"name":"프론트 담당", "kind":"claude", "model":"claude-opus-5-5", "effort":"high", "good_at":["프론트엔드", "UI 구현"]}
+{"name":"프론트 담당", "kind":"claude", "model":"claude-opus-5", "effort":"high", "good_at":["프론트엔드", "UI 구현"]}
 ```
 
 할 일 예시:
