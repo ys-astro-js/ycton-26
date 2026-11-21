@@ -485,11 +485,8 @@ class TaskService:
             return None
         repo = self.room_repository(room)
         if repo is None:
-            return {"task": task, "agents": agents, "profiles": {}, "default_verify": "unit"}
-        verifiers = getattr(self, "runtime_config", None)
-        profiles = {name: " ".join(verifiers.verifiers[name].command) if verifiers else ""
-                    for name in repo.verification_profiles}
-        return {"task": task, "agents": agents, "profiles": profiles,
+            return {"task": task, "agents": agents, "profiles": (), "default_verify": "unit"}
+        return {"task": task, "agents": agents, "profiles": repo.verification_profiles,
                 "default_verify": repo.default_verification_profile}
 
     def assign(self, task_id, agent_id, verify):

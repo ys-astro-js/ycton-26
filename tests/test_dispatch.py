@@ -198,6 +198,7 @@ def test_jev_picks_owner_and_verification_profile(acp_room):
     questions = requests[0]["questions"]
     assert set(questions["owner"]["criteria"]) == {"A", "B"}
     assert set(questions["verify"]["criteria"]) == {"e2e", "unit"}
+    assert questions["verify"]["criteria"] == {"e2e": None, "unit": None}
 
 
 def test_human_chosen_verification_is_kept_and_invalid_jev_choice_falls_back(acp_room):
