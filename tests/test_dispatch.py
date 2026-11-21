@@ -255,3 +255,23 @@ def test_scheduler_assigns_and_finishes_mock_task(tmp_path):
             time.sleep(0.05)
         task = state["tasks"][0]
         assert task["status"] == "done" and task["verify"] == "unit"
+
+
+def test_chat_prompt_marks_only_the_chosen_responder(room):
+    """다른 에이전트는 Jev가 맡긴 사람 질문을 for_you=false로 보고 중복 답을 하지 않는다."""
+    from ycton.orchestration.services.prompt_builder import build_prompt
+    svc, rid, ids = room
+    routed = svc.post_message(rid, "버튼 색이 안 보여요")
+    run(lambda: Dispatcher(svc).route_message(rid, routed["id"]))
+    mentioned = svc.post_message(rid, "@Bob 이것도 봐 줘")
+
+    def human_flags(agent):
+        prompt = json.loads(build_prompt(svc, {"room_id": rid, "agent_id": ids[agent], "kind": "chat"}))
+        return {m["id"]: m["for_you"] for m in prompt["messages"] if m["author"] == "human"}
+
+    chosen = next(name for name, aid in ids.items()
+                  if json.loads(svc.snapshot(rid)["messages"][0]["addressed_to"]) == [aid])
+    for name in ids:
+        flags = human_flags(name)
+        assert flags[routed["id"]] is (name == chosen)
+        assert flags[mentioned["id"]] is (name == "Bob")

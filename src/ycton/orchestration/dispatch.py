@@ -47,7 +47,7 @@ class Dispatcher:
                 picked = by_name[answers["responder"]]
         if picked is None:
             picked = self.fallback_responder(context)
-        self.service.wake_agents(room_id, [picked["id"]], reset=True)
+        self.service.route_message(room_id, message_id, picked["id"])
         return picked["id"]
 
     @staticmethod

@@ -75,6 +75,13 @@ class TaskService:
     def event(conn, task, event, detail):
         conn.execute("INSERT INTO task_events(task_id,event,detail) VALUES(?,?,?)", (task, event, detail))
 
+    def route_message(self, room_id, message_id, agent_id):
+        """Jev가 고른 에이전트를 사람 메시지의 답변자로 적고 그 에이전트만 깨운다."""
+        with self.db.connect(write=True) as c:
+            c.execute("UPDATE messages SET addressed_to=? WHERE id=? AND room_id=?",
+                      (json.dumps([agent_id]), message_id, room_id))
+            self.wake(c, room_id, agent_id=agent_id, reset=True)
+
     def wake_agents(self, room_id, agent_ids, reset=False):
         with self.db.connect(write=True) as c:
             for agent_id in agent_ids:
@@ -239,8 +246,11 @@ class TaskService:
             if reply_to_message_id is not None:
                 asker = c.execute("SELECT author FROM messages WHERE id=?", (reply_to_message_id,)).fetchone()["author"]
                 targets.append(int(asker.removeprefix("agent:")))
+            targets = list(dict.fromkeys(targets))
+            if agent_id is None and targets:
+                c.execute("UPDATE messages SET addressed_to=? WHERE id=?", (json.dumps(targets), message_id))
             # 사람 메시지는 새 대화이므로 턴 수를 다시 센다. 에이전트끼리는 부른 상대만 깨우고 턴 수를 이어 센다.
-            for target in dict.fromkeys(targets):
+            for target in targets:
                 self.wake(c, room_id, agent_id=target, reset=agent_id is None)
             # 사람이 아무도 부르지 않았으면 Jev가 답할 에이전트를 고른다.
             return {"id": message_id, "needs_routing": agent_id is None and not targets}
