@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 
 from ycton.acp_runtime import run_session
-from ycton.work_session import WorkTask, ensure_branch, fast_forward, run_work_session, worktree_clean
+from ycton.work_session import (WorkTask, ensure_branch, fast_forward, rebase_onto, run_work_session,
+                                worktree_clean)
 from ycton.room_mcp import room_mcp_server
 from ycton.agent_process import spawn_owned_agent
 from ycton.subprocess_env import child_environment
@@ -14,6 +15,9 @@ from .services.task_service import require
 from .event_log import EventLog
 from .runtime_config import Repository
 from .services.task_service import DomainError, UNKNOWN_REPOSITORY, UNAVAILABLE_VERIFICATION
+
+# 방 브랜치가 그사이 또 움직였을 때 다시 쌓기를 시도하는 최대 횟수.
+MAX_REBASES = 3
 
 
 async def verify_worktree(profile, worktree):
@@ -159,13 +163,33 @@ class AcpRuntime:
                 return RuntimeResult(False, summary, "passed" if passed else "failed", log_path=str(log))
             if not passed:
                 return RuntimeResult(False, summary, "failed", log_path=str(log))
-            # 병합하지 않고 빨리 감기만 한다. 그사이 다른 할 일이 방 브랜치를 옮겼으면 실패로 돌려 새 끝에서 다시 하게 한다.
-            if not await fast_forward(Path(repository.path), room_branch, commit):
-                summary += (f"\n{room_branch} 반영 실패: 이 시도가 시작한 뒤 다른 할 일의 결과가 먼저 반영되어 "
-                            "빨리 감기할 수 없습니다. 다시 시도하면 새 끝에서 시작합니다")
-                return RuntimeResult(False, summary, "passed", log_path=str(log))
+            # 병합 커밋은 만들지 않는다. 그사이 다른 할 일이 방 브랜치를 옮겼으면 이 시도의 커밋을 새 끝 위로
+            # 다시 쌓고(rebase) 서버 검증을 다시 통과해야 빨리 감는다. 충돌하면 실패로 돌려 새 끝에서 다시 하게 한다.
+            rebases = 0
+            while not await fast_forward(Path(repository.path), room_branch, commit):
+                if rebases == MAX_REBASES:
+                    summary += (f"\n{room_branch} 반영 실패: 다른 할 일의 결과가 계속 먼저 반영되어 "
+                                f"{MAX_REBASES}번 다시 쌓아도 빨리 감기할 수 없습니다. 다시 시도하면 새 끝에서 시작합니다")
+                    return RuntimeResult(False, summary, "passed", commit, log_path=str(log))
+                rebases += 1
+                rebased = await rebase_onto(worktree, room_branch)
+                if rebased.commit is None:
+                    reason = (f"충돌한 파일: {', '.join(rebased.conflicts)}" if rebased.conflicts
+                              else f"다시 쌓기 오류: {rebased.error[:500]}")
+                    summary += (f"\n{room_branch} 반영 실패: 이 시도가 시작한 뒤 다른 할 일의 결과가 먼저 반영되었고, "
+                                f"이 시도의 커밋을 새 끝 위로 다시 쌓을 수 없습니다. {reason}. "
+                                "다시 시도하면 새 끝에서 시작합니다")
+                    return RuntimeResult(False, summary, "passed", commit, log_path=str(log))
+                commit = rebased.commit
+                self.service.record_rebased_commit(request.session_id, commit)
+                passed, output = await verify_worktree(profile, worktree)
+                self.service.execution_metadata(request.session_id, verification_output=output)
+                summary += f"\n{room_branch} 끝으로 다시 쌓음: {commit}; 서버 재검증: {'passed' if passed else 'failed'}"
+                if not passed:
+                    summary += f"\n{output[:4000]}"
+                    return RuntimeResult(False, summary, "failed", commit, log_path=str(log))
             summary += f"\n{room_branch}={commit}"
-            return RuntimeResult(True, summary, "passed", log_path=str(log))
+            return RuntimeResult(True, summary, "passed", commit, log_path=str(log))
         except TimeoutError:
             return RuntimeResult(False, f"작업 또는 검증 시간 초과; worktree={worktree}; branch={branch}", log_path=str(log))
         except asyncio.CancelledError:
