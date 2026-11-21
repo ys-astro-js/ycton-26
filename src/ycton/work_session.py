@@ -64,6 +64,7 @@ async def run_work_session(
     timeout: float = 600,
     mcp_servers: list[McpServerStdio] | None = None,
     on_update: Callable[[SessionNotification], None] | None = None,
+    config: dict[str, str] | None = None,
 ) -> WorkSessionResult:
     """Run Codex at a new worktree path. Keep the checkout for review or handoff."""
     repo_root = Path(await _git(repo.resolve(), "rev-parse", "--show-toplevel")).resolve()
@@ -75,6 +76,6 @@ async def run_work_session(
 
     session = await _run_session(
         executable, *args, cwd=workdir, prompt=_work_prompt(task), timeout=timeout,
-        mcp_servers=mcp_servers, on_update=on_update, work=True,
+        mcp_servers=mcp_servers, on_update=on_update, work=True, config=config,
     )
     return WorkSessionResult(worktree=workdir, session=session)

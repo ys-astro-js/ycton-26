@@ -34,6 +34,11 @@ class AcpRuntime:
     def __init__(self, service, config, tokens):
         self.service, self.config, self.tokens = service, config, tokens
 
+    @staticmethod
+    def session_config(request):
+        """에이전트에 고른 모델과 추론 수준을 ACP 세션 설정 항목의 분류 이름에 맞춘다."""
+        return {category: value for category, value in (("model", request.model), ("thought_level", request.effort)) if value}
+
     async def run(self, request):
         kind = self.config.kinds[request.agent_kind]
         log = self.config.logs / f"{request.session_id}.jsonl"
@@ -54,7 +59,8 @@ class AcpRuntime:
                       "할 일이 없으면 불필요한 메시지 없이 턴을 끝내세요.\n" + kind.instructions + "\n" + request.prompt)
             async with EventLog(log, self.service, request.session_id, secrets=(token,)) as events:
                 result = await run_session(*kind.command, cwd=self.config.repo, prompt=prompt,
-                                          timeout=self.config.timeout, mcp_servers=[mcp], on_update=events.on_update)
+                                          timeout=self.config.timeout, mcp_servers=[mcp], on_update=events.on_update,
+                                          config=self.session_config(request))
             self.service.execution_metadata(request.session_id, acp_session_id=result.session_id,
                                             stop_reason=str(result.stop_reason))
             # 최종 텍스트는 방에 올리지 않는다. send를 통해 저장된 메시지만 노출한다.
@@ -75,7 +81,8 @@ class AcpRuntime:
         try:
             async with EventLog(log, self.service, request.session_id) as events:
                 result = await run_work_session(*kind.command, repo=self.config.repo, worktree=worktree,
-                                               task=task, timeout=self.config.timeout, on_update=events.on_update)
+                                               task=task, timeout=self.config.timeout, on_update=events.on_update,
+                                               config=self.session_config(request))
             self.service.execution_metadata(request.session_id, acp_session_id=result.session.session_id,
                                             stop_reason=str(result.session.stop_reason))
             if result.session.stop_reason != "end_turn":

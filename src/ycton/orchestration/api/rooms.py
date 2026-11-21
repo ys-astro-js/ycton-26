@@ -19,6 +19,11 @@ def list_rooms(svc=Depends(service)):
         return [dict(r) for r in c.execute("SELECT * FROM rooms ORDER BY id")]
 
 
+@router.get("/agent-models")
+def agent_models(svc=Depends(service)):
+    return [{**p, "models": list(p["models"]), "efforts": list(p["efforts"])} for p in svc.agent_models()]
+
+
 @router.post("/rooms/{room_id}/agents", status_code=201)
 def create_agent(room_id: int, body: AgentCreate, svc=Depends(service)):
     return svc.create_agent(room_id, **body.model_dump())

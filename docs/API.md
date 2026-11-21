@@ -11,7 +11,8 @@
 | GET `/health` | 없음 | ok와 mock/acp 모드 |
 | POST `/api/rooms` | name | 생성한 방 |
 | GET `/api/rooms` | 없음 | 방 목록 |
-| POST `/api/rooms/{id}/agents` | name, kind, good_at 배열 | 참여자, acp에서는 등록된 kind만 허용 |
+| GET `/api/agent-models` | - | 고를 수 있는 모델 `[{id, label, models, efforts}]`. acp는 runtime.toml, mock은 runtime.toml이 없으면 runtime.example.toml의 `[kinds.*]` |
+| POST `/api/rooms/{id}/agents` | name, kind(제공자 id), model, effort, good_at 배열(담당 업무) | 참여자. acp에서는 등록된 제공자만, 목록이 있는 제공자는 그 안의 model·effort만 허용 |
 | POST `/api/rooms/{id}/tasks` | title, detail, scope, verify | 할 일. acp의 verify는 검증 프로필 이름 |
 | POST `/api/rooms/{id}/messages` | content | 사람 메시지 저장 |
 | GET `/api/rooms/{id}/state` | 없음 | room, agents, tasks, sessions, messages, jev, mode |

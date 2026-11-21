@@ -1,9 +1,14 @@
 """상태 변경의 단일 진입점. 모든 변경·이력·메시지를 같은 트랜잭션에 저장한다."""
 import json
 import sqlite3
+from pathlib import Path
 from uuid import uuid4
 
+from ycton.orchestration.runtime_config import read_catalog
 from ycton.orchestration.runtime_port import RuntimeResult
+
+# mock 모드에 runtime.toml이 없을 때 고를 모델을 저장소의 예시 설정에서 가져온다.
+EXAMPLE_RUNTIME_CONFIG = Path(__file__).resolve().parents[4] / "runtime.example.toml"
 
 
 class DomainError(Exception):
@@ -50,14 +55,30 @@ class TaskService:
             rid = c.execute("INSERT INTO rooms(name) VALUES(?)", (name,)).lastrowid
             return require(c, "rooms", rid)
 
-    def create_agent(self, room_id, name, kind, good_at):
+    def agent_models(self):
+        """사람이 고를 수 있는 제공자, 모델, 추론 수준. 실행 명령은 내보내지 않는다."""
+        if self.settings.mode == "acp":
+            return [{"id": name, "label": kind.label or name, "models": kind.models, "efforts": kind.efforts}
+                    for name, kind in self.runtime_config.kinds.items()]
+        for path in (Path(self.settings.runtime_config), EXAMPLE_RUNTIME_CONFIG):
+            if path.is_file():
+                return read_catalog(path)
+        return []
+
+    def create_agent(self, room_id, name, kind, good_at, model="", effort=""):
         if self.settings.mode == "acp" and kind not in self.runtime_config.kinds:
-            raise DomainError("서버 설정에 없는 에이전트 종류입니다", 422)
+            raise DomainError("서버 설정에 없는 모델 제공자입니다", 422)
+        provider = next((p for p in self.agent_models() if p["id"] == kind), None)
+        if provider is not None:
+            if provider["models"] and model not in provider["models"]:
+                raise DomainError("이 제공자에 없는 모델입니다", 422)
+            if provider["efforts"] and effort not in provider["efforts"]:
+                raise DomainError("이 모델에 없는 추론 수준입니다", 422)
         with self.db.connect(write=True) as c:
             require(c, "rooms", room_id)
             try:
-                aid = c.execute("INSERT INTO agents(room_id,name,kind,good_at) VALUES(?,?,?,?)",
-                                (room_id, name, kind, json.dumps(good_at, ensure_ascii=False))).lastrowid
+                aid = c.execute("INSERT INTO agents(room_id,name,kind,model,effort,good_at) VALUES(?,?,?,?,?,?)",
+                                (room_id, name, kind, model, effort, json.dumps(good_at, ensure_ascii=False))).lastrowid
             except sqlite3.IntegrityError as exc:
                 raise DomainError("방 안에서 에이전트 이름이 중복됩니다") from exc
             self.wake(c, room_id, reset=True)

@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS rooms (
 CREATE TABLE IF NOT EXISTS agents (
  id INTEGER PRIMARY KEY, room_id INTEGER NOT NULL REFERENCES rooms(id),
  name TEXT NOT NULL, kind TEXT NOT NULL, good_at TEXT NOT NULL,
+ model TEXT NOT NULL DEFAULT '', effort TEXT NOT NULL DEFAULT '',
  UNIQUE(room_id, name)
 );
 CREATE TABLE IF NOT EXISTS messages (
@@ -58,6 +59,12 @@ class Database:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA foreign_keys=ON")
             conn.executescript(SCHEMA)
+            # 모델과 추론 수준 열이 생기기 전에 만든 DB를 이어서 쓴다
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(agents)")}
+            for column in ("model", "effort"):
+                if column not in columns:
+                    conn.execute(f"ALTER TABLE agents ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
+            conn.commit()
         finally:
             conn.close()
 

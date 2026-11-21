@@ -7,8 +7,30 @@ from urllib.parse import urlsplit
 
 @dataclass(frozen=True)
 class AgentKind:
+    """모델 제공자 하나. 사람은 이 가운데서 제공자, 모델, 추론 수준을 고른다."""
     command: tuple[str, ...]
     instructions: str = ""
+    label: str = ""
+    models: tuple[str, ...] = ()
+    efforts: tuple[str, ...] = ()
+
+
+def names(item, key):
+    value = item.get(key, [])
+    if not isinstance(value, list) or not all(isinstance(x, str) and x for x in value):
+        raise ValueError(f"{key}는 문자열 배열이어야 합니다")
+    return tuple(value)
+
+
+def catalog_entry(name, item):
+    return {"id": name, "label": item.get("label", name), "models": names(item, "models"), "efforts": names(item, "efforts")}
+
+
+def read_catalog(path):
+    """mock 모드처럼 전체 설정을 검증하지 않을 때, 제공자와 모델, 추론 수준만 읽는다."""
+    with Path(path).open("rb") as file:
+        data = tomllib.load(file)
+    return [catalog_entry(name, item) for name, item in data.get("kinds", {}).items()]
 
 
 @dataclass(frozen=True)
@@ -52,7 +74,8 @@ class RuntimeConfig:
         if (parsed.scheme != "http" or parsed.hostname != "127.0.0.1" or parsed.username
                 or parsed.password or parsed.path not in ("", "/") or parsed.query or parsed.fragment):
             raise ValueError("api_url은 경로 없는 http://127.0.0.1:<포트>여야 합니다")
-        kinds = {name: AgentKind(command(item["command"]), item.get("instructions", ""))
+        kinds = {name: AgentKind(command(item["command"]), item.get("instructions", ""), item.get("label", name),
+                                 names(item, "models"), names(item, "efforts"))
                  for name, item in data["kinds"].items()}
         verifiers = {name: Verification(command(item["command"]), float(item.get("timeout", 60)), item.get("contains", ""))
                      for name, item in data["verify"].items()}
