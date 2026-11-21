@@ -47,11 +47,12 @@ uv run --locked python -m ycton.acp_runtime --prompt 'Reply with exactly ACP_CON
 
 성공하면 응답 `ACP_CONNECTED`와 종료 이유 `end_turn`이 출력됩니다. 백엔드에서는 `ycton.acp_runtime.run_session`을 호출해 한 턴의 결과를 받고, `on_update`로 진행 이벤트를 수신합니다. 이 단계에서는 채팅방 MCP 서버 없이 연결만 확인합니다.
 
-### MCP `send` 연동
+### 채팅방 MCP 연동
 
 - 오케스트레이션에서 `ycton.room_mcp.room_mcp_server(api_url=..., token=..., room_id=..., participant_id=...)`로 방·에이전트별 설정을 만들고 `run_session(..., mcp_servers=[room])`에 넘깁니다. `api_url`은 `http://127.0.0.1:<포트>`입니다.
 - 채팅 에이전트는 `send({"text": "메시지"})`를 호출합니다. 방, 작성자, 토큰은 실행 설정에서만 받습니다.
 - MCP 서버는 `POST /api/agent/messages`에 `Authorization: Bearer <에이전트 토큰>`과 JSON `{"room_id": "...", "participant_id": "...", "text": "..."}`를 보냅니다. 필드는 모두 문자열입니다. HTTP API는 토큰과 작성자가 해당 방의 에이전트인지 확인하고 저장한 뒤에만 2xx를 반환합니다. MCP 서버는 2xx를 받아야 성공으로 응답합니다.
+- 채팅 턴에서는 `claim({"task_id": 37})`과 `delegate({"task_id": 37, "instructions": "..."})`도 호출할 수 있습니다. 할 일 번호는 정수이며, 권한 확인·상태 변경·실행 등록은 오케스트레이션 API가 맡습니다. 정확한 HTTP 계약은 [handoff.md](handoff.md#2-할-일-할당과-작업-서브세션)를 참고하세요.
 
 ### 작업 서브세션 연동
 
@@ -191,7 +192,7 @@ uv run --locked python -m ycton.acp_runtime --prompt 'Reply with exactly ACP_CON
 3. **신원 전달**: 서버 주소, 에이전트 토큰, 방 id, 참여자 id, 마지막으로 본 메시지 id, 턴 종류를 MCP 서버 항목의 환경 변수로 넣습니다. 토큰은 서버가 켜질 때마다 32바이트 난수로 새로 만들고, MCP 서버는 이 토큰을 요청 헤더에 담아 서버에만 보냅니다. 이 토큰으로는 사람의 이름을 쓸 수 없습니다.
 4. **프롬프트**: `session/prompt` 하나에 시스템 프롬프트 내용과 턴 프롬프트를 이어 보냅니다. 어댑터와 상관없이 같은 방식으로 동작하게 하기 위해서입니다.
 5. **진행 상황**: 에이전트가 보내는 `session/update`(메시지, 도구 호출, 계획)를 세션 로그에 저장하고 웹 UI에 실시간으로 보여 줍니다. 에이전트가 지금 무엇을 하는지는 이 스트림으로 보입니다.
-6. **권한**: `session/request_permission`에는 서버가 답합니다. 채팅 턴은 클라이언트 기능(파일 읽기와 쓰기, 터미널)을 알리지 않습니다. Codex가 권한을 요청하면 등록된 채팅방 MCP의 `send`만 해당 호출에 한해 승인합니다. 서브세션의 작업은 `workspace-write` 안에서 실행하며, 추가 권한 요청에는 같은 제한을 적용합니다.
+6. **권한**: `session/request_permission`에는 서버가 답합니다. 채팅 턴은 클라이언트 기능(파일 읽기와 쓰기, 터미널)을 알리지 않습니다. 등록된 채팅방 MCP의 `send`, `claim`, `delegate` 권한은 해당 호출에 한해 승인합니다. 서브세션은 채팅방 MCP 권한 중 `send`만 승인하며 파일·명령 작업은 `workspace-write` 안에서 실행합니다.
 7. **턴 끝**: `session/prompt`의 응답을 받으면 세션을 닫고 프로세스를 정리합니다. 채팅 턴은 매번 새 세션이라 턴 사이에 컨텍스트가 쌓이지 않습니다.
 8. **시간 제한**: 채팅 턴은 기본 600초이고, 서브세션 시간 제한은 호출할 때 정할 수 있습니다. 제한을 넘으면 열린 세션에 `session/cancel`을 보냅니다. 유예 시간 뒤에도 남은 프로세스는 POSIX에서 프로세스 그룹을, Windows에서 Job Object를 통해 정리합니다.
 9. **실패 처리**: 실패하면 20초부터 두 배씩 최대 5분까지 간격을 늘려 다시 시도하고, 방에는 연속 실패당 한 번만 알립니다.
@@ -214,7 +215,8 @@ uv run --locked python -m ycton.acp_runtime --prompt 'Reply with exactly ACP_CON
 | 도구 | 채팅 턴 | 서브세션 | 하는 일 |
 | --- | --- | --- | --- |
 | `send`, `react`, `history` | 있음 | 있음 | 말하기, 반응, 이전 대화 검색 |
-| `task` | 있음 | 있음 | 할 일 보기, 추가, claim, release, done, drop |
+| `task` | 있음 | 있음 | 할 일 보기, 추가, release, done, drop |
+| `claim` | 있음 | 없음 | 열린 할 일의 담당자가 되기 |
 | `issue` | 있음 | 있음 | 이슈 보기, 열기, 댓글, 닫기 |
 | `wiki` | 있음 | 있음 | 문서 목록, 읽기, 쓰기, 리비전 기록, 토론 |
 | `delegate` | 있음 | 없음 | 서브세션에 맡기기 |

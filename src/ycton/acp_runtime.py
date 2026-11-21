@@ -27,7 +27,7 @@ from acp.schema import (
 )
 
 from .agent_process import spawn_owned_agent
-from .room_mcp import ROOM_MCP_NAME, is_room_mcp_server
+from .room_mcp import ROOM_CHAT_TOOLS, ROOM_MCP_NAME, ROOM_WORK_TOOLS, is_room_mcp_server, room_mcp_for_work
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,13 +38,13 @@ class SessionResult:
 
 
 class _SessionClient(Client):
-    def __init__(self, on_update: Callable[[SessionNotification], None] | None, *, allow_room_send: bool) -> None:
+    def __init__(self, on_update: Callable[[SessionNotification], None] | None, *, room_tools: tuple[str, ...]) -> None:
         self.on_update = on_update
         self.text_parts: list[str] = []
         self.last_message_id: str | None = None
         self.last_message_offset = 0
-        self.allow_room_send = allow_room_send
-        self._pending_room_sends: set[tuple[str, str]] = set()
+        self.room_tools = room_tools
+        self._pending_room_calls: set[tuple[str, str]] = set()
 
     async def session_update(self, session_id: str, update: Any, **kwargs: Any) -> None:
         if isinstance(update, AgentMessageChunk) and isinstance(update.content, TextContentBlock):
@@ -52,18 +52,18 @@ class _SessionClient(Client):
                 self.last_message_id = update.message_id
                 self.last_message_offset = len(self.text_parts)
             self.text_parts.append(update.content.text)
-        if self.allow_room_send and isinstance(update, ToolCallStart):
+        if self.room_tools and isinstance(update, ToolCallStart):
             tool = update.raw_input
             if (
                 update.field_meta
                 and update.field_meta.get("is_mcp_tool_call") is True
                 and isinstance(tool, dict)
                 and tool.get("server") == ROOM_MCP_NAME
-                and tool.get("tool") in {"send", "list_tasks", "claim", "delegate"}
+                and tool.get("tool") in self.room_tools
             ):
-                self._pending_room_sends.add((session_id, update.tool_call_id))
+                self._pending_room_calls.add((session_id, update.tool_call_id))
         elif isinstance(update, ToolCallProgress) and update.status in ("completed", "failed"):
-            self._pending_room_sends.discard((session_id, update.tool_call_id))
+            self._pending_room_calls.discard((session_id, update.tool_call_id))
         if self.on_update is not None:
             self.on_update(SessionNotification(session_id=session_id, update=update))
 
@@ -72,8 +72,8 @@ class _SessionClient(Client):
     ) -> RequestPermissionResponse:
         # Codex ACP links the approval to the preceding MCP tool call by ID.
         key = (session_id, tool_call.tool_call_id)
-        if kwargs.get("is_mcp_tool_approval") is True and key in self._pending_room_sends:
-            self._pending_room_sends.remove(key)
+        if kwargs.get("is_mcp_tool_approval") is True and key in self._pending_room_calls:
+            self._pending_room_calls.remove(key)
             for option in options:
                 if option.kind == "allow_once":
                     return RequestPermissionResponse(outcome=AllowedOutcome(option_id=option.option_id))
@@ -111,8 +111,14 @@ async def _run_session(
     work: bool,
 ) -> SessionResult:
     workdir = cwd.resolve()
-    room_servers = [server for server in mcp_servers or () if server.name == ROOM_MCP_NAME]
-    client = _SessionClient(on_update, allow_room_send=len(room_servers) == 1 and is_room_mcp_server(room_servers[0]))
+    servers = mcp_servers or []
+    room_servers = [server for server in servers if server.name == ROOM_MCP_NAME]
+    room_tools = ()
+    if len(room_servers) == 1 and is_room_mcp_server(room_servers[0]):
+        room_tools = ROOM_WORK_TOOLS if work else ROOM_CHAT_TOOLS
+    if work:
+        servers = [room_mcp_for_work(server) if is_room_mcp_server(server) else server for server in servers]
+    client = _SessionClient(on_update, room_tools=room_tools)
     env = {**os.environ, "INITIAL_AGENT_MODE": "workspace-write"} if work else {**os.environ, "INITIAL_AGENT_MODE": "read-only"}
     async with spawn_owned_agent(executable, *args, cwd=workdir, env=env) as process:
         assert process.stdin is not None and process.stdout is not None
@@ -123,7 +129,7 @@ async def _run_session(
                 initialized = await connection.initialize(protocol_version=PROTOCOL_VERSION)
                 if initialized.protocol_version != PROTOCOL_VERSION:
                     raise RuntimeError(f"Unsupported ACP protocol version: {initialized.protocol_version}")
-                session = await connection.new_session(cwd=str(workdir), mcp_servers=mcp_servers or [])
+                session = await connection.new_session(cwd=str(workdir), mcp_servers=servers)
                 session_id = session.session_id
                 response = await connection.prompt(session_id=session_id, prompt=[TextContentBlock(text=prompt)])
         except (TimeoutError, asyncio.CancelledError):

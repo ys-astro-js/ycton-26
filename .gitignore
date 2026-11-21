@@ -87,3 +87,9 @@ logs/
 # Orchestration local state
 data/
 runtime.toml
+# ===== Impeccable (generated design artifacts) =====
+.impeccable/build/
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/questions/
+.impeccable/hook.cache.json

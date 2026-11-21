@@ -1,6 +1,6 @@
 """담당 1 room_mcp의 문자열 ID·text 요청을 내부 상태 서비스에 연결한다."""
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from pydantic import Field
+from pydantic import Field, field_validator
 from .dependencies import service
 from ..identity import Identity
 from ..schemas import Input
@@ -21,9 +21,16 @@ class Message(Actor):
 class Assignment(Actor):
     task_id: str = Field(min_length=1)
 
+    @field_validator("task_id", mode="before")
+    @classmethod
+    def normalize_task_id(cls, value):
+        if type(value) is int:
+            return str(value)
+        return value
+
 
 class Delegation(Assignment):
-    request_id: str = Field(min_length=1, max_length=128)
+    request_id: str | None = Field(default=None, min_length=1, max_length=128)
     instructions: str = Field(default="", max_length=10000)
 
 
@@ -75,4 +82,6 @@ def claim(body: Assignment, actor=Depends(identity), svc=Depends(service)):
 @router.post("/tasks/delegate", status_code=202)
 def delegate(body: Delegation, actor=Depends(identity), svc=Depends(service)):
     validate(svc, actor, body)
-    return svc.delegate(task_number(body.task_id), actor.agent_id, body.request_id, body.instructions)
+    # 기존 담당 1 규격은 request_id가 없다. 같은 채팅 세션의 같은 작업은 같은 키로 합친다.
+    key = body.request_id or f"session:{actor.session_id}:task:{body.task_id}"
+    return svc.delegate(task_number(body.task_id), actor.agent_id, key, body.instructions)

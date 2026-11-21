@@ -1015,9 +1015,16 @@
             "title": "Task Id"
           },
           "request_id": {
-            "type": "string",
-            "maxLength": 128,
-            "minLength": 1,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Request Id"
           },
           "instructions": {
@@ -1032,8 +1039,7 @@
         "required": [
           "room_id",
           "participant_id",
-          "task_id",
-          "request_id"
+          "task_id"
         ],
         "title": "Delegation"
       },

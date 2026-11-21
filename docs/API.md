@@ -112,3 +112,7 @@ delegate(task_id, request_id, instructions="")
 401: 토큰 없음/폐기됨. 403: 방·작성자 불일치, 비활성 세션, 금지된 Origin/사람용 요청. 404: 항목 없음. 409: 상태 충돌. 422: 입력 오류/없는 종류/검증 프로필.
 
 도메인 오류는 `{"detail":"이유"}`이고, FastAPI 입력 검증 오류의 detail은 배열입니다. MCP는 HTTP 상태를 도구 오류로 변환합니다. API 응답 본문을 임의의 셸 명령으로 실행하지 않습니다.
+
+## 최신 런타임 병합 호환성
+
+`claim`과 `delegate`는 정수 task_id도 받으며 내부에서 문자열로 정규화합니다. `delegate.request_id`를 생략하면 현재 채팅 세션과 작업 ID로 중복 방지 키를 만듭니다. 기존 명시적 request_id 방식도 유지합니다. MCP의 `--work` 모드는 send만 노출하며, 현재 오케스트레이터는 work 세션에 MCP 토큰을 전달하지 않는 정책을 유지합니다.

@@ -159,7 +159,7 @@ def test_permission_allowlist(tool,allowed):
     from acp.schema import ToolCallStart,ToolCallUpdate,PermissionOption
     from ycton.acp_runtime import _SessionClient
     async def exercise():
-        client=_SessionClient(None,allow_room_send=True)
+        client=_SessionClient(None,room_tools=("send", "list_tasks", "claim", "delegate"))
         await client.session_update('s',ToolCallStart(tool_call_id='t',title=tool,
             raw_input={'server':'room','tool':tool},field_meta={'is_mcp_tool_call':True}))
         response=await client.request_permission('s',ToolCallUpdate(tool_call_id='t'),
@@ -188,3 +188,22 @@ def test_wrong_stop_reason_cannot_complete_work(bridge,monkeypatch):
     monkeypatch.setattr(module,'verify_worktree',never)
     result=asyncio.run(AcpRuntime(svc,config,Tokens()).run(request))
     assert not result.succeeded
+
+
+def test_work_mcp_exposes_only_send():
+    async def exercise():
+        async with httpx.AsyncClient(base_url="http://127.0.0.1") as client:
+            server = build_room_server(client, room_id="1", participant_id="2", work=True)
+            assert {t.name for t in await server.list_tools()} == {"send"}
+    asyncio.run(exercise())
+
+
+def test_teammate_numeric_id_and_delegate_without_request_id(bridge):
+    app, client, actor, token, sid, tid, _ = bridge
+    headers = {"Authorization": f"Bearer {token}"}
+    assert client.post("/api/agent/tasks/claim", headers=headers,
+                       json={**actor, "task_id": tid}).status_code == 200
+    body = {**actor, "task_id": tid, "instructions": "go"}
+    first = client.post("/api/agent/tasks/delegate", headers=headers, json=body)
+    second = client.post("/api/agent/tasks/delegate", headers=headers, json=body)
+    assert first.status_code == 202 and second.json()["id"] == first.json()["id"]

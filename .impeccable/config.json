@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "web/src/review/review.css"
+        ],
+        "createdAt": "2026-11-21T03:30:15.677Z",
+        "reason": "agent: Collapse measures content with ResizeObserver and animates height, the one layout property better-motion (user-mandated skill) sanctions for disclosure panels"
+      }
+    ]
+  }
+}
