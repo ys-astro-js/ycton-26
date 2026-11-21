@@ -37,6 +37,8 @@ pytest 경고는 현재 Starlette TestClient의 HTTPX 지원에 대한 deprecati
 
 2026-11-21: `33 passed`. 시도별 브랜치 worktree, 작업 MCP의 commit 전용 노출, 고른 파일만 커밋, worktree 밖·`.git`·절대 경로 거절, chat 토큰의 커밋과 work 토큰의 send 거절, done에서만 할 일에 해시 연결, 실패 시도의 해시를 인계 노트에 보존, 작업 토큰 폐기를 검증했습니다. 실제 git 저장소를 사용했고 실제 모델 호출은 하지 않았습니다.
 
+같은 날 커밋 필수 규칙 추가 후 `34 passed`. 검증을 통과해도 커밋이 없으면 할 일이 open으로 돌아가고 인계 노트에 "커밋 없음"이 남는 것을 확인했습니다.
+
 ## 실제 Codex 통합 검증
 
 - Windows에서 Codex ACP 2.8.0, Uvicorn의 `acp` 모드, 실제 SQLite, 임시 Git 저장소를 사용했습니다. 사람용 HTTP API로 두 역할의 에이전트와 할 일 하나를 등록했습니다. 사람용 API에서 담당을 지정하거나 작업을 직접 실행하지 않았습니다.
