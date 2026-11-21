@@ -99,9 +99,9 @@ export function ReviewPage() {
         <main id="main" className="grid min-w-0 content-start gap-10">
           <section aria-labelledby="compose-heading" className="grid gap-3">
             <h2 id="compose-heading" className="text-lg font-semibold">
-              새로 맡기기
+              할 일 맡기기
             </h2>
-            <div className="border bg-card px-4 pt-3 pb-4">
+            <div className="border bg-card px-4 pt-2 pb-3">
               <Composer />
             </div>
           </section>

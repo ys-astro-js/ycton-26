@@ -6,7 +6,6 @@ import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'rea
 import { api, ApiError } from '@/api/client'
 import { IconButton } from '@/components/icon-button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -16,10 +15,11 @@ import { ROOMS_KEY, roomKey, splitRequest, useRooms } from '../room/data.ts'
 
 type Intent = 'say' | 'assign'
 
-const LABEL = 'text-xs font-normal text-muted-foreground'
-
-/** 검증 프로필 목록을 주는 API가 없어, runtime.example.toml의 [verify.unit]을 기본값으로 씁니다 */
-const DEFAULT_VERIFY = 'unit'
+/**
+ * 할 일마다 서버에 등록된 검증 프로필 이름을 보내야 합니다.
+ * 사람이 고를 일이 아니고 목록을 주는 API도 없어, runtime.example.toml의 [verify.unit]을 늘 씁니다.
+ */
+const VERIFY_PROFILE = 'unit'
 
 /**
  * 새 일을 맡기는 입력. 아침 리뷰(어느 방에 맡길지 고름)와 채팅방(그 방의 입력창)이 같이 씁니다.
@@ -34,29 +34,20 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
 
   const [intent, setIntent] = useState<Intent>(global ? 'assign' : 'say')
   const [target, setTarget] = useState(roomId !== undefined ? String(roomId) : '')
-  const [verify, setVerify] = useState(DEFAULT_VERIFY)
   const [text, setText] = useState('')
-  const [invalid, setInvalid] = useState<{ room?: boolean; text?: boolean; verify?: boolean }>({})
-  // 아침 리뷰에서는 처리 필요를 밀어내지 않도록 입력 한 줄만 두고, 쓰기 시작하면 방과 검증을 펼칩니다
-  const [engaged, setEngaged] = useState(false)
+  const [invalid, setInvalid] = useState<{ room?: boolean; text?: boolean }>({})
 
   const textRef = useRef<HTMLTextAreaElement>(null)
   const roomSelectRef = useRef<HTMLSelectElement>(null)
-  const verifyRef = useRef<HTMLInputElement>(null)
   const ids = {
     room: useId(),
-    verify: useId(),
     text: useId(),
     textError: useId(),
     roomError: useId(),
-    verifyError: useId(),
-    title: useId(),
     server: useId(),
   }
 
   const assigning = intent === 'assign'
-  const { title } = splitRequest(text)
-  const showFields = global ? engaged || text.length > 0 || Boolean(invalid.room) : assigning
 
   const send = useMutation({
     mutationFn: async ({ room, body, asTask }: { room: number; body: string; asTask: boolean }) => {
@@ -65,7 +56,7 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
         return undefined
       }
       const { title: taskTitle, detail } = splitRequest(body)
-      return api.createTask(room, { title: taskTitle, detail, scope: '', verify: verify.trim() })
+      return api.createTask(room, { title: taskTitle, detail, scope: '', verify: VERIFY_PROFILE })
     },
     onSuccess: async (task, { room }) => {
       setText('')
@@ -83,11 +74,10 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
   const submit = (event?: FormEvent) => {
     event?.preventDefault()
     const room = roomId ?? Number(target)
-    const next = { room: !room, text: !text.trim(), verify: assigning && !verify.trim() }
+    const next = { room: !room, text: !text.trim() }
     setInvalid(next)
     if (next.room) return roomSelectRef.current?.focus()
     if (next.text) return textRef.current?.focus()
-    if (next.verify) return verifyRef.current?.focus()
     send.mutate({ room, body: text.trim(), asTask: assigning })
   }
 
@@ -96,15 +86,7 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
   }
 
   return (
-    <form
-      noValidate
-      onSubmit={submit}
-      className="grid gap-3"
-      onFocus={() => setEngaged(true)}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null) && !text) setEngaged(false)
-      }}
-    >
+    <form noValidate onSubmit={submit} className="grid gap-3">
       {global ? null : (
         <ToggleGroup
           aria-label="보내는 방식"
@@ -125,97 +107,65 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
         </ToggleGroup>
       )}
 
-      <Field data-invalid={invalid.text || undefined} className="gap-0">
-        <FieldLabel htmlFor={ids.text} className={cn(LABEL, !global && !assigning && 'sr-only')}>
-          {assigning ? '요청' : '메시지'}
-        </FieldLabel>
-        <div className="flex items-end gap-3">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+        <Field data-invalid={invalid.text || undefined} className="min-w-0 flex-1 basis-64 gap-0">
+          <FieldLabel htmlFor={ids.text} className="sr-only">
+            {assigning ? '맡길 일' : '메시지'}
+          </FieldLabel>
           <Textarea
             ref={textRef}
             id={ids.text}
             rows={1}
             value={text}
-            placeholder={
-              assigning
-                ? showFields
-                  ? '로그인 화면에 다크 모드 추가\n토글은 헤더 오른쪽, 시스템 설정을 따름'
-                  : '맡길 일 쓰기'
-                : '메시지 보내기'
-            }
+            placeholder={assigning ? '맡길 일' : '메시지'}
             aria-invalid={invalid.text || undefined}
-            aria-describedby={cn(invalid.text && ids.textError, assigning && title && ids.title, send.error && ids.server) || undefined}
-            className={cn('max-h-64 text-base md:text-[0.9375rem]', assigning && showFields ? 'min-h-16' : 'min-h-10 py-2')}
+            aria-describedby={cn(invalid.text && ids.textError, send.error && ids.server) || undefined}
+            className="max-h-64 min-h-10 py-2 text-base md:text-[0.9375rem]"
             onKeyDown={onKeyDown}
             onChange={(event) => {
               setText(event.target.value)
               if (invalid.text) setInvalid((current) => ({ ...current, text: false }))
             }}
           />
-          <IconButton type="submit" icon={Send} label={assigning ? '맡기기' : '말하기'} disabled={send.isPending} />
-        </div>
-        {invalid.text ? (
-          <FieldError id={ids.textError}>{assigning ? '맡길 일을 입력하세요.' : '보낼 메시지를 입력하세요.'}</FieldError>
-        ) : null}
-      </Field>
+        </Field>
 
-      {showFields ? (
-        <div className="flex flex-wrap gap-x-8 gap-y-3">
-          {global ? (
-            <Field data-invalid={invalid.room || undefined} className="w-full gap-0 sm:w-56">
-              <FieldLabel htmlFor={ids.room} className={LABEL}>
-                채팅방
-              </FieldLabel>
-              <NativeSelect
-                ref={roomSelectRef}
-                id={ids.room}
-                className="w-full"
-                value={target}
-                aria-invalid={invalid.room || undefined}
-                aria-describedby={invalid.room ? ids.roomError : undefined}
-                onChange={(event) => {
-                  setTarget(event.target.value)
-                  setInvalid((current) => ({ ...current, room: false }))
-                }}
-              >
-                <NativeSelectOption value="" disabled>
-                  맡길 방 고르기
-                </NativeSelectOption>
-                {rooms.map((room) => (
-                  <NativeSelectOption key={room.id} value={room.id}>
-                    {room.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-              {invalid.room ? <FieldError id={ids.roomError}>맡길 채팅방을 고르세요.</FieldError> : null}
-            </Field>
-          ) : null}
-          <Field data-invalid={invalid.verify || undefined} className="w-full gap-0 sm:w-40">
-            <FieldLabel htmlFor={ids.verify} className={LABEL}>
-              검증 프로필
+        {global ? (
+          <Field data-invalid={invalid.room || undefined} className="min-w-0 flex-1 gap-0 sm:w-44 sm:flex-none">
+            <FieldLabel htmlFor={ids.room} className="sr-only">
+              채팅방
             </FieldLabel>
-            <Input
-              ref={verifyRef}
-              id={ids.verify}
-              value={verify}
-              className="font-mono"
-              aria-invalid={invalid.verify || undefined}
-              aria-describedby={invalid.verify ? ids.verifyError : undefined}
+            <NativeSelect
+              ref={roomSelectRef}
+              id={ids.room}
+              className="w-full"
+              value={target}
+              aria-invalid={invalid.room || undefined}
+              aria-describedby={invalid.room ? ids.roomError : undefined}
               onChange={(event) => {
-                setVerify(event.target.value)
-                setInvalid((current) => ({ ...current, verify: false }))
+                setTarget(event.target.value)
+                setInvalid((current) => ({ ...current, room: false }))
               }}
-            />
-            {invalid.verify ? <FieldError id={ids.verifyError}>검증 프로필 이름을 입력하세요.</FieldError> : null}
+            >
+              <NativeSelectOption value="" disabled>
+                채팅방 선택
+              </NativeSelectOption>
+              {rooms.map((room) => (
+                <NativeSelectOption key={room.id} value={room.id}>
+                  {room.name}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
           </Field>
-        </div>
+        ) : null}
+
+        <IconButton type="submit" icon={Send} label={assigning ? '맡기기' : '보내기'} disabled={send.isPending} />
+      </div>
+
+      {invalid.room ? <FieldError id={ids.roomError}>맡길 채팅방을 고르세요.</FieldError> : null}
+      {invalid.text ? (
+        <FieldError id={ids.textError}>{assigning ? '맡길 일을 적어 주세요.' : '보낼 메시지를 적어 주세요.'}</FieldError>
       ) : null}
 
-      {assigning && title ? (
-        <dl id={ids.title} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 text-[0.8125rem]">
-          <dt className="text-muted-foreground">할 일 제목</dt>
-          <dd className="min-w-0 truncate">{title}</dd>
-        </dl>
-      ) : null}
 
       {send.error ? (
         <p id={ids.server} role="alert" className="text-[0.8125rem] text-destructive">
