@@ -15,7 +15,7 @@ _TOKEN = "YCTON_AGENT_TOKEN"
 _ROOM_ID = "YCTON_ROOM_ID"
 _PARTICIPANT_ID = "YCTON_PARTICIPANT_ID"
 ROOM_MCP_NAME = "room"
-ROOM_WORK_TOOLS = ("commit", "no_changes")
+ROOM_WORK_TOOLS = ("commit", "no_changes", "ask_human")
 ROOM_CHAT_TOOLS = ("send", "ask_human", "list_tasks", "create_task", "merge_to_project", "claim", "delegate")
 _STDIO_ARGS = ("-I", "-m", "ycton.room_mcp")
 
@@ -77,6 +77,16 @@ def build_room_server(client: httpx.AsyncClient, *, room_id: str, participant_id
             Leave the worktree without uncommitted edits.
             """
             return (await post("/api/agent/no-changes", reason=reason)).json()
+
+        @server.tool()
+        async def ask_human(question: str) -> str:
+            """Ask the person for one decision this task found but cannot make. At most 200 characters.
+
+            Call it once per decision, with the options and your recommendation in the question itself;
+            the question goes to the person's review list. Then finish the task as usual.
+            """
+            await post("/api/agent/questions", question=question)
+            return "Question sent."
 
         return server
 

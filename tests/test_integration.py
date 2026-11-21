@@ -227,11 +227,11 @@ def test_wrong_stop_reason_cannot_complete_work(bridge,monkeypatch):
     assert not result.succeeded
 
 
-def test_work_mcp_exposes_only_commit_and_no_changes():
+def test_work_mcp_exposes_commit_no_changes_and_ask_human():
     async def exercise():
         async with httpx.AsyncClient(base_url="http://127.0.0.1") as client:
             server = build_room_server(client, room_id="1", participant_id="2", work=True)
-            assert {t.name for t in await server.list_tools()} == {"commit", "no_changes"}
+            assert {t.name for t in await server.list_tools()} == {"commit", "no_changes", "ask_human"}
     asyncio.run(exercise())
 
 
@@ -831,3 +831,17 @@ def test_chat_falls_back_to_project_folder_when_not_a_git_checkout(bridge, monke
     assert run_chat(app.state.service, config, chat, monkeypatch, during).succeeded
     assert seen['cwd'] == folder and f'ycton/room-{room}의 최신' not in seen['prompt']
     assert not (root / 'worktrees').exists()
+
+
+def test_work_session_can_ask_the_human_a_decision(bridge):
+    app, client, actor, token, sid, tid, root = bridge
+    svc, config, request = setup_work(bridge)
+    with svc.db.connect(write=True) as c:
+        c.execute("UPDATE sessions SET status='running' WHERE id=?", (request.session_id,))
+    work_token = app.state.tokens.issue(Identity(request.session_id, request.room_id, request.agent_id))
+    headers = {'Authorization': f'Bearer {work_token}'}
+    body = {'room_id': str(request.room_id), 'participant_id': str(request.agent_id)}
+    answer = client.post('/api/agent/questions', headers=headers, json={**body, 'question': '다크 모드: 자동 적용(추천) / 토글 / 삭제?'})
+    assert answer.status_code == 201
+    questions = svc.snapshot(request.room_id, dashboard=True)['unanswered_questions']
+    assert [q['content'] for q in questions] == ['@human 다크 모드: 자동 적용(추천) / 토글 / 삭제?']

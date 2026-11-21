@@ -93,7 +93,10 @@ def send(body: Message, actor=Depends(identity), svc=Depends(service)):
 
 @router.post("/questions", status_code=201)
 def ask_human(body: Question, actor=Depends(identity), svc=Depends(service)):
-    validate(svc, actor, body)
+    # 작업 세션도 사람이 정해야 할 것을 찾으면 직접 묻는다. 질문은 그 할 일을 맡은 에이전트 이름으로 올라간다.
+    with svc.db.connect() as c:
+        kind = require(c, "sessions", actor.session_id)["kind"]
+    validate(svc, actor, body, kind=kind)
     svc.post_message(actor.room_id, f"@human {body.question}", actor.agent_id)
     return {"ok": True}
 
