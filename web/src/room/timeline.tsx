@@ -164,7 +164,7 @@ function ResultRow({
               ) : null}
               {agent ? (
                 <div className="flex gap-1.5">
-                  <dt className="text-muted-foreground">맡긴 에이전트</dt>
+                  <dt className="text-muted-foreground">담당 에이전트</dt>
                   <dd>{agent.name}</dd>
                 </div>
               ) : null}

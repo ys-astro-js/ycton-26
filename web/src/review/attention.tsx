@@ -401,7 +401,6 @@ function ReplyForm({
             id={fieldId}
             rows={2}
             value={value}
-            placeholder="5회로 해 주세요. 간격은 결제사 문서를 따릅니다."
             aria-invalid={error || undefined}
             aria-describedby={error ? errorId : undefined}
             className="text-base md:text-sm"

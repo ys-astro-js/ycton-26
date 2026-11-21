@@ -45,7 +45,7 @@ export function TaskList({ state, focus }: { state: RoomState; focus?: number })
         <CountBadge count={state.tasks.length} unit="개" />
       </h2>
       {tasks.length === 0 ? (
-        <p className="border bg-card px-4 py-4 text-[0.9375rem] text-muted-foreground">아직 맡긴 일이 없습니다.</p>
+        <p className="border bg-card px-4 py-4 text-[0.9375rem] text-muted-foreground">아직 할 일이 없습니다.</p>
       ) : (
         <ol className="border bg-card py-1.5">
           {tasks.map((task) => (
@@ -127,7 +127,7 @@ function TaskRow({
           {owner ? (
             <p className="mt-0.5 flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground">
               <Glyph icon={Bot} className="size-3.5" />
-              <span className="sr-only">담당</span>
+              <span className="sr-only">담당 에이전트</span>
               {owner.name}
             </p>
           ) : null}
@@ -187,7 +187,7 @@ function TaskRow({
             <div className="grid gap-2">
               <div className="flex gap-2">
                 {phase === 'running' && task.active_session_id ? (
-                  <IconButton variant="outline" icon={Square} label="실행 취소하기" disabled={busy} onClick={() => cancel.mutate(undefined)} />
+                  <IconButton variant="outline" icon={Square} label="실행 중단하기" disabled={busy} onClick={() => cancel.mutate(undefined)} />
                 ) : null}
                 {phase === 'failed' ? (
                   <IconButton icon={RotateCcw} label="다시 맡기기" disabled={busy} onClick={() => retry.mutate(undefined)} />
@@ -198,7 +198,7 @@ function TaskRow({
               </div>
               {error ? (
                 <p role="alert" className="text-[0.8125rem] text-destructive">
-                  {error instanceof ApiError ? error.message : '요청에 실패했습니다'}
+                  {error instanceof ApiError ? error.message : '처리하지 못했습니다'}
                 </p>
               ) : null}
             </div>
@@ -327,7 +327,6 @@ function AddAgent({ state }: { state: RoomState }) {
           ref={nameRef}
           id={ids.name}
           value={name}
-          placeholder="frontend"
           aria-invalid={invalid.name || undefined}
           aria-describedby={invalid.name ? ids.nameError : undefined}
           onChange={(event) => {
@@ -346,7 +345,6 @@ function AddAgent({ state }: { state: RoomState }) {
           ref={kindRef}
           id={ids.kind}
           value={kind}
-          placeholder="frontend"
           className="font-mono"
           aria-invalid={invalid.kind || undefined}
           aria-describedby={invalid.kind ? ids.kindError : undefined}
@@ -359,9 +357,9 @@ function AddAgent({ state }: { state: RoomState }) {
       </Field>
       <Field className="gap-0">
         <FieldLabel htmlFor={ids.goodAt} className={label}>
-          잘하는 작업 (쉼표로 구분)
+          잘하는 작업
         </FieldLabel>
-        <Input id={ids.goodAt} value={goodAt} placeholder="UI 구현, 접근성" onChange={(event) => setGoodAt(event.target.value)} />
+        <Input id={ids.goodAt} value={goodAt} onChange={(event) => setGoodAt(event.target.value)} />
       </Field>
       {add.error ? (
         <p id={ids.serverError} role="alert" className="text-[0.8125rem] text-destructive">
