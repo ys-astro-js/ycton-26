@@ -29,7 +29,7 @@ export interface AttentionItem {
   handoff: string[]
   log: LogLine[]
   /** 백엔드에 보낼 대상 */
-  target: { roomId: number; taskId?: number }
+  target: { roomId: number; taskId?: number; messageId?: number }
 }
 
 export type LedgerStatus = 'done' | 'running' | 'waiting' | 'failed' | 'held' | 'dropped'

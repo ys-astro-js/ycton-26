@@ -70,7 +70,7 @@ async def state(room_id: int, request: Request, svc=Depends(service)):
 
 @router.post("/rooms/{room_id}/messages", status_code=201)
 def message(room_id: int, body: MessageCreate, svc=Depends(service)):
-    svc.post_message(room_id, body.content)
+    svc.post_message(room_id, body.content, reply_to_message_id=body.reply_to_message_id)
     return {"ok": True}
 
 

@@ -141,10 +141,7 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
       })
     }
 
-    // 사람의 마지막 메시지 뒤에 에이전트가 @로 사람을 부른 메시지
-    const lastHuman = state.messages.findLast((message) => message.author === 'human')?.id ?? 0
-    for (const message of state.messages) {
-      if (message.id <= lastHuman || !message.author.startsWith('agent:') || !message.content.includes('@')) continue
+    for (const message of state.unanswered_questions) {
       const agent = agents.get(Number(message.author.slice('agent:'.length)))
       const at = parse(message.created_at)
       attention.push({
@@ -159,7 +156,7 @@ export function toReport(states: RoomState[], eventsByTask: Map<number, TaskEven
           agent: agentLabel(agent),
           handoff: [],
           log: [],
-          target: { roomId: state.room.id },
+          target: { roomId: state.room.id, messageId: message.id },
         },
       })
     }

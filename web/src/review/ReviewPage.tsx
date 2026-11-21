@@ -46,10 +46,10 @@ export function ReviewPage() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: REPORT_KEY })
 
   const act = async (item: AttentionItem, resolution: Resolution, text?: string) => {
-    const { roomId, taskId } = item.target
+    const { roomId, taskId, messageId } = item.target
     if (resolution === 'resumed') await api.resume(roomId)
     if (resolution === 'reassigned' && taskId !== undefined) await api.retry(taskId, '사람이 아침 리뷰에서 다시 실행')
-    if (resolution === 'answered' && text) await api.postMessage(roomId, text)
+    if (resolution === 'answered' && text && messageId !== undefined) await api.postMessage(roomId, text, messageId)
     await refresh()
   }
 

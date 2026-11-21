@@ -40,8 +40,9 @@ class TaskService:
         self.model_names = {}
 
     @staticmethod
-    def message(conn, room, author, content):
-        conn.execute("INSERT INTO messages(room_id,author,content) VALUES(?,?,?)", (room, author, content))
+    def message(conn, room, author, content, *, reply_to_message_id=None):
+        conn.execute("INSERT INTO messages(room_id,author,content,reply_to_message_id) VALUES(?,?,?,?)",
+                     (room, author, content, reply_to_message_id))
 
     @staticmethod
     def event(conn, task, event, detail):
@@ -185,7 +186,7 @@ class TaskService:
             self.wake(c, room_id, reset=True)
             return require(c, "agents", aid)
 
-    def post_message(self, room_id, content, agent_id=None):
+    def post_message(self, room_id, content, agent_id=None, *, reply_to_message_id=None):
         with self.db.connect(write=True) as c:
             require(c, "rooms", room_id)
             author = "human"
@@ -194,7 +195,13 @@ class TaskService:
                 if agent["room_id"] != room_id:
                     raise DomainError("다른 방의 에이전트입니다", 403)
                 author = f"agent:{agent_id}"
-            self.message(c, room_id, author, content)
+            if reply_to_message_id is not None:
+                question = c.execute("""SELECT 1 FROM messages WHERE id=? AND room_id=?
+                                        AND author GLOB 'agent:*' AND instr(content,'@')>0""",
+                                     (reply_to_message_id, room_id)).fetchone()
+                if agent_id is not None or question is None:
+                    raise DomainError("이 프로젝트의 에이전트 질문에만 답장할 수 있습니다", 422)
+            self.message(c, room_id, author, content, reply_to_message_id=reply_to_message_id)
             self.wake(c, room_id, reset=agent_id is None)
 
     def create_task(self, room_id, title, detail, scope, verify):
@@ -383,6 +390,12 @@ class TaskService:
             if dashboard:
                 result["running_work"] = c.execute(
                     "SELECT count(*) FROM sessions WHERE kind='work' AND status='running'").fetchone()[0]
+                result["unanswered_questions"] = [dict(row) for row in c.execute("""
+                    SELECT question.* FROM messages question
+                    WHERE question.room_id=? AND question.author GLOB 'agent:*' AND instr(question.content,'@')>0
+                    AND NOT EXISTS (SELECT 1 FROM messages reply WHERE reply.reply_to_message_id=question.id)
+                    ORDER BY question.id
+                """, (room_id,))]
             return result
 
     def recover(self):

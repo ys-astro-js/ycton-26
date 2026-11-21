@@ -136,6 +136,7 @@ export interface Message {
   room_id: number
   author: string
   content: string
+  reply_to_message_id: number | null
   created_at: string
 }
 export type JevRecommendation = { action: 'wait' | 'spawn_suggested'; reason: string }
@@ -160,6 +161,7 @@ export interface RoomState {
   tasks: Task[]
   sessions: Session[]
   messages: Message[]
+  unanswered_questions: Message[]
   jev: Jev
   mode: string
 }
@@ -180,8 +182,10 @@ export const api = {
   resume: (roomId: number) => request<Room>(`/api/rooms/${roomId}/resume`, { method: 'POST' }),
   pause: (roomId: number) => request<Room>(`/api/rooms/${roomId}/pause`, { method: 'POST' }),
   retry: (taskId: number, note: string) => request<Task>(`/api/tasks/${taskId}/retry`, { method: 'POST', body: { note } }),
-  postMessage: (roomId: number, content: string) =>
-    request<{ ok: boolean }>(`/api/rooms/${roomId}/messages`, { method: 'POST', body: { content } }),
+  postMessage: (roomId: number, content: string, replyTo?: number) =>
+    request<{ ok: boolean }>(`/api/rooms/${roomId}/messages`, {
+      method: 'POST', body: { content, reply_to_message_id: replyTo },
+    }),
   agentModels: () => request<ModelProvider[]>('/api/agent-models'),
   /** 경로를 입력받지 않고, 서버가 띄운 OS 폴더 선택 창에서 고른 결과만 씁니다 */
   pickFolder: () => request<PickedFolder>('/api/folders/pick', { method: 'POST' }),

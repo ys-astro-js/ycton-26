@@ -79,8 +79,9 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
         const human = entry.type === 'human'
         const next = entries[index + 1]
         const last = next === undefined || authorKey(next) !== key
+        const replyTo = entry.message.reply_to_message_id
         return (
-          <li key={entry.message.id} className={cn('px-4', continued ? 'pt-1' : 'pt-4')}>
+          <li id={`message-${entry.message.id}`} key={entry.message.id} className={cn('px-4', continued ? 'pt-1' : 'pt-4')}>
             <Message align={human ? 'end' : 'start'}>
               <MessageContent className="gap-1">
                 {continued || human ? null : (
@@ -96,6 +97,13 @@ export function Timeline({ state, focus }: { state: RoomState; focus?: number })
                       <span className="sr-only">나: </span>
                     ) : continued ? (
                       <span className="sr-only">{agent?.name ?? '에이전트'}: </span>
+                    ) : null}
+                    {replyTo !== null ? (
+                      <p className="mb-1 text-label opacity-80">
+                        {state.messages.some((message) => message.id === replyTo)
+                          ? <a className="underline" href={`#message-${replyTo}`}>메시지 #{replyTo}에 답장</a>
+                          : `메시지 #${replyTo}에 답장`}
+                      </p>
                     ) : null}
                     <MessageBody text={entry.message.content} attention={human ? never : callsPerson} />
                   </BubbleContent>
