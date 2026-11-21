@@ -275,3 +275,23 @@ def test_chat_prompt_marks_only_the_chosen_responder(room):
         flags = human_flags(name)
         assert flags[routed["id"]] is (name == chosen)
         assert flags[mentioned["id"]] is (name == "Bob")
+
+
+def test_resume_wakes_the_responder_of_a_message_sent_while_paused(room):
+    svc, rid, ids = room
+    svc.pause(rid, True)
+    posted = svc.post_message(rid, "@Bob 계획 문서 확인해 줘")
+    assert not posted["needs_routing"] and queued(svc, rid) == []
+    svc.pause(rid, False)
+    assert queued(svc, rid) == [ids["Bob"]]
+
+
+def test_resume_skips_a_responder_who_already_answered(room):
+    svc, rid, ids = room
+    svc.post_message(rid, "@Bob 계획 문서 확인해 줘")
+    svc.post_message(rid, "확인했습니다", ids["Bob"])
+    with svc.db.connect(write=True) as c:
+        c.execute("DELETE FROM sessions")
+    svc.pause(rid, True)
+    svc.pause(rid, False)
+    assert queued(svc, rid) == []

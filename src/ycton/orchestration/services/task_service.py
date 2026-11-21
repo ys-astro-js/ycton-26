@@ -485,7 +485,23 @@ class TaskService:
                                       AND active_session_id IS NULL""", (room_id,)).fetchall()
                 for owner in owners:
                     self.wake(c, room_id, agent_id=owner["owner_id"], reset=True)
+                for agent_id in self.pending_responders(c, room_id):
+                    self.wake(c, room_id, agent_id=agent_id, reset=True)
             return require(c, "rooms", room_id)
+
+    @staticmethod
+    def pending_responders(conn, room_id):
+        """답변자로 정해졌지만 그 사람 메시지 뒤에 아직 아무 말도 하지 않은 에이전트."""
+        pending = []
+        for message in conn.execute("""SELECT id, addressed_to FROM messages
+                                       WHERE room_id=? AND author='human' AND addressed_to!='[]'
+                                       ORDER BY id DESC LIMIT 40""", (room_id,)):
+            for agent_id in json.loads(message["addressed_to"]):
+                spoke = conn.execute("SELECT 1 FROM messages WHERE room_id=? AND id>? AND author=?",
+                                     (room_id, message["id"], f"agent:{agent_id}")).fetchone()
+                if spoke is None and agent_id not in pending:
+                    pending.append(agent_id)
+        return pending
 
     def manual_task_action(self, task_id, action, note):
         with self.db.connect(write=True) as c:
