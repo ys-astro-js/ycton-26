@@ -34,7 +34,7 @@ state는 1초 정도 간격으로 폴링합니다. `room.paused`는 `0`(진행),
 
 채팅 에이전트는 사람이 반영을 요청하면 MCP `merge_to_project`(내부 `POST /api/agent/merge`)로 방 통합 브랜치 `ycton/room-<id>`를 프로젝트 저장소에 체크아웃된 브랜치에 병합합니다. 충돌하면 병합을 되돌리고 충돌 파일을 돌려줍니다. 채팅 에이전트는 사람이 채팅으로 요청한 작업을 MCP `create_task(title, detail)`(내부 `POST /api/agent/tasks/create`)로 할 일에 올립니다. 할 일은 등록만 하고 아무도 깨우지 않습니다. 스케줄러가 담당이 없는 열린 할 일을 Jev에 맡겨 담당과 검증 프로필을 정하고(`assigned` 작업 이력), 담당 에이전트만 깨웁니다. 채팅 턴이 위임 전에 실패해 반환된 할 일은 시도 1회로 셉니다.
 
-`POST /api/messages/{id}/resolve`는 사람에게 보낸 질문을 답장 없이 완료로 표시해 `unanswered_questions`에서 뺍니다. `unanswered_questions`는 에이전트가 본문에 `@human`으로 사람을 호출한 미답변 메시지입니다. 대소문자를 구분하지 않으며, 다른 에이전트 멘션, `@all`, 코드 예시는 질문으로 집계하지 않습니다. 일반 메시지로 닫히지 않고 최근 메시지 100개에서 밀려나도 남습니다.
+`POST /api/agents/{id}`는 에이전트의 이름, 제공자, 모델, 추론 수준, `good_at`을 바꿉니다(본문은 에이전트 추가와 같음). `POST /api/agents/{id}/remove`는 에이전트를 지웁니다. 이력은 남고 방 상태의 `removed_agents`로 돌려주며, 맡은 할 일은 열린 상태로 돌아가 Jev가 다시 배정합니다. 실행 중인 세션이 있으면 409로 거절합니다. `POST /api/messages/{id}/resolve`는 사람에게 보낸 질문을 답장 없이 완료로 표시해 `unanswered_questions`에서 뺍니다. `unanswered_questions`는 에이전트가 본문에 `@human`으로 사람을 호출한 미답변 메시지입니다. 대소문자를 구분하지 않으며, 다른 에이전트 멘션, `@all`, 코드 예시는 질문으로 집계하지 않습니다. 일반 메시지로 닫히지 않고 최근 메시지 100개에서 밀려나도 남습니다.
 
 `jev.action`은 `stop`, `wait`, `spawn_suggested`, `go` 중 하나이며 `reason`을 함께 반환합니다. 프로젝트 화면은 `wait`와 `spawn_suggested`의 이유를 고정 상태 바 아래에 표시합니다. OpenRouter가 판단을 반환하면 `jev.recommendation`에 `{action, reason}`이 추가되며, 추천은 실행 상태를 변경하지 않습니다.
 
