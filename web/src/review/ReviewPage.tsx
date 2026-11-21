@@ -1,13 +1,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, getRouteApi, useNavigate } from '@tanstack/react-router'
-import { FolderGit2, LayoutList, Unplug } from 'lucide-react'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { Unplug } from 'lucide-react'
 import { useId } from 'react'
 
 import { api, type TaskEvent } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-import { cn } from '@/lib/utils'
+
+import { Composer } from '../compose/Composer.tsx'
 
 import { toReport } from './adapter.ts'
 import { AttentionSection, type Resolution } from './attention.tsx'
@@ -20,7 +21,7 @@ const route = getRouteApi('/')
 const REPORT_KEY = ['overnight-report']
 
 /** 모든 방의 상태와 할 일 이력을 모아 하나의 리포트로 만듭니다. 서버에 실시간 채널이 없어 주기적으로 다시 읽습니다. */
-function useOvernightReport() {
+export function useOvernightReport() {
   return useQuery<OvernightReport>({
     queryKey: REPORT_KEY,
     queryFn: async () => {
@@ -93,10 +94,16 @@ export function ReviewPage() {
 
   return (
     <Shell report={report} project={project}>
-      <div className="grid gap-8 pt-6 lg:grid-cols-[13.5rem_minmax(0,1fr)]">
-        <ProjectRail report={report} project={project} />
-
+      <div className="pt-6">
         <main id="main" className="grid min-w-0 content-start gap-10">
+          <section aria-labelledby="compose-heading" className="grid gap-3">
+            <h2 id="compose-heading" className="text-lg font-semibold">
+              새로 맡기기
+            </h2>
+            <div className="border bg-card px-4 pt-3 pb-4">
+              <Composer />
+            </div>
+          </section>
           <AttentionSection
             key={project ?? 'all'}
             items={inScope(report.attention)}
@@ -116,10 +123,10 @@ export function ReviewPage() {
 
 function Shell({ report, project, children }: { report?: OvernightReport; project?: ProjectId; children: React.ReactNode }) {
   return (
-    <div className="mx-auto max-w-7xl px-4 pb-16 sm:px-8">
+    <>
       <ReviewHeader report={report} project={project} />
       {children}
-    </div>
+    </>
   )
 }
 
@@ -130,8 +137,7 @@ function ReviewHeader({ report, project }: { report?: OvernightReport; project?:
   return (
     <header className="grid items-end gap-x-8 gap-y-4 border-b py-6 sm:grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,1fr)_auto]">
       <div>
-        <p className="text-[0.9375rem] font-bold">afk</p>
-        <h1 className="mt-1 text-[1.75rem] leading-tight font-bold tracking-tight text-balance">아침 리뷰</h1>
+        <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight text-balance">아침 리뷰</h1>
       </div>
 
       {report ? (
@@ -149,8 +155,8 @@ function ReviewHeader({ report, project }: { report?: OvernightReport; project?:
           </div>
         </dl>
 
-        {/* 레일이 숨는 좁은 화면에서만 프로젝트를 이 선택으로 고릅니다 */}
-        <div className="grid w-full gap-1 sm:w-56 lg:hidden">
+        {/* 왼쪽 레일은 아침 리뷰와 채팅방 사이를 오가므로, 프로젝트는 이 선택으로 좁힙니다 */}
+        <div className="grid w-full gap-1 sm:w-56">
           <Label htmlFor={selectId} className="text-xs text-muted-foreground">
             프로젝트
           </Label>
@@ -174,43 +180,5 @@ function ReviewHeader({ report, project }: { report?: OvernightReport; project?:
       </div>
       ) : null}
     </header>
-  )
-}
-
-function ProjectRail({ report, project }: { report: OvernightReport; project?: ProjectId }) {
-  // 숫자는 그 프로젝트에서 사람이 처리할 일의 수입니다. 0이면 숫자를 쓰지 않습니다.
-  const countFor = (id?: ProjectId) => report.attention.filter((item) => !id || item.projectId === id).length
-  const items: { id?: ProjectId; name: string }[] = [{ name: '모든 프로젝트' }, ...report.projects]
-
-  return (
-    <nav aria-label="프로젝트" className="sticky top-6 hidden self-start lg:block">
-      <ul className="grid gap-0.5">
-        {items.map((item) => {
-          const current = item.id === project
-          return (
-            <li key={item.name}>
-              <Link
-                to="/"
-                search={item.id ? { project: item.id } : {}}
-                aria-current={current ? 'page' : undefined}
-                className={cn(
-                  'flex min-h-9 items-center gap-2.5 px-3 text-[0.9375rem] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
-                  current && 'bg-muted font-semibold text-foreground',
-                )}
-              >
-                <Glyph icon={item.id ? FolderGit2 : LayoutList} />
-                <span className="min-w-0 break-words">{item.name}</span>
-                {countFor(item.id) > 0 ? (
-                  <span className="ms-auto font-mono text-xs font-semibold text-attention-foreground tabular-nums">
-                    {countFormat.format(countFor(item.id))}
-                    <span className="sr-only">건 처리 필요</span>
-                  </span>
-                ) : null}
-              </Link>
-            </li>
-          )
-        })}
-      </ul>
-    </nav>
   )
 }

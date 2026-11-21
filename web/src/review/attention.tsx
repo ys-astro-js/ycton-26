@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import {
   Bot,
   ChevronDown,
@@ -240,11 +241,17 @@ function AttentionRow({
         <div className="grid min-w-0 gap-1">
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.8125rem] text-muted-foreground">
             {item.at ? <time className="font-mono tabular-nums">{item.at}</time> : null}
-            <span className="flex items-center gap-1.5">
+            {/* 행 펼침 영역(::after) 위로 올려 따로 누를 수 있게 합니다 */}
+            <Link
+              to="/rooms/$roomId"
+              params={{ roomId: String(item.target.roomId) }}
+              search={item.target.taskId !== undefined ? { focus: item.target.taskId } : {}}
+              className="relative z-10 flex items-center gap-1.5 underline-offset-4 hover:text-foreground hover:underline"
+            >
               <Glyph icon={FolderGit2} className="size-3.5" />
-              <span className="sr-only">프로젝트</span>
+              <span className="sr-only">채팅방 열기: </span>
               {projectName}
-            </span>
+            </Link>
           </p>
           <p className={cn('font-semibold text-pretty', isResolved && 'text-muted-foreground line-through')}>
             <button

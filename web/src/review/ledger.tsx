@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { Arc } from 'loading-dev'
 import { Bot, ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleX, FolderGit2, GitCommitHorizontal } from 'lucide-react'
 import { useId, useMemo, useState } from 'react'
@@ -42,7 +43,7 @@ const META_TEXT = 'text-[0.8125rem] text-muted-foreground'
  */
 const NODE_ICON = { done: CircleCheck, waiting: CircleDashed, failed: CircleAlert, dropped: CircleX } as const
 
-function StatusNode({ status }: { status: LedgerStatus }) {
+export function StatusNode({ status }: { status: LedgerStatus }) {
   if (status === 'running') {
     // 다른 표식과 같은 원이 보이도록, 흐린 고리 위에서 호가 돕니다
     return (
@@ -121,8 +122,15 @@ function ProjectGroup({
         id={headingId}
         className="flex items-center gap-1.5 px-4 pt-3 pb-1 text-[0.8125rem] font-semibold text-muted-foreground"
       >
-        <Glyph icon={FolderGit2} className="size-3.5" />
-        {project.name}
+        <Link
+          to="/rooms/$roomId"
+          params={{ roomId: project.id }}
+          className="flex items-center gap-1.5 underline-offset-4 hover:text-foreground hover:underline"
+        >
+          <Glyph icon={FolderGit2} className="size-3.5" />
+          <span className="sr-only">채팅방 열기: </span>
+          {project.name}
+        </Link>
       </h3>
       <ol className="pb-2">
         {entries.map((entry) => (

@@ -9,12 +9,19 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 
 import { ReviewPage } from './review/ReviewPage.tsx'
 import type { ProjectId } from './review/model.ts'
+import { RoomPage } from './room/RoomPage.tsx'
+import { AppShell } from './shell/AppShell.tsx'
 
 export interface ReviewSearch {
   project?: ProjectId
 }
 
-const rootRoute = createRootRoute()
+export interface RoomSearch {
+  /** 리뷰나 맡기기에서 넘어올 때 강조할 할 일 ID */
+  focus?: number
+}
+
+const rootRoute = createRootRoute({ component: AppShell })
 
 export const reviewRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -26,7 +33,17 @@ export const reviewRoute = createRoute({
   component: ReviewPage,
 })
 
-const router = createRouter({ routeTree: rootRoute.addChildren([reviewRoute]) })
+export const roomRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/rooms/$roomId',
+  validateSearch: (search: Record<string, unknown>): RoomSearch => {
+    const focus = Number(search.focus)
+    return Number.isInteger(focus) && focus > 0 ? { focus } : {}
+  },
+  component: RoomPage,
+})
+
+const router = createRouter({ routeTree: rootRoute.addChildren([reviewRoute, roomRoute]) })
 
 declare module '@tanstack/react-router' {
   interface Register {
