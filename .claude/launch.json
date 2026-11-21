@@ -6,6 +6,13 @@
       "runtimeExecutable": "bun",
       "runtimeArgs": ["run", "--cwd", "web", "dev"],
       "port": 5173
+    },
+    {
+      "name": "orchestration",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "uvicorn", "ycton.orchestration.main:app", "--host", "127.0.0.1", "--port", "8000"],
+      "port": 8000,
+      "autoPort": false
     }
   ]
 }
