@@ -17,7 +17,7 @@ from ycton.orchestration.runtime_config import AgentKind, Repository, RuntimeCon
 from ycton.orchestration.runtime_port import RuntimeRequest
 from ycton.orchestration.acp_bridge import AcpRuntime, verify_worktree
 from ycton.orchestration.event_log import EventLog
-from ycton.room_mcp import build_room_server
+from ycton.room_mcp import ROOM_CHAT_TOOLS, build_room_server
 
 
 @pytest.fixture
@@ -64,12 +64,15 @@ def test_mcp_tools_reach_real_api(bridge):
                                     headers={'Authorization':f'Bearer {token}'}) as http:
             mcp = build_room_server(http, **{'room_id':actor['room_id'],'participant_id':actor['participant_id']})
             names = {t.name for t in await mcp.list_tools()}
-            assert names == {'send','list_tasks','claim','delegate'}
+            assert names == {'send','list_tasks','create_task','claim','delegate'}
             await mcp.call_tool('send', {'text':'MCP 왕복'})
             await mcp.call_tool('list_tasks', {})
+            await mcp.call_tool('create_task', {'title':'채팅 요청','detail':'자동 스크롤'})
             await mcp.call_tool('claim', {'task_id':str(tid)})
             await mcp.call_tool('delegate', {'task_id':str(tid),'request_id':'mcp-1','instructions':'go'})
     asyncio.run(exercise())
+    created = [t for t in app.state.service.snapshot(int(actor['room_id']))['tasks'] if t['title'] == '채팅 요청']
+    assert [(t['detail'], t['status'], t['verify']) for t in created] == [('자동 스크롤', 'open', '')]
     state = app.state.service.snapshot(int(actor['room_id']))
     assert state['tasks'][0]['status'] == 'claimed'
     assert state['tasks'][0]['active_session_id']
@@ -181,12 +184,12 @@ def test_chat_token_is_revoked_and_final_text_not_posted(bridge,monkeypatch):
     assert captured[0] not in Path(result.log_path).read_text()
 
 
-@pytest.mark.parametrize('tool,allowed',[('send',True),('list_tasks',True),('claim',True),('delegate',True),('terminal',False)])
+@pytest.mark.parametrize('tool,allowed',[('send',True),('list_tasks',True),('create_task',True),('claim',True),('delegate',True),('terminal',False)])
 def test_permission_allowlist(tool,allowed):
     from acp.schema import ToolCallStart,ToolCallUpdate,PermissionOption
     from ycton.acp_runtime import _SessionClient
     async def exercise():
-        client=_SessionClient(None,room_tools=("send", "list_tasks", "claim", "delegate"))
+        client=_SessionClient(None,room_tools=ROOM_CHAT_TOOLS)
         await client.session_update('s',ToolCallStart(tool_call_id='t',title=tool,
             raw_input={'server':'room','tool':tool},field_meta={'is_mcp_tool_call':True}))
         response=await client.request_permission('s',ToolCallUpdate(tool_call_id='t'),

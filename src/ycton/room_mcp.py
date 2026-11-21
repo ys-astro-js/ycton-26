@@ -16,7 +16,7 @@ _ROOM_ID = "YCTON_ROOM_ID"
 _PARTICIPANT_ID = "YCTON_PARTICIPANT_ID"
 ROOM_MCP_NAME = "room"
 ROOM_WORK_TOOLS = ("commit",)
-ROOM_CHAT_TOOLS = ("send", "list_tasks", "claim", "delegate")
+ROOM_CHAT_TOOLS = ("send", "list_tasks", "create_task", "claim", "delegate")
 _STDIO_ARGS = ("-I", "-m", "ycton.room_mcp")
 
 
@@ -84,6 +84,11 @@ def build_room_server(client: httpx.AsyncClient, *, room_id: str, participant_id
     async def list_tasks() -> dict:
         """Read tasks and agents in this room before choosing work."""
         return (await post("/api/agent/tasks/list")).json()
+
+    @server.tool()
+    async def create_task(title: str, detail: str = "") -> dict:
+        """Register a task for work a person asked for in chat. Jev then picks its owner and verification."""
+        return (await post("/api/agent/tasks/create", title=title, detail=detail)).json()
 
     @server.tool()
     async def claim(task_id: str | int) -> dict:

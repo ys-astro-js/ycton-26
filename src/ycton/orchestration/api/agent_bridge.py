@@ -18,6 +18,11 @@ class Message(Actor):
     text: str = Field(min_length=1, max_length=10000)
 
 
+class NewTask(Actor):
+    title: str = Field(min_length=1, max_length=200)
+    detail: str = Field(default="", max_length=20000)
+
+
 class Assignment(Actor):
     task_id: str = Field(min_length=1)
 
@@ -78,6 +83,14 @@ def tasks(body: Actor, actor=Depends(identity), svc=Depends(service)):
     state = svc.snapshot(actor.room_id)
     return {"tasks": [{**t, "id": str(t["id"])} for t in state["tasks"] if not t["retry_required"]],
             "agents": state["agents"]}
+
+
+@router.post("/tasks/create", status_code=201)
+def create_task(body: NewTask, actor=Depends(identity), svc=Depends(service)):
+    """사람이 채팅으로 요청한 작업을 채팅 에이전트가 할 일로 올린다. 담당과 검증은 Jev가 정한다."""
+    validate(svc, actor, body)
+    task = svc.create_task(actor.room_id, body.title, body.detail, "", "")
+    return {**task, "id": str(task["id"])}
 
 
 @router.post("/tasks/claim")
