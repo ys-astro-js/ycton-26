@@ -92,18 +92,22 @@ def test_verification_uses_exit_code_and_required_output(tmp_path):
     asyncio.run(exercise())
 
 
+def work_request(svc, actor, tid, request_id='runtime-test'):
+    svc.claim(tid,int(actor['participant_id']))
+    session=svc.delegate(tid,int(actor['participant_id']),request_id,'go')
+    prompt=json.dumps({'title':'task','detail':'','scope':'','verify':'unit','instruction':'go','handoff':''})
+    return RuntimeRequest(session['id'],int(actor['room_id']),int(actor['participant_id']),'work',prompt,'demo',
+                          repository_id='default',task_id=tid)
+
+
 def setup_work(bridge):
     app, client, actor, token, sid, tid, root = bridge
     svc=app.state.service
-    svc.claim(tid,int(actor['participant_id']))
-    session=svc.delegate(tid,int(actor['participant_id']),'runtime-test','go')
-    config=RuntimeConfig({'default':Repository(root,'기본 저장소',('unit',),'unit')},
+    request=work_request(svc,actor,tid)
+    config=RuntimeConfig({'default':Repository(git_repo(root/'checkout'),'기본 저장소',('unit',),'unit')},
                          root/'worktrees',root/'logs','http://127.0.0.1:8000',
                          {'demo':AgentKind(('fake-adapter',))},
                          {'unit':Verification((sys.executable,'-c',"print('verified')"))})
-    prompt=json.dumps({'title':'task','detail':'','scope':'','verify':'unit','instruction':'go','handoff':''})
-    request=RuntimeRequest(session['id'],int(actor['room_id']),int(actor['participant_id']),'work',prompt,'demo',
-                           repository_id='default',task_id=tid)
     return svc, config, request
 
 
@@ -130,11 +134,10 @@ def test_work_adapter_persists_path_and_checks_verification(bridge,monkeypatch):
     async def work(*args,**kwargs):
         with svc.db.connect() as c:
             assert c.execute('SELECT worktree FROM sessions WHERE id=?',(request.session_id,)).fetchone()[0] == str(kwargs['worktree'])
-        kwargs['worktree'].mkdir(parents=True)
+        kwargs['worktree'].parent.mkdir(parents=True)
+        git_out(kwargs['repo'],'worktree','add','-q','-b',kwargs['branch'],str(kwargs['worktree']),kwargs['base'])
         kwargs['on_update']({'update':'progress'})
-        # commit 도구가 남기는 기록을 흉내 낸다.
-        with svc.db.connect(write=True) as c:
-            c.execute("UPDATE sessions SET commit_hash='abc123' WHERE id=?",(request.session_id,))
+        record_commit(svc,request.session_id,kwargs['worktree'],'done.txt')
         return SimpleNamespace(session=SimpleNamespace(session_id='acp-1',stop_reason='end_turn',text='report'))
     monkeypatch.setattr(module,'run_work_session',work)
     result=asyncio.run(AcpRuntime(svc,config,Tokens()).run(request))
@@ -559,3 +562,77 @@ def test_manual_hold_is_visible_to_humans_but_not_mcp(bridge):
     asyncio.run(exercise())
     state = client.get(f"/api/rooms/{actor['room_id']}/state").json()
     assert state["tasks"][0]["id"] == tid and state["tasks"][0]["retry_required"] == 1
+
+
+def record_commit(svc, session_id, worktree, name):
+    """commit 도구처럼 worktree에 파일 하나를 커밋하고 해시를 세션에 기록한다."""
+    (Path(worktree) / name).write_text(name + '\n')
+    git_out(worktree, 'add', name)
+    git_out(worktree, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', name)
+    commit = git_out(worktree, 'rev-parse', 'HEAD').strip()
+    with svc.db.connect(write=True) as c:
+        c.execute("UPDATE sessions SET commit_hash=? WHERE id=?", (commit, session_id))
+    return commit
+
+
+def run_real_work(svc, config, request, monkeypatch, during):
+    """실제 run_work_session으로 worktree를 만들고, 에이전트 턴 대신 during(worktree)를 실행한다."""
+    import ycton.work_session as work_module
+    async def session(*args, cwd, prompt, **kwargs):
+        during(cwd, prompt)
+        return SimpleNamespace(session_id='acp', stop_reason='end_turn', text='report')
+    monkeypatch.setattr(work_module, '_run_session', session)
+    result = asyncio.run(AcpRuntime(svc, config, Tokens()).run(request))
+    svc.finish(request.session_id, result)
+    return result
+
+
+def test_next_task_starts_from_room_branch_with_earlier_results(bridge, monkeypatch):
+    app, client, actor, token, sid, tid, root = bridge
+    svc, config, first = setup_work(bridge)
+    checkout = config.repositories['default'].path
+    user_branch = git_out(checkout, 'branch', '--show-current').strip()
+    user_head = git_out(checkout, 'rev-parse', 'HEAD').strip()
+    room_branch = f'ycton/room-{first.room_id}'
+
+    def write_readme(worktree, prompt):
+        assert room_branch in prompt
+        record_commit(svc, first.session_id, worktree, 'README.md')
+    assert run_real_work(svc, config, first, monkeypatch, write_readme).succeeded
+
+    second_task = svc.create_task(first.room_id, 'follow-up', '', '', 'unit')['id']
+    second = work_request(svc, actor, second_task, 'runtime-test-2')
+    seen = {}
+    def follow_up(worktree, prompt):
+        seen['readme'] = (Path(worktree) / 'README.md').exists()
+        seen['commit'] = record_commit(svc, second.session_id, worktree, 'next.txt')
+    result = run_real_work(svc, config, second, monkeypatch, follow_up)
+
+    assert seen['readme'] and result.succeeded
+    assert git_out(checkout, 'rev-parse', room_branch).strip() == seen['commit']
+    assert [t['status'] for t in svc.snapshot(first.room_id)['tasks']] == ['done', 'done']
+    # 사용자가 체크아웃한 브랜치와 작업 폴더는 그대로다.
+    assert git_out(checkout, 'branch', '--show-current').strip() == user_branch
+    assert git_out(checkout, 'rev-parse', 'HEAD').strip() == user_head
+    assert not (Path(checkout) / 'README.md').exists()
+
+
+def test_room_branch_that_moved_meanwhile_fails_attempt_without_merge(bridge, monkeypatch):
+    svc, config, request = setup_work(bridge)
+    checkout = config.repositories['default'].path
+    room_branch = f'ycton/room-{request.room_id}'
+    other = {}
+
+    def concurrent(worktree, prompt):
+        # 다른 할 일이 먼저 방 브랜치에 반영된 상황을 만든다.
+        side = Path(worktree).parent / 'other'
+        git_out(checkout, 'worktree', 'add', '-q', str(side), room_branch)
+        other['commit'] = record_commit(svc, 'unused', side, 'other.txt')
+        record_commit(svc, request.session_id, worktree, 'mine.txt')
+    result = run_real_work(svc, config, request, monkeypatch, concurrent)
+
+    assert not result.succeeded and result.verification == 'passed'
+    assert f'{room_branch} 반영 실패' in result.summary
+    assert git_out(checkout, 'rev-parse', room_branch).strip() == other['commit']
+    task = svc.snapshot(request.room_id)['tasks'][0]
+    assert task['status'] == 'open' and task['commit_hash'] is None
