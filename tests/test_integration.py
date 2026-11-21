@@ -672,6 +672,28 @@ def test_merge_to_project_merges_room_branch_into_checked_out_branch(bridge, tmp
     assert again['changed'] is False
 
 
+def test_merge_to_project_leaves_existing_manual_merge_alone(bridge, repo):
+    app, client, actor, token, *_ = bridge
+    root = Path(repo)
+    git_out(root, "config", "user.name", "Test")
+    git_out(root, "config", "user.email", "test@example.invalid")
+    target = git_out(root, "branch", "--show-current").strip()
+    git_out(root, "branch", f"ycton/room-{actor['room_id']}")
+    git_out(root, "switch", "-q", "-c", "manual")
+    (root / "manual.txt").write_text("keep this pending merge\n", encoding="utf-8")
+    git_out(root, "add", "manual.txt")
+    git_out(root, "commit", "-qm", "manual work")
+    git_out(root, "switch", "-q", target)
+    git_out(root, "merge", "--no-ff", "--no-commit", "manual")
+    merge_head = git_out(root, "rev-parse", "MERGE_HEAD")
+    app.state.service.room_repository = lambda room: SimpleNamespace(path=root)
+
+    response = client.post("/api/agent/merge", headers={"Authorization": f"Bearer {token}"}, json=actor)
+    assert response.status_code == 409
+    assert git_out(root, "rev-parse", "MERGE_HEAD") == merge_head
+    assert (root / "manual.txt").read_text(encoding="utf-8") == "keep this pending merge\n"
+
+
 def test_review_task_finishes_without_a_commit_via_no_changes(bridge, monkeypatch):
     app, client, actor, token, sid, tid, root = bridge
     svc, config, request = setup_work(bridge)

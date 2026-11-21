@@ -441,11 +441,18 @@ class TaskService:
         target = git("branch", "--show-current").stdout.strip()
         if not target:
             raise DomainError("프로젝트 저장소가 브랜치가 아닌 커밋에 체크아웃되어 있습니다", 409)
+
+        def merging():
+            return git("rev-parse", "--verify", "--quiet", "MERGE_HEAD", check=False).returncode == 0
+
+        if merging() or git("status", "--porcelain").stdout:
+            raise DomainError("프로젝트에 변경 사항 또는 진행 중인 병합이 있습니다. 먼저 정리해 주세요", 409)
         before = git("rev-parse", "HEAD").stdout.strip()
-        merged = git("merge", "--no-edit", branch, check=False)
+        merged = git("merge", "--no-edit", "--no-autostash", branch, check=False)
         if merged.returncode != 0:
             conflicts = git("diff", "--name-only", "--diff-filter=U", check=False).stdout.split()
-            git("merge", "--abort", check=False)
+            if merging():
+                git("merge", "--abort")
             detail = f"충돌 파일: {', '.join(conflicts)}" if conflicts else (merged.stderr or merged.stdout).strip()[-500:]
             raise DomainError(f"{branch}를 {target}에 병합하지 못했습니다. {detail}", 409)
         after = git("rev-parse", "HEAD").stdout.strip()
