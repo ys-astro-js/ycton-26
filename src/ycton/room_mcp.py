@@ -104,9 +104,13 @@ def build_room_server(client: httpx.AsyncClient, *, room_id: str, participant_id
         return (await post("/api/agent/tasks/list")).json()
 
     @server.tool()
-    async def create_task(title: str, detail: str = "") -> dict:
-        """Register a task for work a person asked for in chat. Jev then picks its owner and verification."""
-        return (await post("/api/agent/tasks/create", title=title, detail=detail)).json()
+    async def create_task(title: str, detail: str = "", after: str | int | None = None) -> dict:
+        """Register a task. Jev then picks its owner and verification.
+
+        Pass after=<task id> when this task must wait for that task to finish, for example an implementation
+        step after its plan, a review after the work, or another change to the same files as a running task.
+        """
+        return (await post("/api/agent/tasks/create", title=title, detail=detail, after=after)).json()
 
     @server.tool()
     async def merge_to_project() -> dict:

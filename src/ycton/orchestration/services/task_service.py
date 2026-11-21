@@ -305,14 +305,18 @@ class TaskService:
         with self.db.connect(write=True) as c:
             return self._insert_task(c, room_id, title, detail, scope, verify)
 
-    def _insert_task(self, c, room_id, title, detail, scope, verify):
+    def _insert_task(self, c, room_id, title, detail, scope, verify, after=None):
         room = require(c, "rooms", room_id)
+        if after is not None:
+            before = c.execute("SELECT room_id FROM tasks WHERE id=?", (after,)).fetchone()
+            if before is None or before["room_id"] != room_id:
+                raise DomainError("after에는 같은 프로젝트의 할 일 ID를 넣어야 합니다", 422)
         repo = self.room_repository(room)
         if verify and repo is not None and verify not in repo.verification_profiles:
             raise DomainError(UNAVAILABLE_VERIFICATION, 422)
         # 검증 프로필을 비워 두면 Jev가 배정할 때 고른다.
-        tid = c.execute("INSERT INTO tasks(room_id,title,detail,scope,verify) VALUES(?,?,?,?,?)",
-                        (room_id, title, detail, scope, verify)).lastrowid
+        tid = c.execute("INSERT INTO tasks(room_id,title,detail,scope,verify,after_task_id) VALUES(?,?,?,?,?,?)",
+                        (room_id, title, detail, scope, verify, after)).lastrowid
         self.event(c, tid, "created", title)
         self.message(c, room_id, "system", f"할 일 #{tid} 등록: {title}")
         return require(c, "tasks", tid)
@@ -330,11 +334,12 @@ class TaskService:
                          f"에이전트가 스스로 진행한 단계가 한도({limit}개)에 닿아 자동 진행을 멈춥니다. "
                          "이어 가려면 메시지를 보내 주세요.")
 
-    def create_agent_task(self, room_id, title, detail):
-        """에이전트가 스스로 올리는 할 일. 마지막 사람 메시지 이후 한도 안에서만 올릴 수 있다."""
+    def create_agent_task(self, room_id, title, detail, after=None):
+        """에이전트가 스스로 올리는 할 일. 마지막 사람 메시지 이후 한도 안에서만 올릴 수 있다.
+        after를 주면 그 할 일이 끝난 뒤에 배정된다. 같은 파일을 고치는 일을 나란히 돌리지 않을 때 쓴다."""
         with self.db.connect(write=True) as c:
             self._spend_auto_step(c, room_id)
-            return self._insert_task(c, room_id, title, detail, "", "")
+            return self._insert_task(c, room_id, title, detail, "", "", after)
 
     def idle_rooms(self):
         """돌고 있는 일도 남은 할 일도 없고, 마지막 확인 뒤 새 메시지가 있는 방. Jev가 다음 단계를 판단한다."""
@@ -366,7 +371,10 @@ class TaskService:
             names = {f"agent:{a['id']}": a["name"] for a in agents}
             messages = [dict(r) for r in c.execute("""SELECT * FROM (SELECT * FROM messages WHERE room_id=?
                                                       ORDER BY id DESC LIMIT 20) ORDER BY id""", (room_id,))]
-            tasks = [{"title": r["title"], "status": r["status"], "attempts": r["attempts"],
+            # 끝난 할 일은 결과 요약도 넘긴다. 기획이 끝났는데 구현 할 일이 없는지 Jev가 알 수 있게 한다.
+            tasks = [{"id": r["id"], "title": r["title"], "status": r["status"], "attempts": r["attempts"],
+                      "after": r["after_task_id"],
+                      "result": (r["handoff"] or "")[:400] if r["status"] == "done" else "",
                       "needs_human_retry": bool(r["retry_required"]) or r["attempts"] >= self.settings.max_attempts}
                      for r in c.execute(
                 "SELECT * FROM (SELECT * FROM tasks WHERE room_id=? ORDER BY id DESC LIMIT 20) ORDER BY id", (room_id,))]
@@ -450,7 +458,9 @@ class TaskService:
             return [r["id"] for r in c.execute("""
                 SELECT t.id FROM tasks t JOIN rooms r ON r.id=t.room_id
                 WHERE t.status='open' AND t.retry_required=0 AND t.attempts<? AND r.paused=0
-                AND EXISTS (SELECT 1 FROM agents a WHERE a.room_id=t.room_id AND a.removed=0) ORDER BY t.id""",
+                AND EXISTS (SELECT 1 FROM agents a WHERE a.room_id=t.room_id AND a.removed=0)
+                AND (t.after_task_id IS NULL OR EXISTS (SELECT 1 FROM tasks p WHERE p.id=t.after_task_id
+                                                        AND p.status IN ('done','dropped'))) ORDER BY t.id""",
                 (self.settings.max_attempts,))]
 
     def assignment_context(self, task_id):

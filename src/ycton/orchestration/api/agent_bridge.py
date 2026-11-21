@@ -26,6 +26,13 @@ class Question(Actor):
 class NewTask(Actor):
     title: str = Field(min_length=1, max_length=200)
     detail: str = Field(default="", max_length=20000)
+    # 먼저 끝나야 하는 할 일 ID(문자열 정수)
+    after: str | None = Field(default=None, min_length=1, max_length=20)
+
+    @field_validator("after", mode="before")
+    @classmethod
+    def normalize_after(cls, value):
+        return str(value) if type(value) is int else value
 
 
 class Assignment(Actor):
@@ -103,7 +110,8 @@ def tasks(body: Actor, actor=Depends(identity), svc=Depends(service)):
 def create_task(body: NewTask, actor=Depends(identity), svc=Depends(service)):
     """사람이 채팅으로 요청한 작업을 채팅 에이전트가 할 일로 올린다. 담당과 검증은 Jev가 정한다."""
     validate(svc, actor, body)
-    task = svc.create_agent_task(actor.room_id, body.title, body.detail)
+    after = task_number(body.after) if body.after is not None else None
+    task = svc.create_agent_task(actor.room_id, body.title, body.detail, after)
     return {**task, "id": str(task["id"])}
 
 

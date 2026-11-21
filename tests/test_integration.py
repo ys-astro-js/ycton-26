@@ -68,12 +68,15 @@ def test_mcp_tools_reach_real_api(bridge):
             await mcp.call_tool('send', {'text':'MCP 왕복'})
             await mcp.call_tool('list_tasks', {})
             await mcp.call_tool('create_task', {'title':'채팅 요청','detail':'자동 스크롤'})
+            await mcp.call_tool('create_task', {'title':'이어서 할 일','after':tid})
             await mcp.call_tool('ask_human', {'question':'배포해도 될까요?'})
             await mcp.call_tool('claim', {'task_id':str(tid)})
             await mcp.call_tool('delegate', {'task_id':str(tid),'request_id':'mcp-1','instructions':'go'})
     asyncio.run(exercise())
     created = [t for t in app.state.service.snapshot(int(actor['room_id']))['tasks'] if t['title'] == '채팅 요청']
     assert [(t['detail'], t['status'], t['verify']) for t in created] == [('자동 스크롤', 'open', '')]
+    follow = [t for t in app.state.service.snapshot(int(actor['room_id']))['tasks'] if t['title'] == '이어서 할 일']
+    assert [t['after_task_id'] for t in follow] == [tid]
     state = app.state.service.snapshot(int(actor['room_id']))
     assert state['tasks'][0]['status'] == 'claimed'
     assert state['tasks'][0]['active_session_id']

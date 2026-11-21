@@ -450,3 +450,25 @@ def test_agent_with_running_work_cannot_be_removed(room):
         c.execute("UPDATE sessions SET status='running' WHERE id=?", (session["id"],))
     with pytest.raises(DomainError):
         svc.remove_agent(ids["Bob"])
+
+
+def test_task_after_another_waits_until_that_task_finishes(room):
+    svc, rid, ids = room
+    plan = svc.create_task(rid, "기획", "", "", "unit")["id"]
+    build = svc.create_agent_task(rid, "구현 1단계", "", after=plan)["id"]
+    assert plan in svc.tasks_to_assign() and build not in svc.tasks_to_assign()
+    svc.assign(plan, ids["Bob"], "unit")
+    with svc.db.connect(write=True) as c:
+        c.execute("UPDATE tasks SET status='done', handoff='계획: 1) 저장소 2) 화면' WHERE id=?", (plan,))
+    assert build in svc.tasks_to_assign()
+    tasks = {t["id"]: t for t in svc.idle_context(rid)["tasks"]}
+    assert tasks[plan]["result"].startswith("계획") and tasks[build]["after"] == plan
+
+
+def test_after_must_be_a_task_of_the_same_room(room):
+    svc, rid, ids = room
+    other = svc.create_room("other")["id"]
+    foreign = svc.create_task(other, "남의 일", "", "", "unit")["id"]
+    with pytest.raises(DomainError):
+        svc.create_agent_task(rid, "구현", "", after=foreign)
+

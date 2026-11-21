@@ -11,6 +11,8 @@ ROOM_AUTO_TASKS = "auto_tasks INTEGER NOT NULL DEFAULT 0"
 # Jev가 '다음 단계가 남았나'를 마지막으로 본 시점의 메시지 ID. 새 메시지가 없으면 다시 묻지 않는다.
 ROOM_IDLE_CHECKED = "idle_checked_message INTEGER NOT NULL DEFAULT 0"
 TASK_RETRY = "retry_required INTEGER NOT NULL DEFAULT 0 CHECK(retry_required IN (0,1))"
+# 먼저 끝나야 하는 할 일. 그 할 일이 끝나기 전에는 배정하지 않는다.
+TASK_AFTER = "after_task_id INTEGER REFERENCES tasks(id)"
 MESSAGE_REPLY = "reply_to_message_id INTEGER REFERENCES messages(id)"
 # 사람 메시지에 답할 에이전트 ID 목록(JSON). @이름, 답장 대상, Jev의 선택으로 정해진다.
 MESSAGE_ADDRESSED = "addressed_to TEXT NOT NULL DEFAULT '[]'"
@@ -90,7 +92,7 @@ class Database:
         with self.connect(write=True) as conn:
             for table, column in (("rooms", ROOM_REPOSITORY), ("rooms", ROOM_FOLDER), ("rooms", ROOM_AUTO_TASKS),
                                   ("rooms", ROOM_IDLE_CHECKED),
-                                  ("tasks", TASK_RETRY), ("messages", MESSAGE_REPLY),
+                                  ("tasks", TASK_RETRY), ("tasks", TASK_AFTER), ("messages", MESSAGE_REPLY),
                                   ("messages", MESSAGE_ADDRESSED), ("messages", MESSAGE_RESOLVED),
                                   ("sessions", SESSION_NO_CHANGES), ("agents", AGENT_REMOVED)):
                 if not any(row["name"] == column.split(" ", 1)[0]
