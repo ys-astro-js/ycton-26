@@ -1040,6 +1040,68 @@
         }
       }
     },
+    "/api/sessions/{session_id}/events": {
+      "get": {
+        "tags": [
+          "프론트: 실행"
+        ],
+        "summary": "Events",
+        "operationId": "events_api_sessions__session_id__events_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854776000,
+              "minimum": 0,
+              "default": 0,
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "x-orch-client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Orch-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/{session_id}/cancel": {
       "post": {
         "tags": [
@@ -1316,6 +1378,19 @@
             "maxLength": 10000,
             "minLength": 1,
             "title": "Content"
+          },
+          "reply_to_message_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9223372036854776000,
+                "exclusiveMinimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply To Message Id"
           }
         },
         "additionalProperties": false,

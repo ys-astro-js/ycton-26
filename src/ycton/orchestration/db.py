@@ -7,6 +7,7 @@ ROOM_REPOSITORY = "repository_id TEXT NOT NULL DEFAULT 'default'"
 # 폴더 선택 창으로 연결한 Git 저장소의 절대 경로. 비어 있으면 repository_id의 설정 저장소를 쓴다.
 ROOM_FOLDER = "repo TEXT"
 TASK_RETRY = "retry_required INTEGER NOT NULL DEFAULT 0 CHECK(retry_required IN (0,1))"
+MESSAGE_REPLY = "reply_to_message_id INTEGER REFERENCES messages(id)"
 
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS rooms (
@@ -21,7 +22,8 @@ CREATE TABLE IF NOT EXISTS agents (
 );
 CREATE TABLE IF NOT EXISTS messages (
  id INTEGER PRIMARY KEY, room_id INTEGER NOT NULL REFERENCES rooms(id),
- author TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+ author TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ {MESSAGE_REPLY}
 );
 CREATE TABLE IF NOT EXISTS tasks (
  id INTEGER PRIMARY KEY, room_id INTEGER NOT NULL REFERENCES rooms(id),
@@ -74,10 +76,13 @@ class Database:
         finally:
             conn.close()
         with self.connect(write=True) as conn:
-            for table, column in (("rooms", ROOM_REPOSITORY), ("rooms", ROOM_FOLDER), ("tasks", TASK_RETRY)):
+            for table, column in (("rooms", ROOM_REPOSITORY), ("rooms", ROOM_FOLDER),
+                                  ("tasks", TASK_RETRY), ("messages", MESSAGE_REPLY)):
                 if not any(row["name"] == column.split(" ", 1)[0]
                            for row in conn.execute(f"PRAGMA table_info({table})")):
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {column}")
+            conn.execute("CREATE INDEX IF NOT EXISTS messages_room ON messages(room_id, id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS messages_reply ON messages(reply_to_message_id) WHERE reply_to_message_id IS NOT NULL")
 
     @contextmanager
     def connect(self, write=False):

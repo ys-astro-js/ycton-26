@@ -4,6 +4,7 @@ import { Bot, ChevronDown, CircleAlert, CircleCheck, CircleDashed, CirclePause, 
 import { useId, useMemo, useState } from 'react'
 
 import { cn } from '@/lib/utils'
+import { SessionDetails } from '../room/session-details.tsx'
 
 import type { LedgerEntry, LedgerStatus, Project } from './model.ts'
 import { DisclosurePanel, Glyph, Handoff, SessionLog, STATUS } from './shared.tsx'
@@ -262,6 +263,7 @@ function LedgerRow({ entry, open, onToggle }: { entry: LedgerEntry; open: boolea
         <div className="grid gap-6 ps-12 pe-4 pt-2 pb-4 @min-[52rem]:grid-cols-2">
           <Handoff lines={entry.handoff} />
           <SessionLog lines={entry.log} />
+          {open && entry.sessions.length ? <SessionDetails sessions={entry.sessions} /> : null}
         </div>
       </DisclosurePanel>
     </li>

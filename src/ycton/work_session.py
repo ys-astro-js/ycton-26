@@ -10,6 +10,7 @@ from acp.schema import McpServerStdio, SessionNotification
 
 from .acp_runtime import SessionResult, _run_session
 from .room_mcp import is_room_mcp_server
+from .subprocess_env import child_environment
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +52,7 @@ def _work_prompt(task: WorkTask, *, can_commit: bool = False) -> str:
 async def _git(repo: Path, *args: str) -> str:
     process = await asyncio.create_subprocess_exec(
         "git", "-C", str(repo), *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        env=child_environment(),
     )
     try:
         stdout, stderr = await process.communicate()

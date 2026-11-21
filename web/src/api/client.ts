@@ -127,9 +127,15 @@ export interface Session {
   commit_hash: string | null
   stop_reason: string | null
   verification_output: string | null
-  latest_event: string | null
+  acp_session_id: string | null
   created_at: string
   finished_at: string | null
+}
+
+export interface SessionEventPage {
+  events: { id: number; kind: 'message' | 'tool' | 'plan' | 'log_gap'; text: string }[]
+  next_cursor: number
+  has_more: boolean
 }
 
 export interface Message {
@@ -137,12 +143,16 @@ export interface Message {
   room_id: number
   author: string
   content: string
+  reply_to_message_id: number | null
   created_at: string
 }
+export type JevRecommendation = { action: 'wait' | 'spawn_suggested'; reason: string }
+
 
 export interface Jev {
   action: 'stop' | 'wait' | 'go' | 'spawn_suggested'
   reason: string
+  recommendation?: JevRecommendation
 }
 
 /** 프로젝트 저장소의 현재 브랜치와 origin 원격(host/경로). 실제 폴더가 없는 mock 기본 저장소는 null입니다 */
@@ -158,6 +168,7 @@ export interface RoomState {
   tasks: Task[]
   sessions: Session[]
   messages: Message[]
+  unanswered_questions: Message[]
   jev: Jev
   mode: string
 }
@@ -178,8 +189,10 @@ export const api = {
   resume: (roomId: number) => request<Room>(`/api/rooms/${roomId}/resume`, { method: 'POST' }),
   pause: (roomId: number) => request<Room>(`/api/rooms/${roomId}/pause`, { method: 'POST' }),
   retry: (taskId: number, note: string) => request<Task>(`/api/tasks/${taskId}/retry`, { method: 'POST', body: { note } }),
-  postMessage: (roomId: number, content: string) =>
-    request<{ ok: boolean }>(`/api/rooms/${roomId}/messages`, { method: 'POST', body: { content } }),
+  postMessage: (roomId: number, content: string, replyTo?: number) =>
+    request<{ ok: boolean }>(`/api/rooms/${roomId}/messages`, {
+      method: 'POST', body: { content, reply_to_message_id: replyTo },
+    }),
   agentModels: () => request<ModelProvider[]>('/api/agent-models'),
   /** 경로를 입력받지 않고, 서버가 띄운 OS 폴더 선택 창에서 고른 결과만 씁니다 */
   pickFolder: () => request<PickedFolder>('/api/folders/pick', { method: 'POST' }),
@@ -194,4 +207,6 @@ export const api = {
   drop: (taskId: number, note: string) => request<Task>(`/api/tasks/${taskId}/drop`, { method: 'POST', body: { note } }),
   session: (sessionId: string) => request<Session>(`/api/sessions/${sessionId}`),
   cancel: (sessionId: string) => request<Session>(`/api/sessions/${sessionId}/cancel`, { method: 'POST' }),
+  sessionEvents: (sessionId: string, cursor: number) =>
+    request<SessionEventPage>(`/api/sessions/${sessionId}/events?cursor=${cursor}`),
 }

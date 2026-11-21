@@ -6,6 +6,7 @@ import subprocess
 import tomllib
 from urllib.parse import urlsplit
 
+from ycton.subprocess_env import child_environment
 
 @dataclass(frozen=True)
 class AgentKind:
@@ -110,10 +111,11 @@ class RuntimeConfig:
             if worktrees.is_relative_to(repo) or logs.is_relative_to(repo):
                 raise ValueError("worktrees와 logs는 원본 저장소 밖이어야 합니다")
             try:
+                env = child_environment()
                 root = subprocess.run(["git", "-C", str(repo), "rev-parse", "--show-toplevel"],
-                                      check=True, capture_output=True, encoding="utf-8", timeout=10)
+                                      env=env, check=True, capture_output=True, encoding="utf-8", timeout=10)
                 subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", "HEAD"],
-                               check=True, capture_output=True, timeout=10)
+                               env=env, check=True, capture_output=True, timeout=10)
             except (OSError, subprocess.SubprocessError, UnicodeError) as exc:
                 raise ValueError(f"커밋이 있는 Git 저장소가 필요합니다: {repo} ({exc})") from exc
             if Path(root.stdout.rstrip("\r\n")).resolve() != repo:

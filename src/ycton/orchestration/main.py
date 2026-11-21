@@ -11,6 +11,7 @@ from ycton.orchestration.db import Database
 from ycton.orchestration.services.task_service import TaskService, DomainError
 from ycton.orchestration.fake_runtime import FakeRuntime
 from ycton.orchestration.scheduler import Scheduler
+from ycton.orchestration.jev import OpenRouterJev
 from ycton.orchestration.api import rooms, tasks, sessions, agent_bridge
 from ycton.orchestration.identity import Tokens
 from ycton.orchestration.runtime_config import RuntimeConfig
@@ -57,16 +58,23 @@ def create_app(settings=None, runtime_factory=None, start_scheduler=True, folder
         names = asyncio.create_task(load_model_names(svc)) if runtime_config is not None else None
         scheduler = Scheduler(svc, runtime, config)
         app.state.service, app.state.scheduler = svc, scheduler
+        app.state.jev = OpenRouterJev(config.openrouter_api_key, config.jev_model) if config.openrouter_api_key else None
         if start_scheduler:
             scheduler.start()
         try:
             yield
         finally:
-            if names is not None:
-                names.cancel()
-                with suppress(asyncio.CancelledError):
-                    await names
-            await scheduler.stop()
+            try:
+                if names is not None:
+                    names.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await names
+            finally:
+                try:
+                    await scheduler.stop()
+                finally:
+                    if app.state.jev is not None:
+                        await app.state.jev.close()
 
     app = FastAPI(title="Ycton orchestration", version="0.1.0", lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=list(config.origins),
