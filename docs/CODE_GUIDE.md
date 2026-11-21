@@ -44,7 +44,8 @@ React → FastAPI → TaskService → SQLite
 | `fake_runtime.py` | AI 없이 claim/delegate/성공·실패를 재현 |
 | `scheduler.py` | 대기 세션 실행, 전체/에이전트별 한도, 시간 제한과 취소 |
 | `jev.py` | 현재 상태에 대한 go/wait/stop/spawn 제안. 실제 spawn은 하지 않음 |
-| `services/task_service.py` | claim·delegate·완료·실패·재시작의 모든 상태 변경 |
+| `services/task_service.py` | claim·delegate·commit 기록·완료·실패·재시작의 모든 상태 변경 |
+| `git_commit.py` | 작업 worktree 안의 고른 파일만 커밋. 경로 검증과 git 실행 |
 | `services/prompt_builder.py` | 채팅에는 최근 상태, 작업에는 할 일과 인계만 전달 |
 | `api/dependencies.py` | 사람용 API 헤더 검사와 서비스 주입 |
 | `api/rooms.py` | 방·참여자·사람 메시지·상태 조회·pause/resume |
@@ -84,7 +85,7 @@ React → FastAPI → TaskService → SQLite
 
 사람용 요청: `X-Orch-Client: web`. 브라우저 Origin과 Host 제한이 있습니다. 이는 사용자 계정 인증이 아니며 로컬 신뢰 환경용입니다.
 
-에이전트용 요청: 실행별 Bearer 토큰. 내부 API가 방·작성자·활성 chat 세션 일치를 확인합니다. work 세션에는 MCP 설정/토큰을 전달하지 않습니다. 종료 시 토큰을 폐기하고 토큰 발급 API는 제공하지 않습니다.
+에이전트용 요청: 실행별 Bearer 토큰. 내부 API가 방·작성자·활성 세션 종류 일치를 확인합니다. chat 토큰은 send·list_tasks·claim·delegate만, work 토큰은 commit만 쓸 수 있습니다. 종료 시 토큰을 폐기하고 토큰 발급 API는 제공하지 않습니다.
 
 로그 소비자는 해당 세션 토큰 문자열을 지웁니다. 외부 런타임 자체 stderr까지 모든 비밀 정보를 자동 검출하는 기능은 아닙니다. 프롬프트나 지침에 비밀을 넣지 마세요.
 

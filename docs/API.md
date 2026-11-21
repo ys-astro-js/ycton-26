@@ -105,14 +105,34 @@ claim(task_id)
 delegate(task_id, request_id, instructions="")
 ```
 
-실제 작업 세션에는 위 도구를 제공하지 않습니다. 결과는 run_work_session의 반환값과 서버 검증으로만 확정합니다. 에이전트가 done을 직접 호출하는 API도 없습니다.
+작업 세션에는 위 도구 대신 아래 도구 하나만 제공합니다(MCP `--work` 모드).
+
+```text
+commit(paths, message)
+```
+
+작업 결과는 run_work_session의 반환값과 서버 검증으로만 확정합니다. 에이전트가 done을 직접 호출하는 API는 없습니다.
+
+### commit
+
+`POST /api/agent/commit`, 작업 세션의 토큰으로만 호출합니다.
+
+```json
+{"room_id":"1","participant_id":"2","paths":["src/search/empty.tsx"],"message":"Show a hint for empty search results"}
+```
+
+- 토큰의 세션이 실행 중인 작업 세션이고 그 할 일의 현재 시도여야 합니다. 아니면 403입니다.
+- 경로는 worktree 기준 상대 경로만 받습니다. 절대 경로, worktree 밖, `.git` 내부는 422로 거절합니다. pathspec 패턴은 해석하지 않습니다.
+- 서버가 worktree에서 `git add -- <paths>` 후 `git commit --only`로 지정한 파일만 커밋합니다. 다른 변경은 스테이징되어 있어도 남습니다. 작성자는 `<에이전트 이름> (ycton)`입니다.
+- 성공하면 201과 `{"commit":"<해시>"}`를 반환하고, 세션의 `commit_hash`와 할 일 이력(`committed`)에 기록합니다. 커밋할 변경이 없는 등 git이 실패하면 422와 git의 오류 내용을 돌려줍니다.
+- 시도가 done으로 끝나면 할 일의 `commit_hash`에 마지막 커밋을 연결합니다. 실패한 시도의 커밋은 인계 노트에 `commit=<해시>`로만 남습니다.
 
 ## 오류 형식
 
-401: 토큰 없음/폐기됨. 403: 방·작성자 불일치, 비활성 세션, 금지된 Origin/사람용 요청. 404: 항목 없음. 409: 상태 충돌. 422: 입력 오류/없는 종류/검증 프로필.
+401: 토큰 없음/폐기됨. 403: 방·작성자 불일치, 비활성 세션, 금지된 Origin/사람용 요청. 404: 항목 없음. 409: 상태 충돌. 422: 입력 오류/없는 종류/검증 프로필/커밋 실패.
 
 도메인 오류는 `{"detail":"이유"}`이고, FastAPI 입력 검증 오류의 detail은 배열입니다. MCP는 HTTP 상태를 도구 오류로 변환합니다. API 응답 본문을 임의의 셸 명령으로 실행하지 않습니다.
 
 ## 최신 런타임 병합 호환성
 
-`claim`과 `delegate`는 정수 task_id도 받으며 내부에서 문자열로 정규화합니다. `delegate.request_id`를 생략하면 현재 채팅 세션과 작업 ID로 중복 방지 키를 만듭니다. 기존 명시적 request_id 방식도 유지합니다. MCP의 `--work` 모드는 send만 노출하며, 현재 오케스트레이터는 work 세션에 MCP 토큰을 전달하지 않는 정책을 유지합니다.
+`claim`과 `delegate`는 정수 task_id도 받으며 내부에서 문자열로 정규화합니다. `delegate.request_id`를 생략하면 현재 채팅 세션과 작업 ID로 중복 방지 키를 만듭니다. 기존 명시적 request_id 방식도 유지합니다. MCP의 `--work` 모드는 commit만 노출하며, 오케스트레이터는 work 세션마다 별도 토큰을 발급해 전달하고 종료 시 폐기합니다.

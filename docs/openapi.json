@@ -815,6 +815,57 @@
         }
       }
     },
+    "/api/agent/commit": {
+      "post": {
+        "tags": [
+          "내부 MCP: 세션 인증"
+        ],
+        "summary": "Commit",
+        "operationId": "commit_api_agent_commit_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Commit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/{session_id}": {
       "get": {
         "tags": [
@@ -996,6 +1047,44 @@
           "task_id"
         ],
         "title": "Assignment"
+      },
+      "Commit": {
+        "properties": {
+          "room_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Room Id"
+          },
+          "participant_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Participant Id"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Paths"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "room_id",
+          "participant_id",
+          "paths",
+          "message"
+        ],
+        "title": "Commit"
       },
       "Delegation": {
         "properties": {

@@ -56,9 +56,9 @@ uv run --locked python -m ycton.acp_runtime --prompt 'Reply with exactly ACP_CON
 
 ### 작업 서브세션 연동
 
-- 오케스트레이션은 `ycton.work_session.run_work_session`에 `repo`, 시도마다 다른 `worktree` 경로, `WorkTask(title, detail, scope, verify, instructions, agents_md)`를 넘깁니다. 경로는 원본 체크아웃 밖이어야 합니다. 런타임은 원본의 커밋된 `HEAD`에서 새 detached worktree를 만들고 채팅 기록 없이 Codex의 새 `workspace-write` 세션을 엽니다.
+- 오케스트레이션은 `ycton.work_session.run_work_session`에 `repo`, 시도마다 다른 `worktree` 경로, `WorkTask(title, detail, scope, verify, instructions, agents_md)`를 넘깁니다. 경로는 원본 체크아웃 밖이어야 합니다. 런타임은 원본의 커밋된 `HEAD`에서 시도별 새 브랜치의 worktree를 만들고 채팅 기록 없이 Codex의 새 `workspace-write` 세션을 엽니다.
 - 에이전트는 worktree에서 수정하고 작업에 지정된 검증을 실행합니다. `on_update`로 진행과 검증 도구 출력을 받고, `result.session.text`로 작업 보고를 받습니다. `end_turn`은 ACP 턴 종료이며, 검증이 통과했다는 뜻은 아닙니다.
-- 작업본은 성공·실패·시간 초과 모두 인계를 위해 남깁니다. 변경을 자동 커밋하거나 원본에 합치지 않습니다. `TimeoutError` 또는 실행 오류가 나면 오케스트레이션이 할 일 상태와 인계 노트를 갱신합니다.
+- 작업본은 성공·실패·시간 초과 모두 인계를 위해 남깁니다. 에이전트가 `commit` 도구로 고른 파일만 커밋하며, 원본에 합치지는 않습니다. `TimeoutError` 또는 실행 오류가 나면 오케스트레이션이 할 일 상태와 인계 노트를 갱신합니다.
 
 ## 문제 정의
 
