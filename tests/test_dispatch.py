@@ -397,6 +397,20 @@ def test_idle_skips_rooms_waiting_on_a_human_question_or_failed_chat(room):
     assert svc.idle_rooms() == []
 
 
+def test_dismissed_question_unblocks_idle_handoff_but_later_agent_messages_do_not(room):
+    svc, rid, ids = room
+    idle_ready(svc, rid, ids)
+    svc.post_message(rid, "@human 검증 범위를 알려주세요.", ids["Alice"])
+    question = svc.snapshot(rid)["messages"][-1]["id"]
+    svc.post_message(rid, "검증 범위를 정하기 전까지 초안은 준비했습니다.", ids["Bob"])
+    last = svc.idle_context(rid)["last_message"]
+    assert svc.idle_rooms() == []
+    assert svc.hand_off(rid, ids["Alice"], last) is False
+    svc.resolve_question(question)
+    assert svc.idle_rooms() == [rid]
+    assert svc.hand_off(rid, ids["Alice"], last) is True
+
+
 def test_upgrade_does_not_wake_old_rooms(tmp_path):
     import sqlite3
     path = tmp_path / "old.db"

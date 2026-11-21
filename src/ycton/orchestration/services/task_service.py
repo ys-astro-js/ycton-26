@@ -36,6 +36,17 @@ def _asks_human(text: str) -> bool:
     return _HUMAN_MENTION.search(_MARKDOWN_CODE.sub(" ", text)) is not None
 
 
+def _unanswered_questions(conn, room_id):
+    rows = conn.execute("""
+        SELECT question.* FROM messages question
+        WHERE question.room_id=? AND question.author GLOB 'agent:*'
+        AND instr(lower(question.content),'@human')>0 AND question.resolved=0
+        AND NOT EXISTS (SELECT 1 FROM messages reply WHERE reply.reply_to_message_id=question.id)
+        ORDER BY question.id
+    """, (room_id,))
+    return (row for row in rows if _asks_human(row["content"]))
+
+
 def mentioned_agents(agents, content):
     """본문에서 @이름으로 부른 에이전트. 더 긴 이름의 앞부분만 맞는 경우는 세지 않는다."""
     return [agent for agent in agents
@@ -353,11 +364,11 @@ class TaskService:
 
     @staticmethod
     def _waits_for_human(c, room_id):
-        """마지막 말이 사람에게 묻는 질문이거나 채팅 실행 실패이면 사람이 볼 차례다."""
+        """미답변 질문이 있거나 마지막 메시지가 채팅 실패면 사람을 기다린다."""
         last = c.execute("SELECT author, content FROM messages WHERE room_id=? ORDER BY id DESC LIMIT 1",
                          (room_id,)).fetchone()
-        return (last["author"].startswith("agent:") and _asks_human(last["content"])) or (
-            last["author"] == "system" and last["content"].startswith(CHAT_FAILED))
+        return (last is not None and last["author"] == "system" and last["content"].startswith(CHAT_FAILED)
+                or next(_unanswered_questions(c, room_id), None) is not None)
 
     def idle_context(self, room_id):
         """Jev가 다음 단계를 판단할 때 보는 내용. 확인한 마지막 메시지 ID도 함께 돌려준다."""
@@ -387,7 +398,7 @@ class TaskService:
             last = c.execute("SELECT max(id) FROM messages WHERE room_id=?", (room_id,)).fetchone()[0]
             busy = c.execute("SELECT 1 FROM sessions WHERE room_id=? AND status IN ('queued','running')",
                              (room_id,)).fetchone()
-            if room["paused"] or agent is None or last != expected_last or busy:
+            if room["paused"] or agent is None or last != expected_last or busy or self._waits_for_human(c, room_id):
                 return False
             self._spend_auto_step(c, room_id)
             self.message(c, room_id, "system",
@@ -723,14 +734,7 @@ class TaskService:
                     public_session(session)
                 result["running_work"] = c.execute(
                     "SELECT count(*) FROM sessions WHERE kind='work' AND status='running'").fetchone()[0]
-                result["unanswered_questions"] = [dict(row) for row in c.execute("""
-                    SELECT question.* FROM messages question
-                    WHERE question.room_id=? AND question.author GLOB 'agent:*'
-                    AND instr(lower(question.content),'@human')>0
-                    AND question.resolved=0
-                    AND NOT EXISTS (SELECT 1 FROM messages reply WHERE reply.reply_to_message_id=question.id)
-                    ORDER BY question.id
-                """, (room_id,)) if _asks_human(row["content"])]
+                result["unanswered_questions"] = [dict(row) for row in _unanswered_questions(c, room_id)]
             return result
 
     def recover(self):
