@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from ycton.acp_runtime import run_session
-from ycton.work_session import WorkTask, run_work_session
+from ycton.work_session import WorkTask, ensure_branch, fast_forward, run_work_session
 from ycton.room_mcp import room_mcp_server
 from ycton.agent_process import spawn_owned_agent
 from ycton.subprocess_env import child_environment
@@ -111,6 +111,8 @@ class AcpRuntime:
         worktree = self.config.worktrees / f"task-{request.task_id}" / request.session_id
         # 시도마다 새 브랜치를 만들어, worktree를 지워도 커밋을 찾을 수 있게 한다.
         branch = f"ycton/task-{request.task_id}-{request.session_id[:8]}"
+        # 방의 done 커밋이 쌓이는 통합 브랜치. 시도는 그 끝에서 시작해 앞선 결과 위에서 작업한다.
+        room_branch = f"ycton/room-{request.room_id}"
         # 경로는 호출 전에 기록해서 런타임 실패 시에도 보존한다.
         self.service.execution_metadata(request.session_id, worktree=str(worktree))
         task = WorkTask(title=data["title"], detail=data["detail"], scope=data["scope"],
@@ -122,10 +124,11 @@ class AcpRuntime:
         mcp = room_mcp_server(api_url=self.config.api_url, token=token,
                               room_id=str(request.room_id), participant_id=str(request.agent_id))
         try:
+            await ensure_branch(Path(repository.path), room_branch)
             async with EventLog(log, self.service, request.session_id, secrets=(token,)) as events:
                 result = await run_work_session(*kind.command, repo=repository.path, worktree=worktree,
                                                task=task, timeout=self.config.timeout, mcp_servers=[mcp],
-                                               on_update=events.on_update, branch=branch,
+                                               on_update=events.on_update, branch=branch, base=room_branch,
                                                config=self.session_config(request))
             self.service.execution_metadata(request.session_id, acp_session_id=result.session.session_id,
                                             stop_reason=str(result.session.stop_reason))
@@ -135,12 +138,21 @@ class AcpRuntime:
             self.service.execution_metadata(request.session_id, verification_output=output)
             # 검증을 통과해도 commit 도구로 남긴 커밋이 없으면 done으로 보지 않는다.
             with self.service.db.connect() as c:
-                committed = require(c, "sessions", request.session_id)["commit_hash"] is not None
+                commit = require(c, "sessions", request.session_id)["commit_hash"]
             summary = (f"{result.session.text}\n서버 검증: {'passed' if passed else 'failed'}\n"
                        f"{output[:4000]}\nworktree={worktree}; branch={branch}")
-            if not committed:
+            if commit is None:
                 summary += "\n커밋 없음: commit 도구로 고른 파일을 커밋해야 완료됩니다"
-            return RuntimeResult(passed and committed, summary, "passed" if passed else "failed", log_path=str(log))
+                return RuntimeResult(False, summary, "passed" if passed else "failed", log_path=str(log))
+            if not passed:
+                return RuntimeResult(False, summary, "failed", log_path=str(log))
+            # 병합하지 않고 빨리 감기만 한다. 그사이 다른 할 일이 방 브랜치를 옮겼으면 실패로 돌려 새 끝에서 다시 하게 한다.
+            if not await fast_forward(Path(repository.path), room_branch, commit):
+                summary += (f"\n{room_branch} 반영 실패: 이 시도가 시작한 뒤 다른 할 일의 결과가 먼저 반영되어 "
+                            "빨리 감기할 수 없습니다. 다시 시도하면 새 끝에서 시작합니다")
+                return RuntimeResult(False, summary, "passed", log_path=str(log))
+            summary += f"\n{room_branch}={commit}"
+            return RuntimeResult(True, summary, "passed", log_path=str(log))
         except TimeoutError:
             return RuntimeResult(False, f"작업 또는 검증 시간 초과; worktree={worktree}; branch={branch}", log_path=str(log))
         except asyncio.CancelledError:

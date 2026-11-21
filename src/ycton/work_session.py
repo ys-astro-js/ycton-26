@@ -29,7 +29,7 @@ class WorkSessionResult:
     session: SessionResult
 
 
-def _work_prompt(task: WorkTask, *, can_commit: bool = False) -> str:
+def _work_prompt(task: WorkTask, *, can_commit: bool = False, base: str = "HEAD") -> str:
     if can_commit:
         finish = (
             "When the change is complete and the verification passes, call the room `commit` tool with "
@@ -39,6 +39,8 @@ def _work_prompt(task: WorkTask, *, can_commit: bool = False) -> str:
         )
     else:
         finish = "Leave edits in the worktree. Do not commit, merge, or start detached processes.\n\n"
+    if base != "HEAD":
+        finish += f"This worktree starts from branch `{base}`, where verified results of earlier tasks accumulate.\n\n"
     return (
         "Complete the delegated task using only the current worktree. "
         "Run the requested verification here and report the exact command and observed outcome. "
@@ -67,6 +69,41 @@ async def _git(repo: Path, *args: str) -> str:
     return stdout.decode().rstrip("\r\n")
 
 
+async def _branch_tip(repo: Path, branch: str) -> str | None:
+    try:
+        return await _git(repo, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}^{{commit}}")
+    except RuntimeError:
+        return None
+
+
+async def ensure_branch(repo: Path, branch: str) -> None:
+    """Create ``branch`` at the checkout's HEAD unless it exists. The checked-out branch is untouched."""
+    if await _branch_tip(repo, branch) is not None:
+        return
+    try:
+        await _git(repo, "branch", "--no-track", branch, "HEAD")
+    except RuntimeError:
+        # 동시에 시작한 다른 시도가 먼저 만들었으면 그대로 쓴다.
+        if await _branch_tip(repo, branch) is None:
+            raise
+
+
+async def fast_forward(repo: Path, branch: str, commit: str) -> bool:
+    """Move ``branch`` to ``commit`` only when it is a fast-forward. Never merges.
+
+    ``update-ref`` with the old value makes the move fail if another attempt moved the branch meanwhile.
+    """
+    old = await _branch_tip(repo, branch)
+    if old is None:
+        return False
+    try:
+        await _git(repo, "merge-base", "--is-ancestor", old, commit)
+        await _git(repo, "update-ref", f"refs/heads/{branch}", commit, old)
+    except RuntimeError:
+        return False
+    return True
+
+
 async def run_work_session(
     executable: str,
     *args: str,
@@ -78,11 +115,13 @@ async def run_work_session(
     on_update: Callable[[SessionNotification], None] | None = None,
     branch: str | None = None,
     config: dict[str, str] | None = None,
+    base: str = "HEAD",
 ) -> WorkSessionResult:
     """Run Codex at a new worktree path. Keep the checkout for review or handoff.
 
     With ``branch``, the worktree starts on that new branch so later commits stay reachable
-    after the worktree is removed; without it, the checkout is detached.
+    after the worktree is removed; without it, the checkout is detached. ``base`` is the
+    revision the worktree starts from.
     """
     repo_root = Path(await _git(repo.resolve(), "rev-parse", "--show-toplevel")).resolve()
     workdir = worktree.resolve()
@@ -90,11 +129,12 @@ async def run_work_session(
         raise ValueError("Worktree must be outside the source checkout")
     workdir.mkdir(parents=True)
     start = ("-b", branch) if branch else ("--detach",)
-    await _git(repo_root, "worktree", "add", *start, "--", str(workdir), "HEAD")
+    await _git(repo_root, "worktree", "add", *start, "--", str(workdir), base)
 
     session = await _run_session(
         executable, *args, cwd=workdir,
-        prompt=_work_prompt(task, can_commit=any(is_room_mcp_server(s) for s in mcp_servers or ())), timeout=timeout,
+        prompt=_work_prompt(task, can_commit=any(is_room_mcp_server(s) for s in mcp_servers or ()), base=base),
+        timeout=timeout,
         mcp_servers=mcp_servers, on_update=on_update, work=True, config=config,
     )
     return WorkSessionResult(worktree=workdir, session=session)
