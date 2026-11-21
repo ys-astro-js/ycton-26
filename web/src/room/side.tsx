@@ -9,11 +9,12 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 import { StatusNode } from '../review/ledger.tsx'
 import { DisclosurePanel, Glyph, Handoff, STATUS, countFormat } from '../review/shared.tsx'
-import { clock, lines, taskPhase, useRoomMutation, useTaskEvents, type TaskPhase } from './data.ts'
+import { clock, lines, splitRequest, taskPhase, useRoomMutation, useTaskEvents, type TaskPhase } from './data.ts'
 import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
 
 /**
@@ -79,10 +80,13 @@ export function TaskList({ state, focus }: { state: RoomState; focus?: number })
 
   return (
     <section aria-labelledby={headingId} className="grid gap-3">
-      <h2 id={headingId} className="flex items-center gap-2 text-lg font-semibold">
-        할 일
-        <CountBadge count={state.tasks.length} unit="개" />
-      </h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 id={headingId} className="flex items-center gap-2 text-lg font-semibold">
+          할 일
+          <CountBadge count={state.tasks.length} unit="개" />
+        </h2>
+        <AddTask state={state} onAdded={setOpenId} />
+      </div>
       {tasks.length === 0 ? (
         <p className="border bg-card px-4 py-4 text-body text-muted-foreground">아직 할 일이 없습니다.</p>
       ) : (
@@ -100,6 +104,84 @@ export function TaskList({ state, focus }: { state: RoomState; focus?: number })
         </ol>
       )}
     </section>
+  )
+}
+
+/**
+ * 할 일마다 서버에 등록된 검증 프로필 이름을 보내야 합니다.
+ * 사람이 고를 일이 아니고 목록을 주는 API도 없어, runtime.example.toml의 [verify.unit]을 늘 씁니다.
+ */
+const VERIFY_PROFILE = 'unit'
+
+function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: number) => void }) {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const [invalid, setInvalid] = useState(false)
+  const textRef = useRef<HTMLTextAreaElement>(null)
+  const ids = { text: useId(), error: useId() }
+  const add = useRoomMutation(state.room.id, (body: string) => {
+    const { title, detail } = splitRequest(body)
+    return api.createTask(state.room.id, { title, detail, scope: '', verify: VERIFY_PROFILE })
+  })
+
+  const submit = (event?: FormEvent) => {
+    event?.preventDefault()
+    if (!text.trim()) {
+      setInvalid(true)
+      return textRef.current?.focus()
+    }
+    add.mutate(text.trim(), {
+      onSuccess: (task) => {
+        setText('')
+        setOpen(false)
+        onAdded(task.id)
+      },
+    })
+  }
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) setInvalid(false)
+      }}
+    >
+      <PopoverTrigger render={<IconButton variant="outline" icon={Plus} label="할 일 추가" />} />
+      <PopoverContent side="bottom" align="end" initialFocus={textRef} className="w-80">
+        <form noValidate aria-label="할 일 추가" onSubmit={submit} className="grid gap-3">
+          <Field data-invalid={invalid || undefined} className="gap-0">
+            <FieldLabel htmlFor={ids.text} className="text-label font-medium">
+              할 일
+            </FieldLabel>
+            <div className="flex items-end gap-2">
+              <Textarea
+                ref={textRef}
+                id={ids.text}
+                value={text}
+                aria-invalid={invalid || undefined}
+                aria-describedby={invalid ? ids.error : undefined}
+                className="max-h-64 min-h-20"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit()
+                }}
+                onChange={(event) => {
+                  setText(event.target.value)
+                  if (invalid) setInvalid(false)
+                }}
+              />
+              <IconButton type="submit" icon={Plus} label="할 일 추가" disabled={add.isPending} />
+            </div>
+            {invalid ? <FieldError id={ids.error}>할 일을 입력하세요.</FieldError> : null}
+          </Field>
+          {add.error ? (
+            <p role="alert" className="text-label text-destructive">
+              {add.error instanceof ApiError ? add.error.message : '할 일을 추가하지 못했습니다.'} 잠시 후 다시 시도하세요.
+            </p>
+          ) : null}
+        </form>
+      </PopoverContent>
+    </Popover>
   )
 }
 

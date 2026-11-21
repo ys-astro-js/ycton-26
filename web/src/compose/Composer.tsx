@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { ListTodo, MessageSquare, Plus, Send, type LucideIcon } from 'lucide-react'
+import { Plus, Send } from 'lucide-react'
 import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 
 import { api, ApiError } from '@/api/client'
@@ -8,19 +8,9 @@ import { IconButton } from '@/components/icon-button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 import { ROOMS_KEY, roomKey, splitRequest, useRooms } from '../room/data.ts'
-
-type Intent = 'say' | 'assign'
-
-/** 버튼 규칙(아이콘 또는 글자 하나만)에 따라 입력 종류도 아이콘 토글로 두고, 이름은 aria-label과 툴팁이 전합니다 */
-const INTENTS: { value: Intent; icon: LucideIcon; label: string }[] = [
-  { value: 'say', icon: MessageSquare, label: '메시지 보내기' },
-  { value: 'assign', icon: ListTodo, label: '할 일 추가하기' },
-]
 
 /**
  * 할 일마다 서버에 등록된 검증 프로필 이름을 보내야 합니다.
@@ -29,17 +19,16 @@ const INTENTS: { value: Intent; icon: LucideIcon; label: string }[] = [
 const VERIFY_PROFILE = 'unit'
 
 /**
- * 메시지를 보내거나 할 일을 추가하는 입력. 아침 리뷰(프로젝트를 고름)와 프로젝트(그 방의 입력창)이 같이 씁니다.
- * - 메시지: POST /api/rooms/{id}/messages. 에이전트가 대화로 답합니다.
- * - 할 일: POST /api/rooms/{id}/tasks. 에이전트는 할 일을 만들 수 없으므로 실제 작업은 이 경로로만 시작됩니다.
+ * 아침 리뷰와 프로젝트가 같이 쓰는 입력.
+ * - 아침 리뷰: 프로젝트를 골라 할 일을 추가합니다(POST /api/rooms/{id}/tasks).
+ * - 프로젝트: 메시지만 보냅니다(POST /api/rooms/{id}/messages). 그 프로젝트의 할 일은 할 일 목록에서 추가합니다.
  */
-export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?: (taskId: number) => void }) {
+export function Composer({ roomId }: { roomId?: number }) {
   const global = roomId === undefined
   const { data: rooms = [] } = useRooms()
   const navigate = useNavigate()
   const client = useQueryClient()
 
-  const [intent, setIntent] = useState<Intent>(global ? 'assign' : 'say')
   const [target, setTarget] = useState(roomId !== undefined ? String(roomId) : '')
   const [text, setText] = useState('')
   const [invalid, setInvalid] = useState<{ room?: boolean; text?: boolean }>({})
@@ -54,7 +43,7 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
     server: useId(),
   }
 
-  const assigning = intent === 'assign'
+  const assigning = global
 
   const send = useMutation({
     mutationFn: async ({ room, body, asTask }: { room: number; body: string; asTask: boolean }) => {
@@ -73,8 +62,7 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
         client.invalidateQueries({ queryKey: ['overnight-report'] }),
       ])
       if (!task) return
-      if (global) navigate({ to: '/rooms/$roomId', params: { roomId: String(room) }, search: { focus: task.id } })
-      else onAssigned?.(task.id)
+      navigate({ to: '/rooms/$roomId', params: { roomId: String(room) }, search: { focus: task.id } })
     },
   })
 
@@ -94,32 +82,6 @@ export function Composer({ roomId, onAssigned }: { roomId?: number; onAssigned?:
 
   return (
     <form noValidate onSubmit={submit} className="grid gap-3">
-      {global ? null : (
-        <ToggleGroup
-          aria-label="입력 종류"
-          spacing={0}
-          variant="outline"
-          size="sm"
-          value={[intent]}
-          onValueChange={(value) => {
-            if (value[0] === 'say' || value[0] === 'assign') setIntent(value[0])
-          }}
-        >
-          {INTENTS.map(({ value, icon: Icon, label }) => (
-            <Tooltip key={value}>
-              <TooltipTrigger
-                render={
-                  <ToggleGroupItem value={value} aria-label={label} className="size-8 px-0!">
-                    <Icon aria-hidden="true" strokeWidth={1.75} className="size-4" />
-                  </ToggleGroupItem>
-                }
-              />
-              <TooltipContent>{label}</TooltipContent>
-            </Tooltip>
-          ))}
-        </ToggleGroup>
-      )}
-
       <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
         <Field data-invalid={invalid.text || undefined} className="min-w-0 flex-1 basis-48 gap-0">
           <FieldLabel htmlFor={ids.text} className="sr-only">

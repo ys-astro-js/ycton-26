@@ -180,12 +180,7 @@ export function RoomPage() {
             <Timeline state={state} focus={focus} />
           )}
           <div className="sticky bottom-0 z-10 mt-auto border-t bg-background px-4 pt-3 pb-5">
-            <Composer
-              roomId={room.id}
-              onAssigned={(taskId) =>
-                navigate({ to: '/rooms/$roomId', params: { roomId: String(room.id) }, search: { focus: taskId }, resetScroll: false })
-              }
-            />
+            <Composer roomId={room.id} />
           </div>
         </section>
 
