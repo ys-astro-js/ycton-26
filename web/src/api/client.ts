@@ -127,4 +127,13 @@ export const api = {
   retry: (taskId: number, note: string) => request<Task>(`/api/tasks/${taskId}/retry`, { method: 'POST', body: { note } }),
   postMessage: (roomId: number, content: string) =>
     request<{ ok: boolean }>(`/api/rooms/${roomId}/messages`, { method: 'POST', body: { content } }),
+  createRoom: (name: string) => request<Room>('/api/rooms', { method: 'POST', body: { name } }),
+  addAgent: (roomId: number, agent: { name: string; kind: string; good_at: string[] }) =>
+    request<Agent>(`/api/rooms/${roomId}/agents`, { method: 'POST', body: agent }),
+  /** verify는 acp 모드에서 서버에 등록된 검증 프로필 이름이어야 합니다 */
+  createTask: (roomId: number, task: { title: string; detail: string; scope: string; verify: string }) =>
+    request<Task>(`/api/rooms/${roomId}/tasks`, { method: 'POST', body: task }),
+  drop: (taskId: number, note: string) => request<Task>(`/api/tasks/${taskId}/drop`, { method: 'POST', body: { note } }),
+  session: (sessionId: string) => request<Session>(`/api/sessions/${sessionId}`),
+  cancel: (sessionId: string) => request<Session>(`/api/sessions/${sessionId}/cancel`, { method: 'POST' }),
 }
