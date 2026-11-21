@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 
 import { StatusNode } from '../review/ledger.tsx'
 import { DisclosurePanel, Glyph, Handoff, STATUS, countFormat } from '../review/shared.tsx'
-import { clock, lines, splitRequest, taskPhase, useAgentModels, useRoomMutation, useTaskEvents, useVerificationProfile, workSessions, type TaskPhase } from './data.ts'
+import { clock, lines, splitRequest, taskPhase, useAgentModels, useRoomMutation, useTaskEvents, workSessions, type TaskPhase } from './data.ts'
 import { ModelPicker, type ModelChoice } from './model-picker.tsx'
 import { ROW_HEAD, RowChevron, RowToggle } from './row.tsx'
 import { SessionDetails } from './session-details.tsx'
@@ -112,14 +112,13 @@ export function TaskList({ state, focus }: { state: RoomState; focus?: number })
 function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: number) => void }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
-  const [scope, setScope] = useState('')
   const [invalid, setInvalid] = useState(false)
   const textRef = useRef<HTMLTextAreaElement>(null)
-  const ids = { text: useId(), scope: useId(), error: useId() }
-  const { verify, error: optionsError } = useVerificationProfile(state.room, open)
-  const add = useRoomMutation(state.room.id, ({ body, scope, verify }: { body: string; scope: string; verify: string }) => {
+  const ids = { text: useId(), error: useId() }
+  // 검증 프로필은 보내지 않습니다. 서버의 Jev가 담당과 함께 고릅니다.
+  const add = useRoomMutation(state.room.id, ({ body }: { body: string }) => {
     const { title, detail } = splitRequest(body)
-    return api.createTask(state.room.id, { title, detail, scope, verify })
+    return api.createTask(state.room.id, { title, detail })
   })
 
   const submit = (event?: FormEvent) => {
@@ -128,11 +127,10 @@ function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: numbe
       setInvalid(true)
       return textRef.current?.focus()
     }
-    if (!verify || add.isPending) return
-    add.mutate({ body: text.trim(), scope: scope.trim(), verify }, {
+    if (add.isPending) return
+    add.mutate({ body: text.trim() }, {
       onSuccess: (task) => {
         setText('')
-        setScope('')
         setOpen(false)
         onAdded(task.id)
       },
@@ -170,15 +168,10 @@ function AddTask({ state, onAdded }: { state: RoomState; onAdded: (taskId: numbe
                   if (invalid) setInvalid(false)
                 }}
               />
-              <IconButton type="submit" icon={Check} label="할 일 추가" disabled={!verify || add.isPending} />
+              <IconButton type="submit" icon={Check} label="할 일 추가" disabled={add.isPending} />
             </div>
             {invalid ? <FieldError id={ids.error}>할 일을 입력하세요.</FieldError> : null}
           </Field>
-          <Field className="gap-0">
-            <FieldLabel htmlFor={ids.scope} className="text-label font-medium">작업 범위 (선택)</FieldLabel>
-            <Input id={ids.scope} value={scope} maxLength={5000} placeholder="예: src/search/" onChange={(event) => setScope(event.target.value)} />
-          </Field>
-          {optionsError ? <p role="alert" className="text-label text-destructive">{optionsError}</p> : null}
           {add.error ? (
             <p role="alert" className="text-label text-destructive">
               {add.error instanceof ApiError ? add.error.message : '할 일을 추가하지 못했습니다.'} 잠시 후 다시 시도하세요.

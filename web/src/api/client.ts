@@ -201,8 +201,8 @@ export const api = {
     request<Room>('/api/rooms', { method: 'POST', body }),
   addAgent: (roomId: number, agent: { name: string; kind: string; model: string; effort: string; good_at: string[] }) =>
     request<Agent>(`/api/rooms/${roomId}/agents`, { method: 'POST', body: agent }),
-  /** verify는 이 프로젝트에서 허용된 검증 프로필 이름이어야 합니다 */
-  createTask: (roomId: number, task: { title: string; detail: string; scope: string; verify: string }) =>
+  /** verify를 비우면 서버의 Jev가 담당을 정할 때 검증 프로필도 고릅니다 */
+  createTask: (roomId: number, task: { title: string; detail: string; scope?: string; verify?: string }) =>
     request<Task>(`/api/rooms/${roomId}/tasks`, { method: 'POST', body: task }),
   drop: (taskId: number, note: string) => request<Task>(`/api/tasks/${taskId}/drop`, { method: 'POST', body: { note } }),
   session: (sessionId: string) => request<Session>(`/api/sessions/${sessionId}`),
