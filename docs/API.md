@@ -28,9 +28,11 @@
 
 토큰 발급 API는 없습니다. 일반 API의 ID는 정수, session ID는 UUID 문자열입니다.
 
-state는 1초 정도 간격의 폴링으로 시작할 수 있습니다. 방 paused는 SQLite의 0/1입니다. messages는 최근 100개입니다. 세션은 전체 이력이므로 장기 운영 시 페이지 조회를 추가해야 합니다.
+state는 1초 정도 간격으로 폴링합니다. `room.paused`는 `0`(진행), `1`(사람이 중지), `2`(서버 재시작으로 중지)입니다. `messages`는 최근 100개입니다.
 
-`unanswered_questions`는 해당 방에서 답장되지 않은 에이전트의 `@` 멘션입니다. 일반 메시지로 닫히지 않으며, 최근 메시지 100개에서 밀려나도 남습니다. `jev.action`은 `stop`, `wait`, `spawn_suggested`, `go` 중 하나이고 `reason`을 함께 반환합니다. OpenRouter가 판단을 반환한 경우에만 `jev.recommendation`에 `{action, reason}`이 추가됩니다. 추천은 실행 상태를 변경하지 않습니다.
+`unanswered_questions`는 에이전트가 본문에 `@human`으로 사람을 호출한 미답변 메시지입니다. 대소문자를 구분하지 않으며, 다른 에이전트 멘션, `@all`, 코드 예시는 질문으로 집계하지 않습니다. 일반 메시지로 닫히지 않고 최근 메시지 100개에서 밀려나도 남습니다.
+
+`jev.action`은 `stop`, `wait`, `spawn_suggested`, `go` 중 하나이며 `reason`을 함께 반환합니다. 프로젝트 화면은 `wait`와 `spawn_suggested`의 이유를 고정 상태 바 아래에 표시합니다. OpenRouter가 판단을 반환하면 `jev.recommendation`에 `{action, reason}`이 추가되며, 추천은 실행 상태를 변경하지 않습니다.
 
 세션의 추가 필드:
 
